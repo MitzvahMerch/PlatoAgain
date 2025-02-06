@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
@@ -9,46 +10,68 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Add basic logging
-@app.before_request
-def before_request():
-    print(f"Incoming request: {request.method} {request.path}")
-
 class PlatoBot:
     def __init__(self):
         self.conversation_history = {}
-    
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.system_prompt = """You are Plato, an expert AI assistant for a print-on-demand business. You specialize in:
+1. Product recommendations from SanMar and S&S Activewear catalogs
+2. Custom design consultations
+3. Price estimates based on quantity and product type
+4. Print method recommendations (DTG, screen printing, embroidery)
+5. Technical specifications and artwork requirements
+
+Always be helpful, professional, and knowledgeable about the printing industry. When discussing prices or making recommendations, ask clarifying questions to better understand the customer's needs.
+
+Remember:
+- Get specific details about design ideas
+- Ask about quantity for accurate pricing
+- Confirm fabric preferences and use cases
+- Suggest alternative products when appropriate
+- Explain technical requirements clearly"""
+
     def process_message(self, user_id, message):
         print(f"Processing message from {user_id}: {message}")
         
+        # Initialize conversation if new user
         if user_id not in self.conversation_history:
             self.conversation_history[user_id] = []
-        
+            
+        # Add user message to history
         self.conversation_history[user_id].append({
             "role": "user",
             "content": message
         })
         
-        response = self.generate_response(message)
-        print(f"Generated response: {response}")
+        # Prepare messages for OpenAI
+        messages = [
+            {"role": "system", "content": self.system_prompt}
+        ] + self.conversation_history[user_id][-10:]  # Include last 10 messages for context
         
-        self.conversation_history[user_id].append({
-            "role": "assistant",
-            "content": response
-        })
-        
-        return response
-    
-    def generate_response(self, message):
-        message = message.lower()
-        if "pricing" in message:
-            return "Our pricing varies based on quantity and product type. What specific items are you interested in?"
-        elif "design" in message:
-            return "I can help you create custom designs! What type of design are you looking for?"
-        elif "product" in message:
-            return "We offer a wide range of products including t-shirts, hoodies, caps, and more. What are you interested in?"
-        else:
-            return "Welcome to Plato's Prints! I can help you with product information, pricing, and custom designs. What would you like to know?"
+        try:
+            # Get response from OpenAI
+            response = self.client.chat.completions.create(
+                model="gpt-4o-2024-05-13",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=400
+            )
+            
+            # Extract response text
+            response_text = response.choices[0].message.content
+            print(f"Generated response: {response_text}")
+            
+            # Add assistant response to history
+            self.conversation_history[user_id].append({
+                "role": "assistant",
+                "content": response_text
+            })
+            
+            return response_text
+            
+        except Exception as e:
+            print(f"Error generating response: {str(e)}")
+            return "I apologize, but I encountered an error. Please try again or contact support if the issue persists."
 
 # Initialize the chatbot
 plato_bot = PlatoBot()
@@ -80,4 +103,4 @@ def health_check():
 
 if __name__ == '__main__':
     print("Starting Flask server...")
-    app.run(debug=True, port=5001)  # Changed port to 5001
+    app.run(debug=True, port=5001)
