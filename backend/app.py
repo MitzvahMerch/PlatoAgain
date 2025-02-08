@@ -10,7 +10,8 @@ from typing import List, Dict
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+level = os.getenv('LOG_LEVEL', 'INFO')
+logging.basicConfig(level=level)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -44,7 +45,7 @@ Your key capabilities:
 1. Product Recommendations
 - Understand customer requirements in natural language
 - Recommend products based on specific needs (softness, weight, style, price)
-- Provide real-time inventory and pricing information
+- Provide real-time inventory and pricing information 
 - Explain why each product matches their requirements
 
 2. Design Consultation
@@ -72,15 +73,28 @@ Always be helpful, professional, and precise with product details."""
         
         for i, product in enumerate(products, 1):
             # Basic product info
-            context += f"\n{i}. {product['title']}"
+            context += f"\n{i}. {product['title']} (Style #{product['style']})"
+            context += f"\n   Brand: {product['brand']}"
             context += f"\n   Description: {product['description']}"
             
             # Pricing info
             pricing = product.get('pricing', {})
             if pricing:
-                context += f"\n   Price: ${pricing.get('piece_price', 'N/A')} per piece"
-                if pricing.get('sale_price'):
-                    context += f" (On sale: ${pricing['sale_price']})"
+                piece_price = pricing.get('piece', 'N/A')
+                sale_price = pricing.get('sale')
+                price_text = pricing.get('text', '')
+                
+                context += f"\n   Price: ${piece_price} per piece"
+                if sale_price:
+                    context += f" (On sale: ${sale_price})"
+                if price_text:
+                    context += f" - {price_text}"
+            
+            # Size and Color info
+            context += f"\n   Available Sizes: {product.get('available_sizes', 'N/A')}"
+            colors = product.get('colors', [])
+            if colors:
+                context += f"\n   Colors: {', '.join(color for color in colors if color)}"
             
             # Inventory info
             inventory = product.get('inventory', [])
@@ -93,9 +107,18 @@ Always be helpful, professional, and precise with product details."""
                 context += "\n   Quick availability check:"
                 for inv in inventory[:3]:  # Show first 3 color/size combinations
                     context += f"\n   - {inv['color']} ({inv['size']}): {inv['available']} units"
+                    
+                    # Add warehouse breakdown if available
+                    warehouses = inv.get('warehouses', {})
+                    if warehouses:
+                        context += "\n     Available at:"
+                        for location, qty in warehouses.items():
+                            if qty > 0:
+                                context += f"\n     - {location}: {qty} units"
             else:
                 context += "\n   Inventory: Limited or unavailable"
             
+            # Add blank line between products
             context += "\n"
         
         return context
@@ -119,7 +142,8 @@ Always be helpful, professional, and precise with product details."""
             product_indicators = [
                 'shirt', 'tee', 't-shirt', 'hoodie', 'sweatshirt', 'polo', 'jacket',
                 'soft', 'light', 'heavy', 'affordable', 'premium', 'looking for',
-                'recommend', 'suggestion', 'need', 'want', 'cost', 'price'
+                'recommend', 'suggestion', 'need', 'want', 'cost', 'price',
+                'style', 'number', '#', 'pc61', 'gildan', 'port'
             ]
             
             should_search = any(indicator in message.lower() for indicator in product_indicators)
@@ -171,6 +195,7 @@ plato_bot = PlatoBot()
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    """Main chat endpoint"""
     logger.info("Received chat request")
     data = request.json
     logger.info(f"Request data: {data}")
@@ -223,8 +248,14 @@ def check_inventory():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
+    """Health check endpoint"""
     logger.info("Health check endpoint called")
-    return jsonify({"status": "healthy", "message": "Server is running"})
+    return jsonify({
+        "status": "healthy", 
+        "message": "Server is running",
+        "sanmar_connected": plato_bot.sanmar is not None,
+        "openai_key": bool(os.getenv('OPENAI_API_KEY'))
+    })
 
 if __name__ == '__main__':
     logger.info("Starting Flask server...")
