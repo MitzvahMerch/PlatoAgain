@@ -9,3 +9,5 @@ stripe==7.0.0
 Pillow==10.1.0
 requests==2.31.0
 zeep==4.2.1  # Added for SanMar SOAP API
+pandas
+numpy  # pandas usually requires numpy
