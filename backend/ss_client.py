@@ -1,4 +1,5 @@
 import os
+import base64
 import requests
 import logging
 from typing import Dict, List, Optional
@@ -9,40 +10,42 @@ from urllib3.util.retry import Retry
 logger = logging.getLogger(__name__)
 
 class SSClient:
-    def __init__(self, api_key: str):
-        self.api_key = api_key
+    def __init__(self, username: str, api_key: str):
         self.base_url = "https://api.ssactivewear.com/v2"
+        auth_str = f"{username}:{api_key}"
+        encoded_auth = base64.b64encode(auth_str.encode()).decode()
         
-        # Setup session with retry logic
         self.session = requests.Session()
-        retries = Retry(
+        retry_strategy = Retry(
             total=3,
             backoff_factor=0.5,
-            status_forcelist=[500, 502, 503, 504]
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET"]
         )
-        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        
         self.session.headers.update({
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Basic {encoded_auth}",
             "Content-Type": "application/json"
         })
 
-    def _make_request(self, endpoint: str, method: str = "GET", params: Dict = None) -> Dict:
+    def _make_request(self, params: Dict = None) -> Optional[Dict]:
         """Make request to S&S API with error handling"""
         try:
-            url = f"{self.base_url}/{endpoint}"
-            logger.debug(f"Making {method} request to {url} with params: {params}")
+            url = f"{self.base_url}/products/"
+            logger.debug(f"Making request to {url} with params: {params}")
             
-            response = self.session.request(method, url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=30)
             logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Full URL called: {response.url}")
             
             if response.status_code != 200:
                 logger.error(f"API error: Status {response.status_code}, Response: {response.text}")
                 return None
                 
             return response.json()
-        except requests.exceptions.Timeout:
-            logger.error(f"Request timeout for endpoint: {endpoint}")
-            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"API request failed: {str(e)}")
             return None
@@ -51,186 +54,109 @@ class SSClient:
             logger.exception(e)
             return None
 
-    def get_product_info(self, style: str) -> Optional[Dict]:
-        """Get basic product information by style number"""
+    def get_price(self, style: str, color: str) -> Optional[float]:
+        """Get price for a specific style and color"""
         try:
-            response = self._make_request(f"products/{style}")
-            if not response:
-                logger.warning(f"No product info found for style {style}")
-                return None
-                
-            # Extract relevant product information
-            product_info = {
-                "style": style,
-                "title": response.get("title"),
-                "description": response.get("description"),
-                "brand": response.get("brand", {}).get("name"),
-                "colors": [color.get("name") for color in response.get("colors", [])],
-                "sizes": [size.get("label") for size in response.get("sizes", [])],
-                "msrp": response.get("msrp"),
-                "category": response.get("category", {}).get("name")
+            # Convert G640 to 64000 if needed
+            if style.upper() == 'G640':
+                style = '64000'
+            
+            params = {
+                "style": f"Gildan {style}",
+                "fields": "colorName,customerPrice"
             }
-            return product_info
-        except Exception as e:
-            logger.error(f"Error getting product info for style {style}: {str(e)}")
-            return None
-
-    def get_pricing(self, style: str, color: str = None, size: str = None) -> Optional[Dict]:
-        """Get pricing information for a product"""
-        try:
-            params = {"style": style}
-            if color:
-                params["color"] = color
-            if size:
-                params["size"] = size
-                
-            response = self._make_request("pricing", params=params)
+            
+            response = self._make_request(params)
             if not response:
                 return None
 
-            # Extract pricing information with bulk discounts
-            pricing = {
-                "piece_price": response.get("piecePrice"),
-                "case_price": response.get("casePrice"),
-                "case_quantity": response.get("caseQuantity"),
-                "pricing_groups": response.get("pricingGroups", []),
-                "min_quantity": response.get("minimumQuantity", 1),
-                "bulk_discounts": self._extract_bulk_discounts(response)
-            }
-            return pricing
+            # Look for matching color variant
+            for variant in response:
+                if variant.get('colorName') == color:
+                    return variant.get('customerPrice')
+            
+            return None
+            
         except Exception as e:
-            logger.error(f"Error getting pricing for style {style}: {str(e)}")
+            logger.error(f"Error getting price: {str(e)}")
             return None
 
-    def _extract_bulk_discounts(self, pricing_data: Dict) -> List[Dict]:
-        """Extract bulk discount tiers from pricing data"""
-        discounts = []
-        for tier in pricing_data.get("pricingGroups", []):
-            discounts.append({
-                "quantity": tier.get("minimumQuantity"),
-                "price": tier.get("price"),
-                "discount_percentage": tier.get("discountPercentage")
-            })
-        return sorted(discounts, key=lambda x: x["quantity"])
-
-    def check_inventory(self, style: str, color: str = None, size: str = None) -> Optional[Dict]:
+    def check_inventory(self, style: str, color: str) -> Optional[Dict]:
         """Check inventory levels for a specific product variant"""
         try:
+            # Convert G640 to 64000 if needed
+            if style.upper() == 'G640':
+                style = '64000'
+            
             params = {
-                "style": style
+                "style": f"Gildan {style}",
+                "fields": "colorName,inventory"
             }
-            if color:
-                params["color"] = color
-            if size:
-                params["size"] = size
             
-            response = self._make_request("inventory", params=params)
+            response = self._make_request(params)
             if not response:
                 return None
 
-            # Extract inventory information with warehouse details
-            inventory = {
-                "total_available": response.get("quantityAvailable", 0),
-                "warehouses": response.get("warehouseQuantities", {}),
-                "incoming": response.get("incomingQuantity", 0),
-                "eta": response.get("eta"),
-                "min_quantity": response.get("minimumQuantity", 1),
-                "max_quantity": response.get("maximumQuantity"),
-                "last_updated": datetime.now().isoformat()
-            }
-            return inventory
-        except Exception as e:
-            logger.error(f"Error checking inventory for style {style}: {str(e)}")
+            # Find the matching color variant
+            for variant in response:
+                if variant.get('colorName') == color:
+                    inventory = variant.get('inventory', {})
+                    return {
+                        "total_available": inventory.get("quantityAvailable", 0),
+                        "warehouses": inventory.get("warehouseQuantities", {}),
+                        "incoming": inventory.get("incomingQuantity", 0),
+                        "eta": inventory.get("eta"),
+                        "min_quantity": inventory.get("minimumQuantity", 1),
+                        "max_quantity": inventory.get("maximumQuantity"),
+                        "last_updated": datetime.now().isoformat()
+                    }
+            
             return None
-
-    def search_products(self, query: str, filters: Dict = None) -> List[Dict]:
-        """Search products using keywords and optional filters"""
-        try:
-            params = {"q": query}
-            if filters:
-                params.update(filters)
-                
-            response = self._make_request("products/search", params=params)
             
-            products = []
-            for item in response.get("items", []):
-                product = {
-                    "style": item.get("styleNumber"),
-                    "title": item.get("title"),
-                    "brand": item.get("brand", {}).get("name"),
-                    "thumbnail": item.get("thumbnailUrl"),
-                    "colors": [color.get("name") for color in item.get("colors", [])],
-                    "msrp": item.get("msrp"),
-                    "category": item.get("category", {}).get("name"),
-                    "available": item.get("isAvailable", False)
-                }
-                products.append(product)
-            
-            return products
         except Exception as e:
-            logger.error(f"Error searching products: {str(e)}")
-            return []
-
-    def get_product_specs(self, style: str) -> Optional[Dict]:
-        """Get detailed product specifications"""
-        try:
-            response = self._make_request(f"products/{style}/specifications")
-            if not response:
-                return None
-                
-            return {
-                "material": response.get("material"),
-                "weight": response.get("weight"),
-                "features": response.get("features", []),
-                "specifications": response.get("specifications", {}),
-                "care_instructions": response.get("careInstructions", []),
-                "size_chart": response.get("sizeChart"),
-                "certifications": response.get("certifications", [])
-            }
-        except Exception as e:
-            logger.error(f"Error getting product specs for style {style}: {str(e)}")
+            logger.error(f"Error checking inventory: {str(e)}")
             return None
 
     def check_availability(self, style: str, color: str, min_qty: int = 24) -> Optional[Dict]:
         """Comprehensive check of product availability including price and inventory"""
         try:
-            # Get base product info
-            product_info = self.get_product_info(style)
-            if not product_info:
-                return None
-
-            # Get pricing
-            pricing = self.get_pricing(style, color)
-            if not pricing:
-                return None
-
-            # Check inventory
-            inventory = self.check_inventory(style, color)
-            if not inventory:
-                return None
-
-            # Check if we have sufficient quantity across required sizes
-            required_sizes = {'S', 'M', 'L', 'XL', '2XL'}
-            size_qty = {
-                size: inventory.get("warehouses", {}).get(size, 0)
-                for size in required_sizes
+            # Convert G640 to 64000 if needed
+            if style.upper() == 'G640':
+                style = '64000'
+            
+            params = {
+                "style": f"Gildan {style}",
+                "fields": "colorName,customerPrice,inventory,title,brand"
             }
             
-            available = all(
-                qty >= min_qty for qty in size_qty.values()
-            )
+            response = self._make_request(params)
+            if not response:
+                return None
 
-            return {
-                'available': available,
-                'price': pricing.get('piece_price'),
-                'bulk_pricing': pricing.get('bulk_discounts'),
-                'inventory': size_qty,
-                'product_name': product_info.get('title'),
-                'brand': product_info.get('brand'),
-                'material': product_info.get('specifications', {}).get('material')
-            }
-
+            # Find matching color variant
+            for variant in response:
+                if variant.get('colorName') == color:
+                    inventory = variant.get('inventory', {})
+                    size_qty = {}
+                    required_sizes = {'S', 'M', 'L', 'XL', '2XL'}
+                    
+                    for size in required_sizes:
+                        size_qty[size] = inventory.get("warehouseQuantities", {}).get(size, 0)
+                    
+                    available = all(qty >= min_qty for qty in size_qty.values())
+                    
+                    return {
+                        'available': available,
+                        'price': variant.get('customerPrice'),
+                        'bulk_pricing': variant.get('pricingGroups', []),
+                        'inventory': size_qty,
+                        'product_name': variant.get('title'),
+                        'brand': variant.get('brand', {}).get('name')
+                    }
+            
+            return None
+            
         except Exception as e:
-            logger.error(f"Error in comprehensive availability check: {str(e)}")
+            logger.error(f"Error in availability check: {str(e)}")
             logger.exception(e)
             return None
