@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
@@ -9,7 +9,6 @@ import re
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# IMPORTANT: Import the SSClient class from ss_client.py
 from ss_client import SSClient
 
 # Setup logging
@@ -29,10 +28,10 @@ class PlatoBot:
             logger.error("SONAR_API_KEY not set in environment!")
             raise Exception("Missing SONAR_API_KEY")
         self.sonar_base_url = "https://api.perplexity.ai/chat/completions"
-        self.PRINTING_COST = 1.50  # Cost for printing
-        self.PROFIT_MARGIN = 9.00  # Fixed profit margin
+        self.PRINTING_COST = 1.50
+        self.PROFIT_MARGIN = 9.00
         
-        # Setup requests session with retry logic for internal use (if needed)
+        # Setup requests session with retry logic
         self.session = requests.Session()
         retries = Retry(
             total=3,
@@ -53,8 +52,8 @@ class PlatoBot:
         except Exception as e:
             logger.exception("Error initializing S&S services:")
             raise
-        
-        # Initial product search prompt for Sonar
+
+        # Search prompt remains the same
         self.search_prompt = """
 You are Plato, a print shop AI Customer Service Assistant whose sole task is to match customer queries to products on ssactivewear.com. Use the following sample URLs as guidance, but you may also check other relevant product pages on ssactivewear.com if they better match the customer's query.
 
@@ -84,18 +83,37 @@ Product Name: [exact product name]
 Color: [exact color name]
 """
 
+    def get_product_images(self, style_number: str, color: str) -> dict:
+        """Get front and back image paths for a product."""
+        try:
+            # Convert color name to match image naming convention (e.g., "Kelly Green" -> "Kelly_Green")
+            color_filename = color.replace(' ', '_')
+            
+            # Construct image paths
+            front_path = f"/productimages/{style_number}/Gildan_{style_number}_{color_filename}_Front_High.jpg"
+            back_path = f"/productimages/{style_number}/Gildan_{style_number}_{color_filename}_Back_High.jpg"
+            
+            # Verify images exist
+            front_exists = os.path.exists(f"productimages/{style_number}/Gildan_{style_number}_{color_filename}_Front_High.jpg")
+            back_exists = os.path.exists(f"productimages/{style_number}/Gildan_{style_number}_{color_filename}_Back_High.jpg")
+            
+            if not (front_exists and back_exists):
+                logger.warning(f"Missing images for {style_number} in {color}")
+                return None
+                
+            return {
+                "front": front_path,
+                "back": back_path
+            }
+        except Exception as e:
+            logger.error(f"Error getting product images: {str(e)}")
+            return None
+
     def process_price(self, base_price: float) -> float:
-        """
-        Process the base price by adding printing costs and profit margin.
-        Returns the final customer-facing price.
-        """
+        """Process the base price by adding printing costs and profit margin."""
         logger.info(f"Processing price - Base price: ${base_price:.2f}")
-        # Add printing cost
         price_with_printing = base_price + self.PRINTING_COST
-        logger.info(f"Price after printing cost (${self.PRINTING_COST:.2f}): ${price_with_printing:.2f}")
-        # Add profit margin
         final_price = price_with_printing + self.PROFIT_MARGIN
-        logger.info(f"Final price after profit margin (${self.PROFIT_MARGIN:.2f}): ${final_price:.2f}")
         return final_price
 
     def extract_style_number(self, text: str) -> str:
@@ -104,16 +122,10 @@ Color: [exact color name]
         for line in lines:
             if line.startswith('Style Number:'):
                 style = line.split(':')[1].strip()
-                logger.info(f"Extracted style: {style}")
-                # Handle special conversion: G640 -> 64000
                 if style.upper() == 'G640':
-                    logger.info("Converted G640 to 64000")
                     return '64000'
                 base_style = style.split('_')[0]
-                cleaned_style = ''.join(c for c in base_style if c.isalnum() or c == '-')
-                logger.info(f"Final style extracted: {cleaned_style}")
-                return cleaned_style
-        logger.warning("No style number found in text")
+                return ''.join(c for c in base_style if c.isalnum() or c == '-')
         return None
 
     def extract_color(self, text: str) -> str:
@@ -121,10 +133,7 @@ Color: [exact color name]
         lines = text.split('\n')
         for line in lines:
             if line.startswith('Color:'):
-                color = line.split(':')[1].strip()
-                logger.info(f"Extracted color: {color}")
-                return color
-        logger.warning("No color found in text")
+                return line.split(':')[1].strip()
         return None
 
     def extract_product_name(self, text: str) -> str:
@@ -132,10 +141,7 @@ Color: [exact color name]
         lines = text.split('\n')
         for line in lines:
             if line.startswith('Product Name:'):
-                name = line.split(':')[1].strip()
-                logger.info(f"Extracted product name: {name}")
-                return name
-        logger.warning("No product name found in text")
+                return line.split(':')[1].strip()
         return None
 
     def call_sonar_api(self, messages: List[Dict], temperature: float = 0.7) -> str:
@@ -150,17 +156,8 @@ Color: [exact color name]
                 "messages": messages,
                 "temperature": temperature
             }
-            retries = Retry(
-                total=3,
-                backoff_factor=1,
-                status_forcelist=[429, 500, 502, 503, 504],
-                allowed_methods=["POST"],
-                raise_on_status=True,
-                respect_retry_after_header=True
-            )
-            session = requests.Session()
-            session.mount('https://', HTTPAdapter(max_retries=retries))
-            response = session.post(
+            
+            response = self.session.post(
                 self.sonar_base_url,
                 headers=headers,
                 json=data,
@@ -168,23 +165,16 @@ Color: [exact color name]
             )
             logger.info(f"Sonar API response status: {response.status_code}")
             response.raise_for_status()
-            content = response.json()['choices'][0]['message']['content']
-            logger.info(f"Sonar API returned content: {content}")
-            return content
-        except requests.exceptions.Timeout as e:
-            logger.exception("Timeout calling Sonar API")
-            return "I apologize, but I'm having trouble processing your request due to a timeout. Please try again."
-        except requests.exceptions.RequestException as e:
-            logger.exception("Request exception in Sonar API call")
-            return "I'm experiencing temporary difficulties. Please try your request again."
+            return response.json()['choices'][0]['message']['content']
+            
         except Exception as e:
-            logger.exception("Unexpected error in Sonar API call")
-            return "I encountered an unexpected error. Please try again or contact support if the issue persists."
+            logger.exception("Error in Sonar API call")
+            return "I encountered an error. Please try again or contact support if the issue persists."
 
-    def process_message(self, user_id: str, message: str) -> str:
+    def process_message(self, user_id: str, message: str) -> dict:
         logger.info(f"Processing message from user '{user_id}': {message}")
         try:
-            logger.info("Requesting initial product match from Sonar...")
+            # Get product match from Sonar
             product_match = self.call_sonar_api(
                 messages=[
                     {"role": "system", "content": self.search_prompt},
@@ -194,27 +184,39 @@ Color: [exact color name]
             )
             logger.info(f"Initial product match received: {product_match}")
             
+            # Extract product details
             style_number = self.extract_style_number(product_match)
             color = self.extract_color(product_match)
             product_name = self.extract_product_name(product_match)
             
-            if not style_number or not color or not product_name:
-                logger.error("Failed to extract product details from Sonar response")
-                return "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details about what you're looking for?"
+            if not all([style_number, color, product_name]):
+                return {
+                    "text": "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details?",
+                    "images": []
+                }
             
-            logger.info(f"Extracted style number: {style_number}, color: {color}, product: {product_name}")
-            logger.info(f"Querying S&S for price for style {style_number} in {color}")
+            # Get product images
+            images = self.get_product_images(style_number, color)
+            if not images:
+                logger.error("Could not find product images")
+                return {
+                    "text": "I found a matching product but couldn't retrieve the images. Would you like me to suggest another option?",
+                    "images": []
+                }
+            
+            # Get price
             base_price = self.ss.get_price(style_number, color)
-            logger.info(f"Base price retrieved from S&S: {base_price}")
-            
             if base_price is None:
-                logger.error("S&S did not return a price for the given style and color")
-                return "I found a potential match but couldn't verify its current pricing. Would you like me to suggest another option?"
+                return {
+                    "text": "I found a potential match but couldn't verify its current pricing. Would you like me to suggest another option?",
+                    "images": []
+                }
             
-            # Process the base price with printing cost and profit margin
+            # Calculate final price
             final_price = self.process_price(base_price)
             formatted_price = f"${final_price:.2f}"
             
+            # Generate natural language response
             response_prompt = f"""
 You are Plato, a helpful and enthusiastic print shop AI assistant. A customer has just asked about: "{message}"
 
@@ -227,7 +229,7 @@ Create a natural, friendly response that:
 1. Shows enthusiasm about finding a good match for their specific request
 2. Mentions the product details (name, color, price) naturally in conversation
 3. Highlights how this product matches what they were looking for
-4. Offers to help with next steps (ordering, checking inventory, or finding alternatives)
+4. Asks if they'd like to proceed with customizing this product with their design
 5. Keeps the tone professional but conversational
 
 Important guidelines:
@@ -239,7 +241,6 @@ Important guidelines:
 
 Your response should be direct and ready to show to the customer.
 """
-            logger.info("Requesting natural language response from Sonar...")
             final_response = self.call_sonar_api(
                 messages=[
                     {"role": "system", "content": response_prompt},
@@ -247,6 +248,8 @@ Your response should be direct and ready to show to the customer.
                 ],
                 temperature=0.7
             )
+            
+            # Clean up response
             final_response = final_response.strip()
             if '<think>' in final_response:
                 final_response = final_response.split('</think>')[-1].strip()
@@ -254,17 +257,37 @@ Your response should be direct and ready to show to the customer.
             final_response = re.sub(r'\*\*|\*', '', final_response)
             final_response = re.sub(r'\[\d+\]', '', final_response)
             final_response = ' '.join(final_response.split())
-            logger.info(f"Final response to be returned: {final_response}")
-            return final_response
             
-        except requests.exceptions.Timeout as e:
-            logger.exception("Timeout while processing message")
-            return "I'm sorry, but I'm having trouble connecting to our product database right now. Please try again in a moment."
+            # Return response with images
+            return {
+                "text": final_response,
+                "images": [
+                    {
+                        "url": images["front"],
+                        "alt": f"{product_name} in {color} - Front View",
+                        "type": "product_front"
+                    },
+                    {
+                        "url": images["back"],
+                        "alt": f"{product_name} in {color} - Back View",
+                        "type": "product_back"
+                    }
+                ]
+            }
+            
         except Exception as e:
             logger.exception("Error processing message")
-            return "I encountered an error processing your request. Please try again or contact our support team for assistance."
+            return {
+                "text": "I encountered an error processing your request. Please try again or contact our support team for assistance.",
+                "images": []
+            }
 
 plato_bot = PlatoBot()
+
+# Route to serve product images
+@app.route('/productimages/<path:filename>')
+def serve_product_image(filename):
+    return send_from_directory('productimages', filename)
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -280,10 +303,7 @@ def chat():
     logger.info(f"Processing chat request for user: {user_id}")
     response = plato_bot.process_message(user_id, message)
     logger.info(f"Chat response: {response}")
-    return jsonify({
-        "response": response,
-        "user_id": user_id
-    })
+    return jsonify(response)
 
 @app.route('/api/products/check', methods=['GET'])
 def check_product():
@@ -292,14 +312,10 @@ def check_product():
         style = request.args.get('style')
         color = request.args.get('color')
         if not style or not color:
-            logger.error("Style or color missing in /api/products/check request")
             return jsonify({'error': 'Style number and color are required'}), 400
             
-        logger.info(f"Checking product for style: {style}, color: {color}")
         price = plato_bot.ss.get_price(style, color)
-        logger.info(f"Price from S&S: {price}")
         if price is None:
-            logger.error("No product found or product unavailable for the provided style and color")
             return jsonify({'error': 'Product not found or unavailable'}), 404
             
         return jsonify({"customerPrice": price})
