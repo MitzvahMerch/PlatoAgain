@@ -4,10 +4,12 @@ from dotenv import load_dotenv
 import os
 import requests
 from datetime import datetime
-from sanmar_client import SanMarClient
+from ss_client import SSClient
 import logging
 from typing import Dict, List
 import re
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,50 +24,63 @@ class PlatoBot:
         self.sonar_api_key = os.getenv('SONAR_API_KEY')
         self.sonar_base_url = "https://api.perplexity.ai/chat/completions"
         
+        # Setup requests session with retry logic
+        self.session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST", "GET"]
+        )
+        self.session.mount('https://', HTTPAdapter(max_retries=retries))
+        
         try:
-            self.sanmar = SanMarClient(
-                username=os.getenv('SANMAR_USERNAME'),
-                password=os.getenv('SANMAR_PASSWORD'),
-                customer_number=os.getenv('SANMAR_CUSTOMER_NUMBER')
-            )
-            logger.info("Successfully initialized SanMar client")
+            self.ss = SSClient(api_key=os.getenv('SS_API_KEY'))
+            logger.info("Successfully initialized S&S client")
         except Exception as e:
-            logger.error(f"Error initializing SanMar services: {str(e)}")
+            logger.error(f"Error initializing S&S services: {str(e)}")
             raise
 
-        self.search_prompt = """You are Plato, a print shop AI assistant. Find ONE best matching product from sanmar.com.
+        # Initial product search prompt
+        self.search_prompt = """You are Plato, a print shop AI Customer Service Expert. Your primary goal is to efficiently match customers with products they can purchase immediately.
 
-CRITICAL STYLE NUMBER RULES:
-- Look for the style number in a <span class="product-style-number"> tag or at the top of product details
-- Style number is usually a large prominent number like "64000" on the product page
-- NEVER use style numbers from URLs or navigation paths
-- NEVER use unverified style numbers from search results
-- NEVER analyze pricing (API handles this)
-- NEVER do detailed product comparisons or pricing analysis
+CRITICAL RULES:
+1. You MUST find a product with a clear style number - this is essential for checking real pricing
+2. Only choose products where you can see the exact style number and color name
+3. Do not mention or guess about pricing or availability - this will be checked later
+4. Provide ONLY the formatted response, no other text
 
 FORMAT YOUR RESPONSE EXACTLY:
 PRODUCT_MATCH:
-Style Number: [number from product-style-number span]
-Product Name: [exact name from product page]
-Color: [exact color name]
-Material: [exact material specs]
-Features: [key product features]
+Style Number: [number from product info]
+Product Name: [exact product name from page]
+Color: [exact color name shown]"""
 
-NO THINKING OR ANALYSIS VISIBLE IN OUTPUT - just the formatted product match."""
+        # Final response prompt
+        self.verification_prompt = """You are Plato, a friendly print shop AI Customer Service Expert helping a customer find: {original_request}
 
-        self.verification_prompt = """Based on the API's real-time inventory and pricing data, provide a brief summary of actual availability and pricing."""
+You found this match:
+{product_match}
+
+VERIFIED DETAILS:
+Price: ${price}
+Availability: {availability}
+{bulk_pricing}
+
+Create a brief, friendly response that includes:
+1. The style number and color
+2. The verified price
+3. Availability status
+4. Any bulk discounts
+5. A clear next step for the customer"""
 
     def extract_style_number(self, text: str) -> str:
-        """Extract clean style number, removing color suffixes"""
         lines = text.split('\n')
         for line in lines:
             if line.startswith('Style Number:'):
                 style = line.split(':')[1].strip()
-                # Remove any suffixes after underscore/space
-                base_style = style.split('_')[0].split()[0]
-                # Remove any non-alphanumeric except dash
-                clean_style = ''.join(c for c in base_style if c.isalnum() or c == '-')
-                return clean_style
+                base_style = style.split('_')[0]
+                return ''.join(c for c in base_style if c.isalnum() or c == '-')
         return None
 
     def extract_color(self, text: str) -> str:
@@ -75,136 +90,115 @@ NO THINKING OR ANALYSIS VISIBLE IN OUTPUT - just the formatted product match."""
                 return line.split(':')[1].strip()
         return None
 
-    def get_real_time_data(self, style: str, color: str) -> Dict:
-        """Get real-time product data from SanMar"""
-        try:
-            data = {}
-            
-            # Get basic product info
-            product_info = self.sanmar.get_product_info(style)
-            if not product_info:
-                return {}
-                
-            data['product'] = product_info
-            
-            # Get base price from L size
-            base_pricing = self.sanmar.get_pricing(style, color, 'L')
-            if base_pricing:
-                data['base_price'] = base_pricing['case_price']
-                
-            # Check inventory for all supported sizes
-            try:
-                inventory = {}
-                for size in ['S', 'M', 'L', 'XL', '2XL']:
-                    inv = self.sanmar.check_inventory(style, color, size)
-                    if inv:
-                        inventory[size] = inv
-                if inventory:
-                    data['inventory'] = inventory
-            except Exception as e:
-                logger.warning(f"Error checking inventory: {str(e)}")
-            
-            return data
-                
-        except Exception as e:
-            logger.error(f"Error getting real-time data: {str(e)}")
-            return {}
-
-    def format_product_data(self, data: Dict) -> str:
-        if not data or not data.get('product'):
-            return ""
-            
-        product = data['product']
-        base_price = data.get('base_price', 'N/A')
-        inventory = data.get('inventory', {})
-        
-        info = [
-            f"Product: {product.get('title')}",
-            f"Style: {product.get('style')}",
-            f"Price: ${base_price}",
-            f"Available Colors: {', '.join(product.get('colors', []))}"
-        ]
-        
-        if inventory:
-            available_sizes = []
-            for size, inv in inventory.items():
-                total = inv.get('total_available', 0)
-                if total > 0:
-                    available_sizes.append(f"{size} ({total} units)")
-            if available_sizes:
-                info.append(f"Stock: {', '.join(available_sizes)}")
-            
-        return "\n".join(info)
-
     def call_sonar_api(self, messages: List[Dict], temperature: float = 0.7) -> str:
-        headers = {
-            "Authorization": f"Bearer {self.sonar_api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": "sonar-reasoning-pro",
-            "messages": messages,
-            "temperature": temperature
-        }
-        
         try:
-            response = requests.post(self.sonar_base_url, headers=headers, json=data)
+            headers = {
+                "Authorization": f"Bearer {self.sonar_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            data = {
+                "model": "sonar-reasoning-pro",
+                "messages": messages,
+                "temperature": temperature
+            }
+            
+            response = self.session.post(
+                self.sonar_base_url, 
+                headers=headers, 
+                json=data,
+                timeout=30  # Increased timeout
+            )
             response.raise_for_status()
             return response.json()['choices'][0]['message']['content']
-        except Exception as e:
+            
+        except requests.exceptions.Timeout:
+            logger.error("Timeout calling Sonar API")
+            raise
+        except requests.exceptions.RequestException as e:
             logger.error(f"Error calling Sonar API: {str(e)}")
             raise
+        except Exception as e:
+            logger.error(f"Unexpected error in Sonar API call: {str(e)}")
+            raise
+
+    def format_bulk_pricing(self, bulk_pricing: List[Dict]) -> str:
+        if not bulk_pricing:
+            return ""
+        
+        tiers = []
+        for tier in bulk_pricing:
+            tiers.append(f"- {tier['quantity']}+ pieces: ${tier['price']:.2f} each")
+        
+        if tiers:
+            return "\nBulk Pricing Available:\n" + "\n".join(tiers)
+        return ""
 
     def process_message(self, user_id: str, message: str) -> str:
         try:
-            sanmar_specific_query = f"Search sanmar.com to find: {message}"
-            
-            search_messages = [
-                {"role": "system", "content": self.search_prompt},
-                {"role": "user", "content": sanmar_specific_query}
-            ]
-            
+            # Step 1: Get initial product match
+            logger.info(f"Getting initial product match for: {message}")
             product_match = self.call_sonar_api(
-                messages=search_messages,
+                messages=[
+                    {"role": "system", "content": self.search_prompt},
+                    {"role": "user", "content": message}
+                ],
                 temperature=0.3
             )
             
-            logger.info(f"Product match: {product_match}")
+            logger.info(f"Initial product match: {product_match}")
             
+            # Step 2: Extract style number and color
             style_number = self.extract_style_number(product_match)
             color = self.extract_color(product_match)
             
             if not style_number or not color:
-                return "I apologize, but I couldn't find a matching SanMar product. Could you provide more details about what you're looking for?"
-                
-            product_data = self.get_real_time_data(style_number, color)
-            if not product_data:
-                return "I found a potential match in SanMar's catalog, but I couldn't verify its current availability. Would you like to try a different product?"
+                return "I'm having trouble finding a product with a clear style number. Could you provide more specific details about what you're looking for?"
             
-            product_info = self.format_product_data(product_data)
-            verification_messages = [
-                {"role": "system", "content": self.verification_prompt},
-                {"role": "user", "content": f"Customer needs:\n{message}\n\nRecommended SanMar product:\n{product_match}\n\nReal-time SanMar data:\n{product_info}"}
-            ]
+            # Step 3: Get real availability and pricing
+            logger.info(f"Checking availability for style: {style_number}, color: {color}")
+            result = self.ss.check_availability(style_number, color)
             
-            final_response = self.call_sonar_api(
-                messages=verification_messages,
-                temperature=0.7
+            if not result:
+                return "I found a potential match but couldn't verify its current pricing. Would you like me to find another option?"
+            
+            # Step 4: Generate final response
+            bulk_pricing_text = self.format_bulk_pricing(result.get('bulk_pricing', []))
+            
+            verification_context = self.verification_prompt.format(
+                original_request=message,
+                product_match=product_match,
+                price=result['price'],
+                availability="In Stock" if result['available'] else "Currently Out of Stock",
+                bulk_pricing=bulk_pricing_text
             )
             
-            return final_response
+            try:
+                final_response = self.call_sonar_api(
+                    messages=[
+                        {"role": "system", "content": verification_context},
+                        {"role": "user", "content": "Create a customer-friendly response."}
+                    ],
+                    temperature=0.7
+                )
+                return final_response
+            except Exception as e:
+                logger.error(f"Error generating final response: {str(e)}")
+                # Fallback response if final formatting fails
+                return f"I found {product_match.get('Product Name', 'a product')} (Style #{style_number}) in {color}. It's ${result['price']:.2f} per unit and currently {'in stock' if result['available'] else 'out of stock'}. {bulk_pricing_text}"
                 
+        except requests.exceptions.Timeout:
+            return "I'm sorry, but I'm having trouble connecting to our product database right now. Could you please try again in a moment?"
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}")
-            return "I apologize, but I encountered an error with the SanMar API. Please try again or contact support if the issue persists."
+            logger.exception(e)
+            return "I apologize, but I encountered an issue while processing your request. Please try again or contact support if the problem persists."
 
 plato_bot = PlatoBot()
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
     data = request.json
-    
     user_id = data.get('user_id', 'default_user')
     message = data.get('message')
     
@@ -225,8 +219,11 @@ def check_product():
         if not style or not color:
             return jsonify({'error': 'Style number and color are required'}), 400
             
-        data = plato_bot.get_real_time_data(style, color)
-        return jsonify(data)
+        result = plato_bot.ss.check_availability(style, color)
+        if not result:
+            return jsonify({'error': 'Product not found or unavailable'}), 404
+            
+        return jsonify(result)
         
     except Exception as e:
         logger.error(f"Error checking product: {str(e)}")
@@ -236,7 +233,8 @@ def check_product():
 def health_check():
     return jsonify({
         "status": "healthy",
-        "sanmar_connected": plato_bot.sanmar is not None
+        "ss_connected": plato_bot.ss is not None,
+        "sonar_connected": plato_bot.sonar_api_key is not None
     })
 
 if __name__ == '__main__':
