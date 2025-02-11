@@ -29,6 +29,8 @@ class PlatoBot:
             logger.error("SONAR_API_KEY not set in environment!")
             raise Exception("Missing SONAR_API_KEY")
         self.sonar_base_url = "https://api.perplexity.ai/chat/completions"
+        self.PRINTING_COST = 1.50  # Cost for printing
+        self.PROFIT_MARGIN = 9.00  # Fixed profit margin
         
         # Setup requests session with retry logic for internal use (if needed)
         self.session = requests.Session()
@@ -51,7 +53,7 @@ class PlatoBot:
         except Exception as e:
             logger.exception("Error initializing S&S services:")
             raise
-
+        
         # Initial product search prompt for Sonar
         self.search_prompt = """
 You are Plato, a print shop AI Customer Service Assistant whose sole task is to match customer queries to products on ssactivewear.com. Use the following sample URLs as guidance, but you may also check other relevant product pages on ssactivewear.com if they better match the customer's query.
@@ -82,8 +84,21 @@ Product Name: [exact product name]
 Color: [exact color name]
 """
 
+    def process_price(self, base_price: float) -> float:
+        """
+        Process the base price by adding printing costs and profit margin.
+        Returns the final customer-facing price.
+        """
+        logger.info(f"Processing price - Base price: ${base_price:.2f}")
+        # Add printing cost
+        price_with_printing = base_price + self.PRINTING_COST
+        logger.info(f"Price after printing cost (${self.PRINTING_COST:.2f}): ${price_with_printing:.2f}")
+        # Add profit margin
+        final_price = price_with_printing + self.PROFIT_MARGIN
+        logger.info(f"Final price after profit margin (${self.PROFIT_MARGIN:.2f}): ${final_price:.2f}")
+        return final_price
+
     def extract_style_number(self, text: str) -> str:
-        """Extract style number from the PRODUCT_MATCH format."""
         logger.info("Extracting style number from text...")
         lines = text.split('\n')
         for line in lines:
@@ -102,7 +117,6 @@ Color: [exact color name]
         return None
 
     def extract_color(self, text: str) -> str:
-        """Extract color from the PRODUCT_MATCH format."""
         logger.info("Extracting color from text...")
         lines = text.split('\n')
         for line in lines:
@@ -113,21 +127,29 @@ Color: [exact color name]
         logger.warning("No color found in text")
         return None
 
+    def extract_product_name(self, text: str) -> str:
+        logger.info("Extracting product name from text...")
+        lines = text.split('\n')
+        for line in lines:
+            if line.startswith('Product Name:'):
+                name = line.split(':')[1].strip()
+                logger.info(f"Extracted product name: {name}")
+                return name
+        logger.warning("No product name found in text")
+        return None
+
     def call_sonar_api(self, messages: List[Dict], temperature: float = 0.7) -> str:
-        """Call the Sonar API with retry logic and detailed error logging."""
         logger.info(f"Calling Sonar API with messages: {messages}")
         try:
             headers = {
                 "Authorization": f"Bearer {self.sonar_api_key}",
                 "Content-Type": "application/json"
             }
-            
             data = {
                 "model": "sonar-reasoning-pro",
                 "messages": messages,
                 "temperature": temperature
             }
-            
             retries = Retry(
                 total=3,
                 backoff_factor=1,
@@ -136,13 +158,11 @@ Color: [exact color name]
                 raise_on_status=True,
                 respect_retry_after_header=True
             )
-            
             session = requests.Session()
             session.mount('https://', HTTPAdapter(max_retries=retries))
-            
             response = session.post(
-                self.sonar_base_url, 
-                headers=headers, 
+                self.sonar_base_url,
+                headers=headers,
                 json=data,
                 timeout=60
             )
@@ -176,30 +196,73 @@ Color: [exact color name]
             
             style_number = self.extract_style_number(product_match)
             color = self.extract_color(product_match)
+            product_name = self.extract_product_name(product_match)
             
-            if not style_number or not color:
-                logger.error("Failed to extract style number or color from Sonar response")
-                return "I'm having trouble finding a product with a clear style number from ssactivewear.com. Please provide more specific details."
+            if not style_number or not color or not product_name:
+                logger.error("Failed to extract product details from Sonar response")
+                return "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details about what you're looking for?"
             
-            logger.info(f"Extracted style number: {style_number}, color: {color}")
-            logger.info("Querying S&S for price...")
-            price = self.ss.get_price(style_number, color)
-            logger.info(f"Price retrieved from S&S: {price}")
+            logger.info(f"Extracted style number: {style_number}, color: {color}, product: {product_name}")
+            logger.info(f"Querying S&S for price for style {style_number} in {color}")
+            base_price = self.ss.get_price(style_number, color)
+            logger.info(f"Base price retrieved from S&S: {base_price}")
             
-            if price is None:
+            if base_price is None:
                 logger.error("S&S did not return a price for the given style and color")
-                return "I found a potential match but couldn't verify its current pricing. Would you like me to find another option?"
+                return "I found a potential match but couldn't verify its current pricing. Would you like me to suggest another option?"
             
-            final_response = f'"customerPrice": {price},'
+            # Process the base price with printing cost and profit margin
+            final_price = self.process_price(base_price)
+            formatted_price = f"${final_price:.2f}"
+            
+            response_prompt = f"""
+You are Plato, a helpful and enthusiastic print shop AI assistant. A customer has just asked about: "{message}"
+
+I found this product that matches their needs:
+- Product: {product_name}
+- Color: {color}
+- Price: {formatted_price} per customized garment (based on one print location—either front or back—and inclusive of tax, shipping, and handling)
+
+Create a natural, friendly response that:
+1. Shows enthusiasm about finding a good match for their specific request
+2. Mentions the product details (name, color, price) naturally in conversation
+3. Highlights how this product matches what they were looking for
+4. Offers to help with next steps (ordering, checking inventory, or finding alternatives)
+5. Keeps the tone professional but conversational
+
+Important guidelines:
+- Vary your language and phrasing to sound natural
+- Don't use the exact same structure every time
+- Incorporate elements from their original request when relevant
+- Keep the response concise but informative
+- Don't mention that you are an AI
+
+Your response should be direct and ready to show to the customer.
+"""
+            logger.info("Requesting natural language response from Sonar...")
+            final_response = self.call_sonar_api(
+                messages=[
+                    {"role": "system", "content": response_prompt},
+                    {"role": "user", "content": "Generate the response."}
+                ],
+                temperature=0.7
+            )
+            final_response = final_response.strip()
+            if '<think>' in final_response:
+                final_response = final_response.split('</think>')[-1].strip()
+            final_response = re.sub(r'<[^>]+>', '', final_response)
+            final_response = re.sub(r'\*\*|\*', '', final_response)
+            final_response = re.sub(r'\[\d+\]', '', final_response)
+            final_response = ' '.join(final_response.split())
             logger.info(f"Final response to be returned: {final_response}")
             return final_response
             
         except requests.exceptions.Timeout as e:
             logger.exception("Timeout while processing message")
-            return "I'm sorry, but I'm having trouble connecting to our product database right now. Please try again later."
+            return "I'm sorry, but I'm having trouble connecting to our product database right now. Please try again in a moment."
         except Exception as e:
             logger.exception("Error processing message")
-            return "I encountered an error processing your request. Please try again or contact support."
+            return "I encountered an error processing your request. Please try again or contact our support team for assistance."
 
 plato_bot = PlatoBot()
 
