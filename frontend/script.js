@@ -67,18 +67,36 @@ imageUploadButton.addEventListener('change', async (e) => {
 
 async function sendMessage() {
     const message = chatInput.value.trim();
-    if (!message && !window.currentUpload) return;
+    const hasImage = window.currentUpload && previewArea.style.display === 'block';
+    
+    // Don't proceed if there's no message and no image
+    if (!message && !hasImage) return;
 
     // If there's a message, add it to chat
     if (message) {
         addMessage(message, 'user');
     }
 
-    // If there's an image in preview, add it to chat
-    if (previewArea.style.display === 'block') {
+    // If there's an image in preview, add it to chat and try to upload it
+    let designUrl = null;
+    if (hasImage) {
         const previewImage = previewArea.querySelector('img');
         if (previewImage) {
             addProductImage(previewImage.src, 'User uploaded design');
+            
+            try {
+                // Upload to Firebase first
+                const uploadResult = await window.uploadDesignImage(window.currentUpload, userId);
+                if (uploadResult.success) {
+                    designUrl = uploadResult.url;
+                } else {
+                    throw new Error(uploadResult.error || 'Failed to upload image');
+                }
+            } catch (error) {
+                console.error('Error uploading to Firebase:', error);
+                addMessage('Sorry, there was an error uploading your design to storage. Please try again.', 'system');
+                return;
+            }
         }
     }
 
@@ -93,29 +111,16 @@ async function sendMessage() {
         // Show typing indicator
         const typingIndicator = addTypingIndicator();
 
-        // Upload image if exists
-        let designUrl = null;
-        if (window.currentUpload) {
-            try {
-                const uploadResult = await window.uploadDesignImage(window.currentUpload, userId);
-                if (uploadResult.success) {
-                    designUrl = uploadResult.url;
-                }
-            } catch (error) {
-                console.error('Error uploading image:', error);
-            }
-        }
-
-        // Send message to backend
+        // Send message to backend - always include a message, even if it's just indicating an image upload
         const response = await fetch(`${API_BASE_URL}/api/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                message: message,
+                message: message || "I'd like to share this design with you",
                 user_id: userId,
-                designUrl: designUrl
+                design_url: designUrl
             }),
         });
 
