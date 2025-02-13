@@ -13,10 +13,31 @@
             <p>Your AI Print Design Assistant</p>
         </div>
         
-        <div class="chat-messages" id="chat-messages">
-            <!-- Messages will be inserted here -->
+        <div class="design-controls">
+            <select id="placement-select" class="placement-select">
+                <option value="chest">Front Right Chest</option>
+                <option value="back">Full Back</option>
+            </select>
+            
+            <div class="upload-container">
+                <label for="image-upload" class="upload-button">
+                    Upload Design
+                    <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                </label>
+                <div class="upload-progress" style="display: none;">
+                    <div class="progress-bar"></div>
+                    <span class="progress-text">0%</span>
+                </div>
+            </div>
         </div>
-        
+
+        <div class="design-preview-container">
+            <img id="design-preview" class="design-preview" style="display: none;">
+            <div class="preview-info"></div>
+        </div>
+
+        <div id="chat-messages" class="chat-messages"></div>
+
         <div class="chat-input-container">
             <textarea 
                 id="chat-input" 
@@ -26,6 +47,13 @@
             <button id="send-button">Send</button>
         </div>
     </div>
-    <script src="script.js"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+    
+    <!-- Custom Scripts -->
+    <script src="firebase-config.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>
