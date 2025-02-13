@@ -12,14 +12,15 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 
-// Get Firebase Storage instance
+// Get Firebase Storage and Firestore instances
 const storage = firebase.storage();
+const db = firebase.firestore();
 
 // Function to upload image to Firebase Storage
 async function uploadDesignImage(file, userId) {
   try {
-      // Create a reference to 'plato/[userId]/[filename]'
-      const designRef = storage.ref(`plato/${userId}/${file.name}`);
+      // Create a reference to 'designs/[userId]/[filename]'
+      const designRef = storage.ref(`designs/${userId}/${file.name}`);
       
       // Upload the file
       const snapshot = await designRef.put(file);
@@ -27,10 +28,21 @@ async function uploadDesignImage(file, userId) {
       // Get the download URL
       const downloadURL = await snapshot.ref.getDownloadURL();
       
+      // Store metadata in Firestore
+      await db.collection('designs').add({
+          userId: userId,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          uploadDate: firebase.firestore.FieldValue.serverTimestamp(),
+          downloadURL: downloadURL,
+          status: 'pending_review'
+      });
+
       return {
           success: true,
           url: downloadURL,
-          path: `plato/${userId}/${file.name}`
+          path: `designs/${userId}/${file.name}`
       };
   } catch (error) {
       console.error('Error uploading file:', error);
