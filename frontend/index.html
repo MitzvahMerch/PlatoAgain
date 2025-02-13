@@ -6,11 +6,9 @@
     <title>Talk to Plato - Your Print Design Assistant</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Firebase App (the core Firebase SDK) -->
-    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app-compat.js"></script>
-    <!-- Firebase Storage -->
-    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-storage-compat.js"></script>
-    <!-- Firebase Firestore -->
-    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="chat-container">
@@ -37,6 +35,14 @@
         </div>
 
         <div class="chat-input-container">
+            <label for="image-upload" class="chat-upload-button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+            </label>
             <textarea 
                 id="chat-input" 
                 placeholder="Ask about products, designs, or pricing..."
