@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Talk to Plato - Your Print Design Assistant</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Firebase App (the core Firebase SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app-compat.js"></script>
+    <!-- Firebase Storage -->
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-storage-compat.js"></script>
+    <!-- Firebase Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="chat-container">
@@ -12,31 +18,23 @@
             <h1>Talk to Plato</h1>
             <p>Your AI Print Design Assistant</p>
         </div>
-        
-        <div class="design-controls">
-            <select id="placement-select" class="placement-select">
-                <option value="chest">Front Right Chest</option>
-                <option value="back">Full Back</option>
-            </select>
-            
-            <div class="upload-container">
-                <label for="image-upload" class="upload-button">
-                    Upload Design
-                    <input type="file" id="image-upload" accept="image/*" style="display: none;">
-                </label>
-                <div class="upload-progress" style="display: none;">
-                    <div class="progress-bar"></div>
-                    <span class="progress-text">0%</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="design-preview-container">
-            <img id="design-preview" class="design-preview" style="display: none;">
-            <div class="preview-info"></div>
-        </div>
 
         <div id="chat-messages" class="chat-messages"></div>
+
+        <div class="design-tools">
+            <div class="upload-container">
+                <label for="image-upload" class="upload-button">
+                    <span>Upload Design</span>
+                    <input type="file" id="image-upload" accept="image/*,application/pdf" style="display: none;">
+                </label>
+                <select id="placement-select" class="placement-select">
+                    <option value="chest">Front Right Chest</option>
+                    <option value="back">Full Back</option>
+                    <option value="sleeve">Sleeve</option>
+                </select>
+            </div>
+            <img id="design-preview" class="design-preview" alt="Design preview" style="display: none;">
+        </div>
 
         <div class="chat-input-container">
             <textarea 
@@ -48,12 +46,16 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
-    
-    <!-- Custom Scripts -->
+    <div id="upload-progress" class="upload-progress" style="display: none;">
+        <div class="progress-text"></div>
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
+    </div>
+
+    <!-- Firebase Config -->
     <script src="firebase-config.js"></script>
-    <script type="module" src="script.js"></script>
+    <!-- Main Script -->
+    <script src="script.js"></script>
 </body>
 </html>

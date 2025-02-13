@@ -1,5 +1,6 @@
-// script.js
-import { uploadDesignImage } from './firebase-config.js';
+// Initialize Firebase components
+const db = firebase.firestore();
+const storage = firebase.storage();
 
 // Generate a random user ID for this session
 const userId = 'user_' + Math.random().toString(36).substr(2, 9);
@@ -12,14 +13,15 @@ const sendButton = document.getElementById('send-button');
 const imageUploadButton = document.getElementById('image-upload');
 const designPreview = document.getElementById('design-preview');
 const placementSelect = document.getElementById('placement-select');
-const uploadProgress = document.querySelector('.upload-progress');
-const progressBar = document.querySelector('.progress-bar');
-const progressText = document.querySelector('.progress-text');
-const previewInfo = document.querySelector('.preview-info');
+const uploadProgress = document.getElementById('upload-progress');
+const progressText = uploadProgress.querySelector('.progress-text');
+const progressFill = uploadProgress.querySelector('.progress-fill');
 
-let currentDesignUrl = null;
+// Chat History Management
+let chatHistory = [];
+const MAX_HISTORY_LENGTH = 10;
 
-// Welcome message and health check
+// Add initial welcome message
 window.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/health`);
@@ -51,49 +53,169 @@ chatInput.addEventListener('input', () => {
     chatInput.style.height = chatInput.scrollHeight + 'px';
 });
 
-// Image upload handling
+// Enhanced file upload handling
 imageUploadButton.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Validate file
+    if (!validateFile(file)) {
+        return;
+    }
+
     try {
-        // Show loading state
-        uploadProgress.style.display = 'block';
-        addMessage('Uploading your design...', 'system');
-
-        // Upload to Firebase
-        const uploadResult = await uploadDesignImage(file, userId);
-
-        if (uploadResult.success) {
-            // Update preview
-            designPreview.src = uploadResult.url;
-            designPreview.style.display = 'block';
-            currentDesignUrl = uploadResult.url;
-
-            // Update progress and info
-            progressBar.style.width = '100%';
-            progressText.textContent = '100%';
-            previewInfo.textContent = `Design uploaded successfully! Location: ${placementSelect.value === 'chest' ? 'Front Right Chest' : 'Full Back'}`;
-
-            // Add success message
-            addMessage(`Design uploaded successfully! I'll help place it ${placementSelect.value === 'chest' ? 'on the front right chest' : 'on the full back'} of your selected product.`, 'bot');
-        } else {
-            throw new Error(uploadResult.error);
-        }
-
+        // Start upload process
+        await handleFileUpload(file);
     } catch (error) {
-        console.error('Error uploading image:', error);
-        addMessage('Sorry, there was an error uploading your design. Please try again.', 'bot');
-        uploadProgress.style.display = 'none';
+        console.error('Error handling file:', error);
+        addMessage('Sorry, there was an error processing your design. Please try again.', 'system');
+        hideUploadProgress();
     }
 });
 
+// File validation
+function validateFile(file) {
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!validTypes.includes(file.type)) {
+        addMessage('Please upload only images (JPEG, PNG, GIF) or PDF files.', 'system');
+        return false;
+    }
+
+    if (file.size > maxSize) {
+        addMessage('File size must be less than 5MB.', 'system');
+        return false;
+    }
+
+    return true;
+}
+
+// File upload handling
+async function handleFileUpload(file) {
+    showUploadProgress();
+    addMessage('Uploading your design...', 'system');
+
+    const storageRef = storage.ref(`designs/${userId}/${file.name}`);
+    const uploadTask = storageRef.put(file);
+
+    // Track upload progress
+    uploadTask.on('state_changed',
+        (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            updateUploadProgress(progress);
+        },
+        (error) => {
+            console.error('Upload error:', error);
+            addMessage('Sorry, there was an error uploading your file. Please try again.', 'system');
+            hideUploadProgress();
+        },
+        async () => {
+            try {
+                // Get download URL
+                const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                
+                // Store metadata in Firestore
+                await storeDesignMetadata(file, downloadURL);
+                
+                // Preview and process design
+                await handleDesignSuccess(file, downloadURL);
+            } catch (error) {
+                console.error('Post-upload processing error:', error);
+                addMessage('Your design was uploaded but there was an error during processing. Our team will review it manually.', 'system');
+            }
+            
+            hideUploadProgress();
+        }
+    );
+}
+
+// Store design metadata in Firestore
+async function storeDesignMetadata(file, downloadURL) {
+    await db.collection('designs').add({
+        userId: userId,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        uploadDate: firebase.firestore.FieldValue.serverTimestamp(),
+        downloadURL: downloadURL,
+        placement: placementSelect.value,
+        status: 'pending_review'
+    });
+}
+
+// Handle successful design upload
+async function handleDesignSuccess(file, downloadURL) {
+    // Preview if it's an image
+    if (file.type.startsWith('image/')) {
+        designPreview.src = downloadURL;
+        designPreview.style.display = 'block';
+    }
+
+    // Success message
+    addMessage(`Design uploaded successfully! I'll help place it ${getPlacementText()} of your selected product.`, 'bot');
+
+    // Process design
+    await processDesign(downloadURL, file.name);
+}
+
+// Process uploaded design
+async function processDesign(downloadURL, fileName) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/process-design`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                userId: userId,
+                designUrl: downloadURL,
+                fileName: fileName,
+                placement: placementSelect.value
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Update design status in Firestore
+        await updateDesignStatus(downloadURL, data);
+
+        // Handle processing results
+        if (data.suggestions) {
+            addMessage(data.suggestions, 'bot');
+        }
+
+    } catch (error) {
+        console.error('Error processing design:', error);
+        addMessage('Your design was uploaded but there was an error during processing. Our team will review it manually.', 'bot');
+    }
+}
+
+// Update design status in Firestore
+async function updateDesignStatus(downloadURL, processingData) {
+    const designsRef = db.collection('designs');
+    const query = await designsRef.where('downloadURL', '==', downloadURL).limit(1).get();
+    
+    if (!query.empty) {
+        await query.docs[0].ref.update({
+            status: 'processed',
+            processedData: processingData
+        });
+    }
+}
+
+// Message handling
 async function sendMessage() {
     const message = chatInput.value.trim();
     if (!message) return;
 
     // Add user message to chat
     addMessage(message, 'user');
+    updateChatHistory('user', message);
 
     // Clear input
     chatInput.value = '';
@@ -103,7 +225,7 @@ async function sendMessage() {
         // Show typing indicator
         const typingIndicator = addTypingIndicator();
 
-        // Send message to backend with design info if available
+        // Send message to backend
         const response = await fetch(`${API_BASE_URL}/api/chat`, {
             method: 'POST',
             headers: {
@@ -112,8 +234,7 @@ async function sendMessage() {
             body: JSON.stringify({
                 message: message,
                 user_id: userId,
-                design_url: currentDesignUrl,
-                design_placement: placementSelect.value
+                chat_history: chatHistory
             }),
         });
 
@@ -126,12 +247,13 @@ async function sendMessage() {
 
         const data = await response.json();
         
-        // Add bot response text
+        // Add bot response
         if (data.text) {
             addMessage(data.text, 'bot');
+            updateChatHistory('bot', data.text);
         }
         
-        // Add product images if any
+        // Handle product images
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {
                 const imageUrl = `${API_BASE_URL}${image.url}`;
@@ -145,6 +267,15 @@ async function sendMessage() {
     }
 }
 
+// Chat history management
+function updateChatHistory(role, content) {
+    chatHistory.push({ role, content });
+    if (chatHistory.length > MAX_HISTORY_LENGTH) {
+        chatHistory.shift();
+    }
+}
+
+// UI Helper Functions
 function addMessage(content, sender) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}`;
@@ -172,4 +303,34 @@ function addTypingIndicator() {
     chatMessages.appendChild(indicator);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return indicator;
+}
+
+// Upload Progress UI Functions
+function showUploadProgress() {
+    uploadProgress.style.display = 'block';
+    progressText.textContent = 'Starting upload...';
+    progressFill.style.width = '0%';
+}
+
+function updateUploadProgress(percent) {
+    progressText.textContent = `Upload progress: ${Math.round(percent)}%`;
+    progressFill.style.width = `${percent}%`;
+}
+
+function hideUploadProgress() {
+    uploadProgress.style.display = 'none';
+}
+
+function getPlacementText() {
+    const placement = placementSelect.value;
+    switch (placement) {
+        case 'chest':
+            return 'on the front right chest';
+        case 'back':
+            return 'on the full back';
+        case 'sleeve':
+            return 'on the sleeve';
+        default:
+            return 'on your selected location';
+    }
 }
