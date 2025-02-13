@@ -2,15 +2,14 @@
 
 // Generate a random user ID for this session
 const userId = 'user_' + Math.random().toString(36).substr(2, 9);
-const API_BASE_URL = 'http://localhost:5001'; // Changed to include API base URL
+const API_BASE_URL = 'http://localhost:5001';
 
 // DOM Elements
 const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
 const imageUploadButton = document.getElementById('image-upload');
-const designPreview = document.getElementById('design-preview');
-const placementSelect = document.getElementById('placement-select');
+const previewArea = document.getElementById('preview-area');
 
 // Add initial welcome message
 window.addEventListener('DOMContentLoaded', async () => {
@@ -50,61 +49,62 @@ imageUploadButton.addEventListener('change', async (e) => {
     if (!file) return;
 
     try {
-        // Show loading state
-        const loadingMessage = addMessage('Uploading your design...', 'system');
-        
-        // Preview the image
         const reader = new FileReader();
         reader.onload = (e) => {
-            designPreview.src = e.target.result;
-            designPreview.style.display = 'block';
+            previewArea.style.display = 'block';
+            previewArea.innerHTML = `<img src="${e.target.result}" alt="Upload preview">`;
         };
         reader.readAsDataURL(file);
 
-        // Upload to Firebase
-        const uploadResult = await window.uploadDesignImage(file, userId);
-        
-        if (uploadResult.success) {
-            loadingMessage.remove();
-            addMessage(`Design uploaded successfully! I'll help place it ${placementSelect.value === 'chest' ? 'on the front right chest' : 'on the full back'} of your selected product.`, 'bot');
-            
-            // Store the upload URL in the chat context
-            await fetch(`${API_BASE_URL}/api/chat`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: 'Design uploaded',
-                    user_id: userId,
-                    designUrl: uploadResult.url,
-                    placement: placementSelect.value
-                }),
-            });
-        } else {
-            throw new Error(uploadResult.error);
-        }
+        // Store the file for sending later
+        window.currentUpload = file;
 
     } catch (error) {
         console.error('Error processing image:', error);
-        addMessage('Sorry, there was an error uploading your design. Please try again.', 'bot');
+        addMessage('Sorry, there was an error processing your image. Please try again.', 'system');
     }
 });
 
 async function sendMessage() {
     const message = chatInput.value.trim();
-    if (!message) return;
+    if (!message && !window.currentUpload) return;
 
-    // Add user message to chat
-    addMessage(message, 'user');
+    // If there's a message, add it to chat
+    if (message) {
+        addMessage(message, 'user');
+    }
 
-    // Clear input
+    // If there's an image in preview, add it to chat
+    if (previewArea.style.display === 'block') {
+        const previewImage = previewArea.querySelector('img');
+        if (previewImage) {
+            addProductImage(previewImage.src, 'User uploaded design');
+        }
+    }
+
+    // Clear input and preview
     chatInput.value = '';
     chatInput.style.height = 'auto';
+    previewArea.style.display = 'none';
+    previewArea.innerHTML = '';
+    window.currentUpload = null;
 
     try {
         // Show typing indicator
         const typingIndicator = addTypingIndicator();
+
+        // Upload image if exists
+        let designUrl = null;
+        if (window.currentUpload) {
+            try {
+                const uploadResult = await window.uploadDesignImage(window.currentUpload, userId);
+                if (uploadResult.success) {
+                    designUrl = uploadResult.url;
+                }
+            } catch (error) {
+                console.error('Error uploading image:', error);
+            }
+        }
 
         // Send message to backend
         const response = await fetch(`${API_BASE_URL}/api/chat`, {
@@ -114,7 +114,8 @@ async function sendMessage() {
             },
             body: JSON.stringify({
                 message: message,
-                user_id: userId
+                user_id: userId,
+                designUrl: designUrl
             }),
         });
 
@@ -135,7 +136,6 @@ async function sendMessage() {
         // Add product images if any
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {
-                // Prepend the API base URL to the image paths
                 const imageUrl = `${API_BASE_URL}${image.url}`;
                 addProductImage(imageUrl, image.alt);
             });

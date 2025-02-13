@@ -19,19 +19,24 @@
 
         <div id="chat-messages" class="chat-messages"></div>
 
-        <div class="design-tools">
-            <div class="upload-container">
-                <label for="image-upload" class="upload-button">
-                    <span>Upload Design</span>
-                    <input type="file" id="image-upload" accept="image/*,application/pdf" style="display: none;">
+        <div class="chat-footer">
+            <div id="preview-area" class="preview-area"></div>
+            <div class="chat-input-container">
+                <label for="image-upload" class="chat-upload-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <input type="file" id="image-upload" accept="image/*" style="display: none;">
                 </label>
-                <select id="placement-select" class="placement-select">
-                    <option value="chest">Front Right Chest</option>
-                    <option value="back">Full Back</option>
-                    <option value="sleeve">Sleeve</option>
-                </select>
+                <textarea 
+                    id="chat-input" 
+                    placeholder="Ask about products, designs, or pricing..."
+                    rows="1"
+                ></textarea>
+                <button id="send-button">Send</button>
             </div>
-            <img id="design-preview" class="design-preview" alt="Design preview" style="display: none;">
         </div>
 
         <div class="chat-input-container">

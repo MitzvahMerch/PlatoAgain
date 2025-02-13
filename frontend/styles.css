@@ -247,3 +247,28 @@ body {
         width: auto;
     }
 }
+.chat-footer {
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.preview-area {
+    padding: 10px;
+    display: none;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.preview-area img {
+    max-width: 200px;
+    max-height: 200px;
+    display: block;
+    margin: 0 auto;
+    border-radius: 4px;
+}
+
+.chat-input-container {
+    border: none;
+    border-radius: 0;
+}
