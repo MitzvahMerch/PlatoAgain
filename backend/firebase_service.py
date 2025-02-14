@@ -88,17 +88,32 @@ class FirebaseService:
             raise
 
     async def create_product_preview(self, user_id: str, product_image: Image.Image, 
-                                   design: Image.Image, placement: str):
+                                   design_url: str, placement: str):
         """
         Create preview of product with design placed according to specified position
         
         Args:
             user_id: User identifier
             product_image: PIL Image of the product
-            design: PIL Image of the design
+            design_url: URL of the design in Firebase Storage
             placement: One of 'leftChest', 'fullFront', 'centerChest', 'centerBack'
         """
         try:
+            # Download design from Firebase Storage
+            try:
+                # Extract path from URL (removes gs://bucket/ prefix if present)
+                design_path = design_url.split('/', 3)[3] if 'gs://' in design_url else design_url
+                design_blob = self.bucket.blob(design_path)
+                design_bytes = design_blob.download_as_bytes()
+                design = Image.open(io.BytesIO(design_bytes))
+                
+                # Convert to RGBA if needed for transparency
+                if design.mode != 'RGBA':
+                    design = design.convert('RGBA')
+            except Exception as e:
+                logger.error(f"Error downloading design from Firebase: {str(e)}")
+                raise ValueError(f"Unable to download design from URL: {design_url}")
+
             # Create preview
             preview = product_image.copy()
             

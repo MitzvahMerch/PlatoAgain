@@ -15,13 +15,17 @@ def init_routes(app, plato_bot: PlatoBot):
         data = request.json
         user_id = data.get('user_id', 'default_user')
         message = data.get('message')
+        design_url = data.get('design_url')  # Get design_url from request
         
         if not message:
             logger.error("No message provided in /api/chat request")
             return jsonify({"error": "No message provided"}), 400
         
         logger.info(f"Processing chat request for user: {user_id}")
-        response = plato_bot.process_message(user_id, message)
+        if design_url:
+            logger.info(f"Design URL provided: {design_url}")
+        
+        response = plato_bot.process_message(user_id, message, design_url)
         logger.info(f"Chat response: {response}")
         return jsonify(response)
 
@@ -49,6 +53,41 @@ def init_routes(app, plato_bot: PlatoBot):
             
         except Exception as e:
             logger.exception("Error checking product")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/design/preview', methods=['POST'])
+    def generate_preview():
+        logger.info("Received /api/design/preview request")
+        try:
+            data = request.json
+            user_id = data.get('user_id')
+            placement = data.get('placement')
+            
+            if not user_id or not placement:
+                return jsonify({'error': 'User ID and placement are required'}), 400
+            
+            # Get design context from conversation
+            design_context = plato_bot.conversation_manager.get_design_context(user_id)
+            if not design_context or not design_context.get('url'):
+                return jsonify({'error': 'No design found for user'}), 404
+            
+            # Get product context
+            product_context = plato_bot.conversation_manager.get_product_context(user_id)
+            if not product_context:
+                return jsonify({'error': 'No product selected'}), 404
+            
+            # Generate preview
+            preview = plato_bot.firebase_service.create_product_preview(
+                user_id=user_id,
+                product_image=product_context['image'],
+                design_url=design_context['url'],
+                placement=placement
+            )
+            
+            return jsonify(preview)
+            
+        except Exception as e:
+            logger.exception("Error generating preview")
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/health', methods=['GET'])

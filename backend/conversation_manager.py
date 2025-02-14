@@ -18,7 +18,8 @@ class ConversationManager:
                 'messages': [],
                 'last_active': datetime.now(),
                 'product_context': None,
-                'order_state': OrderState()  # Initialize order state
+                'design_context': None,  # Added design context
+                'order_state': OrderState()
             }
         
         self.conversations[user_id]['messages'].append({
@@ -56,6 +57,7 @@ class ConversationManager:
                 'messages': [],
                 'last_active': datetime.now(),
                 'product_context': None,
+                'design_context': None,  # Added design context
                 'order_state': OrderState()
             }
         return self.conversations[user_id]['order_state']
@@ -99,6 +101,31 @@ class ConversationManager:
         if user_id in self.conversations:
             return self.conversations[user_id].get('product_context')
         return None
+
+    def set_design_context(self, user_id: str, design_url: str) -> None:
+        """Store design context for the conversation."""
+        if user_id not in self.conversations:
+            self.conversations[user_id] = {
+                'messages': [],
+                'last_active': datetime.now(),
+                'product_context': None,
+                'design_context': None,
+                'order_state': OrderState()
+            }
+        
+        self.conversations[user_id]['design_context'] = {
+            'url': design_url,
+            'timestamp': datetime.now()
+        }
+        
+        # Update order state with design path
+        self.update_order_state(user_id, {'design_path': design_url})
+
+    def get_design_context(self, user_id: str) -> Dict:
+        """Get the current design context."""
+        if user_id in self.conversations:
+            return self.conversations[user_id].get('design_context')
+        return None
     
     def _is_conversation_timed_out(self, user_id: str) -> bool:
         """Check if the conversation has timed out."""
@@ -117,6 +144,7 @@ class ConversationManager:
                 'messages': [],
                 'last_active': datetime.now(),
                 'product_context': None,
+                'design_context': None,  # Added design context
                 'order_state': OrderState()
             }
     

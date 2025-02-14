@@ -10,6 +10,7 @@ from handlers import (
 from conversation_manager import ConversationManager
 from sonar_client import SonarClient
 from ss_client import SSClient
+from firebase_service import FirebaseService
 from config import SS_USERNAME, SS_API_KEY, MAX_HISTORY, TIMEOUT_MINUTES
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class PlatoBot:
             timeout_minutes=TIMEOUT_MINUTES
         )
         self.goal_identifier = GoalIdentifier()
+        self.firebase_service = FirebaseService()  # Initialize Firebase Service
         
         try:
             if not SS_USERNAME or not SS_API_KEY:
@@ -34,9 +36,14 @@ class PlatoBot:
             logger.exception("Error initializing S&S services:")
             raise
 
-    def process_message(self, user_id: str, message: str) -> dict:
+    def process_message(self, user_id: str, message: str, design_url: str = None) -> dict:
         logger.info(f"Processing message from user '{user_id}': {message}")
         try:
+            # Store design URL in conversation context if provided
+            if design_url:
+                logger.info(f"Setting design context for user {user_id}: {design_url}")
+                self.conversation_manager.set_design_context(user_id, design_url)
+
             self.conversation_manager.add_message(user_id, "user", message)
             order_state = self.conversation_manager.get_order_state(user_id)
             current_goal = self.goal_identifier.identify_goal(message, order_state)
@@ -52,7 +59,15 @@ class PlatoBot:
             
             handler = handlers.get(current_goal)
             if handler:
-                return handler(self.sonar, self.ss, self.conversation_manager, user_id, message, order_state)
+                return handler(
+                    self.sonar, 
+                    self.ss, 
+                    self.conversation_manager,
+                    self.firebase_service,  # Pass firebase_service to handlers
+                    user_id, 
+                    message, 
+                    order_state
+                )
             
         except Exception as e:
             logger.exception("Error processing message")
