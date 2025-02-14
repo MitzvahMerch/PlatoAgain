@@ -15,7 +15,7 @@ def handle_error(conversation_manager, user_id, error_message):
     conversation_manager.add_message(user_id, "assistant", error_response["text"])
     return error_response
 
-def handle_product_selection(sonar, ss, conversation_manager, user_id, message, order_state):
+def handle_product_selection(sonar, ss, conversation_manager, firebase_service, user_id, message, order_state):
     """Handle product selection goal"""
     # Get product match from Sonar
     product_match = sonar.call_api(
@@ -95,9 +95,10 @@ def handle_product_selection(sonar, ss, conversation_manager, user_id, message, 
     conversation_manager.add_message(user_id, "assistant", response["text"])
     return response
 
-def handle_design_placement(sonar, ss, conversation_manager, user_id, message, order_state):
+def handle_design_placement(sonar, ss, conversation_manager, firebase_service, user_id, message, order_state):
     """Handle design placement goal"""
     product_context = conversation_manager.get_product_context(user_id)
+    design_context = conversation_manager.get_design_context(user_id)
     
     # Generate placement response using the placement prompt
     response = sonar.call_api(
@@ -110,26 +111,47 @@ def handle_design_placement(sonar, ss, conversation_manager, user_id, message, o
     
     response_text = utils.clean_response(response)
     
-    # Check message for placement selection
+    # Check message for placement selection and generate preview if we have a design
     message_lower = message.lower()
+    placement = None
+    
     if "left chest" in message_lower:
-        conversation_manager.update_order_state(user_id, {"placement": "front_left_chest"})
+        placement = "leftChest"
     elif "full front" in message_lower:
-        conversation_manager.update_order_state(user_id, {"placement": "full_front"})
-    elif "full back" in message_lower:
-        conversation_manager.update_order_state(user_id, {"placement": "full_back"})
-    elif "half front" in message_lower:
-        conversation_manager.update_order_state(user_id, {"placement": "half_front"})
+        placement = "fullFront"
+    elif "center chest" in message_lower:
+        placement = "centerChest"
+    elif "center back" in message_lower:
+        placement = "centerBack"
+    
+    preview_image = None
+    if placement and design_context and product_context:
+        try:
+            preview_result = firebase_service.create_product_preview(
+                user_id=user_id,
+                product_image=product_context['image'],
+                design_url=design_context['url'],
+                placement=placement
+            )
+            preview_image = {
+                "url": preview_result['preview_url'],
+                "alt": f"Design Preview - {placement} placement",
+                "type": "design_preview"
+            }
+            # Update order state with placement
+            conversation_manager.update_order_state(user_id, {"placement": placement})
+        except Exception as e:
+            logger.error(f"Error generating preview: {str(e)}")
     
     response_dict = {
         "text": response_text,
-        "images": []  # No images needed for placement discussion
+        "images": [preview_image] if preview_image else []
     }
     
     conversation_manager.add_message(user_id, "assistant", response_text)
     return response_dict
 
-def handle_quantity_collection(sonar, ss, conversation_manager, user_id, message, order_state):
+def handle_quantity_collection(sonar, ss, conversation_manager, firebase_service, user_id, message, order_state):
     """Handle quantity collection goal"""
     product_context = conversation_manager.get_product_context(user_id)
     
@@ -172,7 +194,7 @@ def handle_quantity_collection(sonar, ss, conversation_manager, user_id, message
     conversation_manager.add_message(user_id, "assistant", response_text)
     return response_dict
 
-def handle_customer_information(sonar, ss, conversation_manager, user_id, message, order_state):
+def handle_customer_information(sonar, ss, conversation_manager, firebase_service, user_id, message, order_state):
     """Handle customer information collection"""
     product_context = conversation_manager.get_product_context(user_id)
     
