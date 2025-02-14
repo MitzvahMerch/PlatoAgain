@@ -11,7 +11,7 @@ SS_API_KEY = os.getenv('SS_API_KEY')
 
 # Business Logic Constants
 PRINTING_COST = 1.50
-PROFIT_MARGIN = 9.00
+PROFIT_MARGIN = 10.00
 
 # Conversation Settings
 MAX_HISTORY = 10
