@@ -1,5 +1,3 @@
-// frontend/script.js
-
 // Generate a random user ID for this session
 const userId = 'user_' + Math.random().toString(36).substr(2, 9);
 const API_BASE_URL = 'http://localhost:5001';
@@ -9,7 +7,6 @@ const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
 const imageUploadButton = document.getElementById('image-upload');
-const previewArea = document.getElementById('preview-area');
 
 // Add initial welcome message
 window.addEventListener('DOMContentLoaded', async () => {
@@ -49,16 +46,10 @@ imageUploadButton.addEventListener('change', async (e) => {
     if (!file) return;
 
     try {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            previewArea.style.display = 'block';
-            previewArea.innerHTML = `<img src="${e.target.result}" alt="Upload preview">`;
-        };
-        reader.readAsDataURL(file);
-
-        // Store the file for sending later
         window.currentUpload = file;
-
+        const uploadButton = document.querySelector('.chat-upload-button svg');
+        uploadButton.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
+        uploadButton.style.color = 'var(--success-color)';
     } catch (error) {
         console.error('Error processing image:', error);
         addMessage('Sorry, there was an error processing your image. Please try again.', 'system');
@@ -67,51 +58,46 @@ imageUploadButton.addEventListener('change', async (e) => {
 
 async function sendMessage() {
     const message = chatInput.value.trim();
-    const hasImage = window.currentUpload && previewArea.style.display === 'block';
+    const hasImage = window.currentUpload;
     
-    // Don't proceed if there's no message and no image
     if (!message && !hasImage) return;
 
-    // If there's a message, add it to chat
     if (message) {
         addMessage(message, 'user');
     }
 
-    // If there's an image in preview, add it to chat and try to upload it
     let designUrl = null;
     if (hasImage) {
-        const previewImage = previewArea.querySelector('img');
-        if (previewImage) {
-            addProductImage(previewImage.src, 'User uploaded design');
-            
-            try {
-                // Upload to Firebase first
-                const uploadResult = await window.uploadDesignImage(window.currentUpload, userId);
-                if (uploadResult.success) {
-                    designUrl = uploadResult.url;
-                } else {
-                    throw new Error(uploadResult.error || 'Failed to upload image');
-                }
-            } catch (error) {
-                console.error('Error uploading to Firebase:', error);
-                addMessage('Sorry, there was an error uploading your design to storage. Please try again.', 'system');
-                return;
+        try {
+            const uploadResult = await window.uploadDesignImage(window.currentUpload, userId);
+            if (uploadResult.success) {
+                designUrl = uploadResult.url;
+                addProductImage(uploadResult.url, 'User uploaded design');
+            } else {
+                throw new Error(uploadResult.error || 'Failed to upload image');
             }
+        } catch (error) {
+            console.error('Error uploading to Firebase:', error);
+            addMessage('Sorry, there was an error uploading your design to storage. Please try again.', 'system');
+            return;
         }
     }
 
-    // Clear input and preview
     chatInput.value = '';
     chatInput.style.height = 'auto';
-    previewArea.style.display = 'none';
-    previewArea.innerHTML = '';
     window.currentUpload = null;
 
+    const uploadButton = document.querySelector('.chat-upload-button svg');
+    uploadButton.innerHTML = `
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+    `;
+    uploadButton.style.color = 'var(--secondary-color)';
+
     try {
-        // Show typing indicator
         const typingIndicator = addTypingIndicator();
 
-        // Send message to backend - always include a message, even if it's just indicating an image upload
         const response = await fetch(`${API_BASE_URL}/api/chat`, {
             method: 'POST',
             headers: {
@@ -124,7 +110,6 @@ async function sendMessage() {
             }),
         });
 
-        // Remove typing indicator
         typingIndicator.remove();
 
         if (!response.ok) {
@@ -133,12 +118,10 @@ async function sendMessage() {
 
         const data = await response.json();
         
-        // Add bot response text
         if (data.text) {
             addMessage(data.text, 'bot');
         }
         
-        // Add product images if any
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {
                 const imageUrl = `${API_BASE_URL}${image.url}`;

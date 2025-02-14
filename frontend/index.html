@@ -12,11 +12,10 @@
             <h1>Talk to Plato</h1>
             <p>Your AI Print Design Assistant</p>
         </div>
-
+        
         <div id="chat-messages" class="chat-messages"></div>
-
+        
         <div class="chat-footer">
-            <div id="preview-area" class="preview-area"></div>
             <div class="chat-input-container">
                 <label for="image-upload" class="chat-upload-button">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -27,7 +26,7 @@
                     <input type="file" id="image-upload" accept="image/*" style="display: none;">
                 </label>
                 <textarea 
-                    id="chat-input" 
+                    id="chat-input"
                     placeholder="Ask about products, designs, or pricing..."
                     rows="1"
                 ></textarea>
@@ -43,13 +42,13 @@
         </div>
     </div>
 
+    <!-- Firebase Scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-
-    <!-- Firebase Config -->
+    
+    <!-- Configuration and Main Scripts -->
     <script src="firebase-config.js"></script>
-    <!-- Main Script -->
     <script src="script.js"></script>
 </body>
 </html>
