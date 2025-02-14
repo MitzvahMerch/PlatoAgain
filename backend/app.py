@@ -4,6 +4,7 @@ import logging
 from routes import init_routes
 from plato_bot import PlatoBot
 from config import PORT, DEBUG
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +18,17 @@ def create_app():
     # Initialize PlatoBot
     try:
         plato_bot = PlatoBot()
-        logger.info("Successfully initialized PlatoBot")
+        
+        # Setup conversation cleanup scheduler
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(
+            plato_bot.conversation_manager.cleanup_old_conversations,
+            'interval',
+            minutes=30
+        )
+        scheduler.start()
+        
+        logger.info("Successfully initialized PlatoBot and cleanup scheduler")
     except Exception as e:
         logger.error(f"Failed to initialize PlatoBot: {str(e)}")
         raise

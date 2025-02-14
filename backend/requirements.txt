@@ -11,3 +11,4 @@ requests==2.31.0
 zeep==4.2.1  # Added for SanMar SOAP API
 pandas
 numpy  # pandas usually requires numpy
+apscheduler==3.10.1  # Added for conversation cleanup scheduling

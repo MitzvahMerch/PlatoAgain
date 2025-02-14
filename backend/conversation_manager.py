@@ -1,6 +1,7 @@
 from typing import List, Dict
 from datetime import datetime, timedelta
 import logging
+from order_state import OrderState
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,8 @@ class ConversationManager:
             self.conversations[user_id] = {
                 'messages': [],
                 'last_active': datetime.now(),
-                'product_context': None  # Store selected product info
+                'product_context': None,
+                'order_state': OrderState()  # Initialize order state
             }
         
         self.conversations[user_id]['messages'].append({
@@ -47,10 +49,50 @@ class ConversationManager:
             for msg in self.conversations[user_id]['messages']
         ]
     
+    def get_order_state(self, user_id: str) -> OrderState:
+        """Get the current order state for a user."""
+        if user_id not in self.conversations:
+            self.conversations[user_id] = {
+                'messages': [],
+                'last_active': datetime.now(),
+                'product_context': None,
+                'order_state': OrderState()
+            }
+        return self.conversations[user_id]['order_state']
+    
+    def update_order_state(self, user_id: str, state_update: Dict) -> None:
+        """Update the order state for a user."""
+        if user_id in self.conversations:
+            order_state = self.conversations[user_id]['order_state']
+            
+            if 'product_details' in state_update:
+                order_state.update_product(state_update['product_details'])
+            
+            if 'placement' in state_update:
+                order_state.update_design(
+                    design_path=state_update.get('design_path', None),
+                    placement=state_update['placement']
+                )
+            
+            if 'sizes' in state_update and 'price_per_item' in state_update:
+                order_state.update_quantities(
+                    state_update['sizes'],
+                    state_update['price_per_item']
+                )
+            
+            if all(key in state_update for key in ['name', 'address', 'email']):
+                order_state.update_customer_info(
+                    state_update['name'],
+                    state_update['address'],
+                    state_update['email']
+                )
+    
     def set_product_context(self, user_id: str, product_info: Dict) -> None:
         """Store product context for the conversation."""
         if user_id in self.conversations:
             self.conversations[user_id]['product_context'] = product_info
+            # Also update order state
+            self.update_order_state(user_id, {'product_details': product_info})
     
     def get_product_context(self, user_id: str) -> Dict:
         """Get the current product context."""
@@ -74,7 +116,8 @@ class ConversationManager:
             self.conversations[user_id] = {
                 'messages': [],
                 'last_active': datetime.now(),
-                'product_context': None
+                'product_context': None,
+                'order_state': OrderState()
             }
     
     def cleanup_old_conversations(self) -> None:
