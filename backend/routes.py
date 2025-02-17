@@ -1,6 +1,7 @@
 import logging
 from flask import jsonify, request, send_from_directory
 from plato_bot import PlatoBot
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -8,14 +9,14 @@ def init_routes(app, plato_bot: PlatoBot):
     @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
         return send_from_directory('productimages', filename)
-
+    
     @app.route('/api/chat', methods=['POST'])
     def chat():
         logger.info("Received /api/chat request")
         data = request.json
         user_id = data.get('user_id', 'default_user')
         message = data.get('message')
-        design_url = data.get('design_url')  # Get design_url from request
+        design_url = data.get('design_url')
         
         if not message:
             logger.error("No message provided in /api/chat request")
@@ -25,17 +26,17 @@ def init_routes(app, plato_bot: PlatoBot):
         if design_url:
             logger.info(f"Design URL provided: {design_url}")
         
-        response = plato_bot.process_message(user_id, message, design_url)
+        response = plato_bot.process_message(user_id, message, design_url)  # Removed asyncio.run
         logger.info(f"Chat response: {response}")
         return jsonify(response)
-
+    
     @app.route('/api/chat/reset', methods=['POST'])
     def reset_conversation():
         data = request.json
         user_id = data.get('user_id', 'default_user')
         plato_bot.conversation_manager._reset_conversation(user_id)
         return jsonify({"status": "success"})
-
+    
     @app.route('/api/products/check', methods=['GET'])
     def check_product():
         logger.info("Received /api/products/check request")
@@ -44,17 +45,17 @@ def init_routes(app, plato_bot: PlatoBot):
             color = request.args.get('color')
             if not style or not color:
                 return jsonify({'error': 'Style number and color are required'}), 400
-                
+            
             price = plato_bot.ss.get_price(style, color)
             if price is None:
                 return jsonify({'error': 'Product not found or unavailable'}), 404
-                
-            return jsonify({"customerPrice": price})
             
+            return jsonify({"customerPrice": price})
+        
         except Exception as e:
             logger.exception("Error checking product")
             return jsonify({'error': str(e)}), 500
-
+    
     @app.route('/api/design/preview', methods=['POST'])
     def generate_preview():
         logger.info("Received /api/design/preview request")
@@ -76,20 +77,20 @@ def init_routes(app, plato_bot: PlatoBot):
             if not product_context:
                 return jsonify({'error': 'No product selected'}), 404
             
-            # Generate preview
-            preview = plato_bot.firebase_service.create_product_preview(
+            # Generate preview - keep asyncio.run here as Firebase calls are still async
+            preview = asyncio.run(plato_bot.firebase_service.create_product_preview(
                 user_id=user_id,
                 product_image=product_context['image'],
                 design_url=design_context['url'],
                 placement=placement
-            )
+            ))
             
             return jsonify(preview)
-            
+        
         except Exception as e:
             logger.exception("Error generating preview")
             return jsonify({'error': str(e)}), 500
-
+    
     @app.route('/api/health', methods=['GET'])
     def health_check():
         logger.info("Received /api/health request")

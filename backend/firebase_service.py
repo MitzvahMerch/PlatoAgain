@@ -6,6 +6,8 @@ import tempfile
 from datetime import datetime
 import logging
 import os
+import urllib.parse
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +59,9 @@ class FirebaseService:
             blob.upload_from_filename(temp_file_path)
             
             # Get download URL
+            expiration_time = int(datetime.now().timestamp() + 3600)
             download_url = blob.generate_signed_url(
-                expiration=datetime.now().timestamp() + 3600
+                expiration=expiration_time
             )
             
             # Store metadata in Firestore using your existing structure
@@ -87,70 +90,92 @@ class FirebaseService:
             logger.error(f"Error uploading design: {str(e)}")
             raise
 
-    async def create_product_preview(self, user_id: str, product_image: Image.Image, 
-                                   design_url: str, placement: str):
+    async def create_product_preview(self, user_id: str, product_image: str, 
+                               design_url: str, placement: str):
         """
         Create preview of product with design placed according to specified position
         
         Args:
             user_id: User identifier
-            product_image: PIL Image of the product
+            product_image: Local path to the product image
             design_url: URL of the design in Firebase Storage
             placement: One of 'leftChest', 'fullFront', 'centerChest', 'centerBack'
         """
         try:
             # Download design from Firebase Storage
             try:
-                # Extract path from URL (removes gs://bucket/ prefix if present)
-                design_path = design_url.split('/', 3)[3] if 'gs://' in design_url else design_url
+                # Extract path from HTTP URL properly
+                path_start = design_url.find('/o/') + 3
+                path_end = design_url.find('?')
+                if path_start > 2 and path_end > path_start:
+                    design_path = design_url[path_start:path_end]
+                    design_path = urllib.parse.unquote(design_path)  # URL decode the path
+                    logger.info(f"Extracted design path: {design_path}")
+                else:
+                    raise ValueError(f"Invalid design URL format: {design_url}")
+                
                 design_blob = self.bucket.blob(design_path)
                 design_bytes = design_blob.download_as_bytes()
-                design = Image.open(io.BytesIO(design_bytes))
+                design = Image.open(io.BytesIO(design_bytes)).convert('RGB')
                 
-                # Convert to RGBA if needed for transparency
-                if design.mode != 'RGBA':
-                    design = design.convert('RGBA')
             except Exception as e:
                 logger.error(f"Error downloading design from Firebase: {str(e)}")
                 raise ValueError(f"Unable to download design from URL: {design_url}")
 
-            # Create preview
-            preview = product_image.copy()
+            # Load product image from local path
+            try:
+                # Remove leading slash if present
+                local_image_path = product_image.lstrip('/')
+                preview = Image.open(local_image_path).convert('RGB')
+            except Exception as e:
+                logger.error(f"Error loading product image: {str(e)}")
+                raise ValueError(f"Unable to load product image from path: {product_image}")
             
-            # Get placement coordinates based on position
-            position = self._get_placement_coordinates(placement, preview.size, design.size)
-            if position:
-                # Resize design based on placement
-                design_size = self._get_design_size(placement, preview.size)
-                resized_design = design.resize(design_size, Image.Resampling.LANCZOS)
+            # Define fixed sizes and positions
+            positions = {
+                'fullFront': {
+                    'size': (200, 200),
+                    'position': (500, 475)  # 50% left, 38% top
+                },
+                'centerChest': {
+                    'size': (154, 154),
+                    'position': (500, 437)  # 50% left, 35% top
+                },
+                'leftChest': {
+                    'size': (90, 90),
+                    'position': (640, 375)  # 64% left, 30% top
+                },
+                'centerBack': {
+                    'size': (180, 180),
+                    'position': (500, 350)  # 50% left, 28% top
+                }
+            }
+            
+            if placement in positions:
+                specs = positions[placement]
                 
-                # Paste design onto product
-                preview.paste(resized_design, position, resized_design)
+                # Resize logo
+                resized_design = design.resize(specs['size'])
                 
-                # Save preview
+                # Mirror the logo horizontally for left chest placement
+                if placement == 'leftChest':
+                    resized_design = resized_design.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                
+                # Simple paste
+                preview.paste(resized_design, specs['position'])
+                
+                # Create previews directory if it doesn't exist
+                preview_dir = f'productimages/previews/{user_id}'
+                os.makedirs(preview_dir, exist_ok=True)
+                
+                # Save preview image
                 preview_filename = f"preview_{placement}_{int(datetime.now().timestamp())}.png"
-                storage_path = f'designs/user_{user_id}/previews/{preview_filename}'
+                preview_path = f"{preview_dir}/{preview_filename}"
+                preview.save(preview_path, format="PNG")
                 
-                # Save to temporary file
-                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
-                    preview.save(temp_file, format='PNG')
-                    temp_file_path = temp_file.name
-
-                # Upload to Firebase Storage
-                blob = self.bucket.blob(storage_path)
-                blob.upload_from_filename(temp_file_path)
-                
-                # Get download URL
-                download_url = blob.generate_signed_url(
-                    expiration=datetime.now().timestamp() + 3600
-                )
-                
-                # Clean up
-                os.unlink(temp_file_path)
-                
+                # Return the relative path that matches our product image format
                 return {
-                    'preview_url': download_url,
-                    'storage_path': storage_path
+                    'preview_url': f"/productimages/previews/{user_id}/{preview_filename}"
                 }
             
             raise ValueError(f"Invalid placement: {placement}")
@@ -158,35 +183,3 @@ class FirebaseService:
         except Exception as e:
             logger.error(f"Error creating product preview: {str(e)}")
             raise
-
-    def _get_placement_coordinates(self, placement: str, product_size: tuple, 
-                                 design_size: tuple) -> tuple:
-        """Get coordinates for design placement based on position"""
-        product_w, product_h = product_size
-        design_w, design_h = design_size
-        
-        placements = {
-            'leftChest': (int(product_w * 0.64 - design_w/2),
-                         int(product_h * 0.30 - design_h/2)),
-            'fullFront': (int(product_w * 0.50 - design_w/2),
-                         int(product_h * 0.35 - design_h/2)),
-            'centerChest': (int(product_w * 0.50 - design_w/2),
-                          int(product_h * 0.32 - design_h/2)),
-            'centerBack': (int(product_w * 0.50 - design_w/2),
-                         int(product_h * 0.25 - design_h/2))
-        }
-        
-        return placements.get(placement)
-
-    def _get_design_size(self, placement: str, product_size: tuple) -> tuple:
-        """Get appropriate design size based on placement and product size"""
-        product_w, _ = product_size
-        
-        sizes = {
-            'leftChest': (int(product_w * 0.18), int(product_w * 0.18)),  # 90px equivalent
-            'fullFront': (int(product_w * 0.40), int(product_w * 0.40)),  # 200px equivalent
-            'centerChest': (int(product_w * 0.31), int(product_w * 0.31)),  # 154px equivalent
-            'centerBack': (int(product_w * 0.36), int(product_w * 0.36))   # 180px equivalent
-        }
-        
-        return sizes.get(placement)

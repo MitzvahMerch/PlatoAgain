@@ -5,6 +5,7 @@ from routes import init_routes
 from plato_bot import PlatoBot
 from config import PORT, DEBUG
 from apscheduler.schedulers.background import BackgroundScheduler
+import asyncio
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -41,4 +42,7 @@ def create_app():
 if __name__ == '__main__':
     logger.info(f"Starting Flask server on port {PORT}...")
     app = create_app()
+    # Add event loop for async support
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     app.run(debug=DEBUG, port=PORT)
