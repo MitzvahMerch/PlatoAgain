@@ -3,6 +3,7 @@ from typing import Dict, Optional, List
 from PIL import Image
 import utils
 from goal_identifier import GoalIdentifier
+from paypal_service import PayPalService
 from conversation_manager import ConversationManager
 from sonar_client import SonarClient
 from ss_client import SSClient
@@ -27,6 +28,7 @@ class PlatoBot:
         )
         self.goal_identifier = GoalIdentifier(self.sonar)
         self.firebase_service = FirebaseService()
+        self.paypal = PayPalService()
 
         # Initialize SS Client
         try:
@@ -316,16 +318,21 @@ class PlatoBot:
                 self.firebase_service.update_customer_info(user_id, valid_info)
                 logger.info(f"Successfully updated Firestore with customer info for user {user_id}")
 
+                
+
                 # Update conversation manager state
                 self.conversation_manager.update_order_state(user_id, {
-                    'customer_name': extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name,
-                    'shipping_address': extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address,
-                    'email': extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+                'name': extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name,
+                'address': extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address,
+                'email': extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
                 })
 
                 # Get fresh order state after updates
                 order_state = self.conversation_manager.get_order_state(user_id)
-
+                logger.info(f"Checking order state values - Name: {order_state.customer_name}, Address: {order_state.shipping_address}, Email: {order_state.email}")
+                has_all_info = all([order_state.customer_name, order_state.shipping_address, order_state.email])
+                logger.info(f"Has all info: {has_all_info}")
+                 
                 # Check if we have all required customer information
                 if not all([order_state.customer_name, order_state.shipping_address, order_state.email]):
                     response = self.sonar.call_api([
@@ -342,7 +349,23 @@ class PlatoBot:
                         'customer_name': order_state.customer_name or '',
                         'shipping_address': order_state.shipping_address or '',
                         'email': order_state.email or ''
-                    }
+                    } 
+                    try:
+                            invoice_data = self.paypal.create_invoice(order_state)
+
+                            self.conversation_manager.update_order_state(user_id, {
+                                "invoice_id": invoice_data["invoice_id"],
+                                "invoice_number": invoice_data["invoice_number"],
+                                "invoice_status": invoice_data["status"]
+                            })
+
+                            self.firebase_service.update_customer_info(user_id, {
+                                "invoice_id": invoice_data["invoice_id"],
+                                "invoice_number": invoice_data["invoice_number"],
+                                "invoice_status": invoice_data["status"]
+                            })
+                    except Exception as e:
+                                logger.error(f"Failed to create PayPal invoice: {e}")
 
                     response = self.sonar.call_api([
                         {"role": "system", "content": prompts.ORDER_COMPLETION_PROMPT.format(**context)},

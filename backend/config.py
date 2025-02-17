@@ -9,6 +9,10 @@ SONAR_BASE_URL = "https://api.perplexity.ai/chat/completions"
 SS_USERNAME = os.getenv('SS_USERNAME')
 SS_API_KEY = os.getenv('SS_API_KEY')
 
+# PayPal Configuration
+PAYPAL_CLIENT_ID = "Aa2-mzkmjWQCgXq3zONHNu1eFWPABooevh0Hjp_z7PMBjZOJ0xdCIAIgE4eK8MJ4TcowsMROEefprlvm"
+PAYPAL_CLIENT_SECRET = os.getenv('PAYPAL_CLIENT_SECRET')
+
 # Business Logic Constants
 PRINTING_COST = 1.50
 PROFIT_MARGIN = 10.00
