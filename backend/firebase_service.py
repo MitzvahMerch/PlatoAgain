@@ -26,6 +26,42 @@ class FirebaseService:
             logger.error(f"Failed to initialize Firebase: {str(e)}")
             raise
 
+    def update_customer_info(self, user_id: str, customer_info: dict) -> bool:
+        """
+        Update customer information in Firestore using the user ID as document ID.
+        
+        Args:
+            user_id: User identifier (matches document ID)
+            customer_info: Dict containing extracted customer information
+                {
+                    'name': str (optional),
+                    'address': str (optional),
+                    'email': str (optional)
+                }
+        """
+        try:
+            # Get direct reference to the document using user_id
+            design_ref = self.db.collection('designs').document(user_id)
+            
+            # Prepare update data with server timestamp
+            update_data = {
+        'customerInfo': {
+        'name': customer_info.get('name'),
+        'address': customer_info.get('address'),
+        'email': customer_info.get('email'),
+        'updatedAt': firestore.SERVER_TIMESTAMP
+        }
+            }
+
+            # Update the document
+            design_ref.update(update_data)
+            logger.info(f"Updated customer info for user {user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating customer info for user {user_id}: {str(e)}")
+            raise
+
     async def upload_design(self, user_id: str, design_file, filename: str):
         """
         Upload design to Firebase Storage and store metadata in Firestore
@@ -183,3 +219,4 @@ class FirebaseService:
         except Exception as e:
             logger.error(f"Error creating product preview: {str(e)}")
             raise
+        

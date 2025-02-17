@@ -125,7 +125,7 @@ class PlatoBot:
         # Get price from SS
         try:
             base_price = self.ss.get_price(
-                style=details["style_number"],  # SS client will handle prepending "Gildan"
+                style=details["style_number"],
                 color=details["color"]
             )
             if base_price is None:
@@ -262,35 +262,13 @@ class PlatoBot:
             for size, qty in sizes.items():
                 response_text += f"- {qty} {size.upper()}\n"
             response_text += f"\nTotal price will be ${total_price:.2f}. "
-            response_text += "Would you like to proceed with the order? I'll just need your shipping information and email for the PayPal invoice."
+            response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
         else:
             response = self.sonar.call_api([
                 {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
                 {"role": "user", "content": message}
             ], temperature=0.7)
             response_text = utils.clean_response(response)
-
-        return {"text": response_text, "images": []}
-
-    def _handle_customer_information(self, user_id: str, message: str, order_state) -> dict:
-        """Handle customer information collection."""
-        context = self._prepare_context("customer_information", user_id)
-        
-        # Check for email in message
-        if '@' in message and '.' in message:
-            self.conversation_manager.update_order_state(user_id, {
-                'email': message.split('@')[0] + '@' + message.split('@')[1]
-            })
-
-        # Generate response based on what information we still need
-        if not order_state.customer_name:
-            response_text = "Could you please provide your full name for shipping?"
-        elif not order_state.shipping_address:
-            response_text = "Great, and what's your shipping address?"
-        elif not order_state.email:
-            response_text = "Perfect! Lastly, what email address should I send the PayPal invoice to?"
-        else:
-            response_text = "Excellent! I have all your information. I'll send the PayPal invoice to your email right away. Once payment is received, we'll get started on your order!"
 
         return {"text": response_text, "images": []}
 
@@ -311,3 +289,79 @@ class PlatoBot:
         base_context.setdefault("previous_context", "")
         
         return base_context
+
+    def _handle_customer_information(self, user_id: str, message: str, order_state) -> dict:
+        """Handle customer information collection and store in Firestore."""
+        logger.info(f"Handling customer information for user {user_id}")
+
+        # First, extract any customer information from the message
+        extraction_messages = [
+            {"role": "system", "content": prompts.CUSTOMER_INFO_EXTRACTION_PROMPT},
+            {"role": "user", "content": message}
+        ]
+
+        extraction_response = self.sonar.call_api(extraction_messages, temperature=0.1)
+        extracted_info = utils.parse_customer_info(extraction_response)
+
+        # If we extracted any valid information, update Firestore
+        if any(value != 'none' for value in extracted_info.values()):
+            try:
+                # Filter out any 'none' values
+                valid_info = {
+                    k: v for k, v in extracted_info.items() 
+                    if v != 'none'
+                }
+
+                # Update Firestore with the new information
+                self.firebase_service.update_customer_info(user_id, valid_info)
+                logger.info(f"Successfully updated Firestore with customer info for user {user_id}")
+
+                # Update conversation manager state
+                self.conversation_manager.update_order_state(user_id, {
+                    'customer_name': extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name,
+                    'shipping_address': extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address,
+                    'email': extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+                })
+
+                # Get fresh order state after updates
+                order_state = self.conversation_manager.get_order_state(user_id)
+
+                # Check if we have all required customer information
+                if not all([order_state.customer_name, order_state.shipping_address, order_state.email]):
+                    response = self.sonar.call_api([
+                        {"role": "system", "content": prompts.INCOMPLETE_INFO_PROMPT},
+                        {"role": "user", "content": "Generate response"}
+                    ], temperature=0.7)
+                else:
+                    # Only prepare context if we have all information
+                    context = {
+                        'product_details': f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}" if order_state.product_details else "No product selected",
+                        'placement': order_state.placement or 'Not selected',
+                        'quantities': ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items()) if order_state.sizes else 'Not specified',
+                        'total_price': f"${order_state.total_price:.2f}",
+                        'customer_name': order_state.customer_name or '',
+                        'shipping_address': order_state.shipping_address or '',
+                        'email': order_state.email or ''
+                    }
+
+                    response = self.sonar.call_api([
+                        {"role": "system", "content": prompts.ORDER_COMPLETION_PROMPT.format(**context)},
+                        {"role": "user", "content": "Generate response"}
+                    ], temperature=0.7)
+
+                response_text = utils.clean_response(response)
+                return {"text": response_text, "images": []}
+
+            except Exception as e:
+                logger.error(f"Failed to update customer info in Firestore: {e}")
+                return {
+                    "text": "I apologize, but I encountered an error saving your information. Could you please try again?",
+                    "images": []
+                }
+        
+        # If no valid information was extracted
+        return {
+            "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
+            "images": []
+        }
+       

@@ -5,6 +5,41 @@ from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+def parse_customer_info(extraction_response: str) -> dict:
+    """
+    Parse the customer info extraction response.
+    Expected format:
+    CUSTOMER_INFO:
+    NAME: John Smith
+    ADDRESS: 123 Main St, Boston MA 02108
+    EMAIL: john@email.com
+    """
+    info = {
+        'name': 'none',
+        'address': 'none',
+        'email': 'none'
+    }
+    
+    try:
+        # Remove CUSTOMER_INFO: prefix if present
+        if 'CUSTOMER_INFO:' in extraction_response:
+            extraction_response = extraction_response.split('CUSTOMER_INFO:', 1)[1]
+            
+        lines = extraction_response.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith('NAME: '):
+                info['name'] = line.replace('NAME: ', '').strip()
+            elif line.startswith('ADDRESS: '):
+                info['address'] = line.replace('ADDRESS: ', '').strip()
+            elif line.startswith('EMAIL: '):
+                info['email'] = line.replace('EMAIL: ', '').strip()
+                
+        return info
+    except Exception as e:
+        logger.error(f"Error parsing customer info: {str(e)}")
+        return info
+
 def extract_size_info(message: str) -> Dict[str, int]:
     """
     Extract size quantities from customer messages.

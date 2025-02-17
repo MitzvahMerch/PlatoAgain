@@ -75,8 +75,8 @@ async function uploadDesignImage(file, userId) {
                     try {
                         const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
                         
-                        // Store metadata in Firestore
-                        await window.db.collection('designs').add({
+                        // Store metadata in Firestore using userId as document ID
+                        await window.db.collection('designs').doc(userId).set({
                             userId: userId,
                             fileName: file.name,
                             fileType: file.type,
