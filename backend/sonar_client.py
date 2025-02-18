@@ -33,7 +33,7 @@ class SonarClient:
         try:
             headers = {
                 "Authorization": f"Bearer {SONAR_API_KEY}",
-                "Content-Type": "application/json"
+                "Content-sType": "application/json"
             }
             data = {
                 "model": "sonar-reasoning-pro",
