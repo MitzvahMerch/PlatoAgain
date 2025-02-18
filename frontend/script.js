@@ -1,6 +1,3 @@
-// script.js
-import { uploadDesignImage } from './firebase-config.js';
-
 // Generate a random user ID for this session
 const userId = 'user_' + Math.random().toString(36).substr(2, 9);
 const API_BASE_URL = 'http://localhost:5001';
@@ -10,16 +7,8 @@ const chatMessages = document.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
 const imageUploadButton = document.getElementById('image-upload');
-const designPreview = document.getElementById('design-preview');
-const placementSelect = document.getElementById('placement-select');
-const uploadProgress = document.querySelector('.upload-progress');
-const progressBar = document.querySelector('.progress-bar');
-const progressText = document.querySelector('.progress-text');
-const previewInfo = document.querySelector('.preview-info');
 
-let currentDesignUrl = null;
-
-// Welcome message and health check
+// Add initial welcome message
 window.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/api/health`);
@@ -57,67 +46,70 @@ imageUploadButton.addEventListener('change', async (e) => {
     if (!file) return;
 
     try {
-        // Show loading state
-        uploadProgress.style.display = 'block';
-        addMessage('Uploading your design...', 'system');
-
-        // Upload to Firebase
-        const uploadResult = await uploadDesignImage(file, userId);
-
-        if (uploadResult.success) {
-            // Update preview
-            designPreview.src = uploadResult.url;
-            designPreview.style.display = 'block';
-            currentDesignUrl = uploadResult.url;
-
-            // Update progress and info
-            progressBar.style.width = '100%';
-            progressText.textContent = '100%';
-            previewInfo.textContent = `Design uploaded successfully! Location: ${placementSelect.value === 'chest' ? 'Front Right Chest' : 'Full Back'}`;
-
-            // Add success message
-            addMessage(`Design uploaded successfully! I'll help place it ${placementSelect.value === 'chest' ? 'on the front right chest' : 'on the full back'} of your selected product.`, 'bot');
-        } else {
-            throw new Error(uploadResult.error);
-        }
-
+        window.currentUpload = file;
+        const uploadButton = document.querySelector('.chat-upload-button svg');
+        uploadButton.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
+        uploadButton.style.color = 'var(--success-color)';
     } catch (error) {
-        console.error('Error uploading image:', error);
-        addMessage('Sorry, there was an error uploading your design. Please try again.', 'bot');
-        uploadProgress.style.display = 'none';
+        console.error('Error processing image:', error);
+        addMessage('Sorry, there was an error processing your image. Please try again.', 'system');
     }
 });
 
 async function sendMessage() {
     const message = chatInput.value.trim();
-    if (!message) return;
+    const hasImage = window.currentUpload;
+    
+    if (!message && !hasImage) return;
 
-    // Add user message to chat
-    addMessage(message, 'user');
+    if (message) {
+        addMessage(message, 'user');
+    }
 
-    // Clear input
+    let designUrl = null;
+    if (hasImage) {
+        try {
+            const uploadResult = await window.uploadDesignImage(window.currentUpload, userId);
+            if (uploadResult.success) {
+                designUrl = uploadResult.url;
+                addProductImage(uploadResult.url, 'User uploaded design');
+            } else {
+                throw new Error(uploadResult.error || 'Failed to upload image');
+            }
+        } catch (error) {
+            console.error('Error uploading to Firebase:', error);
+            addMessage('Sorry, there was an error uploading your design to storage. Please try again.', 'system');
+            return;
+        }
+    }
+
     chatInput.value = '';
     chatInput.style.height = 'auto';
+    window.currentUpload = null;
+
+    const uploadButton = document.querySelector('.chat-upload-button svg');
+    uploadButton.innerHTML = `
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+    `;
+    uploadButton.style.color = 'var(--secondary-color)';
 
     try {
-        // Show typing indicator
         const typingIndicator = addTypingIndicator();
 
-        // Send message to backend with design info if available
         const response = await fetch(`${API_BASE_URL}/api/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                message: message,
+                message: message || "I'd like to share this design with you",
                 user_id: userId,
-                design_url: currentDesignUrl,
-                design_placement: placementSelect.value
+                design_url: designUrl
             }),
         });
 
-        // Remove typing indicator
         typingIndicator.remove();
 
         if (!response.ok) {
@@ -126,12 +118,10 @@ async function sendMessage() {
 
         const data = await response.json();
         
-        // Add bot response text
         if (data.text) {
             addMessage(data.text, 'bot');
         }
         
-        // Add product images if any
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {
                 const imageUrl = `${API_BASE_URL}${image.url}`;
