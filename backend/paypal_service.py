@@ -134,24 +134,43 @@ class PayPalService:
                 json=invoice_data
             )
             logger.debug("PayPal create invoice response status: %s", response.status_code)
+            
+            # Add logging for raw response before json parsing
+            logger.debug("Raw PayPal response: %s", response.text)
+            
             response.raise_for_status()
             
             invoice_data = response.json()
-            logger.debug("PayPal create invoice response data: %s", str(invoice_data))
+            logger.debug("Raw PayPal response data after JSON parse: %s", str(invoice_data))
+
+            # Extract invoice ID from href
+            if 'href' in invoice_data:
+                invoice_id = invoice_data['href'].split('/')[-1]
+                logger.debug("Extracted invoice ID from href: %s", invoice_id)
+                # Format the payment URL ID by removing hyphens
+                payment_url_id = invoice_id.replace("-", "")
+                logger.debug("Formatted payment URL ID: %s", payment_url_id)
+            else:
+                logger.error("PayPal response missing 'href' field. Full response: %s", str(invoice_data))
+                raise ValueError("PayPal API response missing required 'href' field")
             
             # Send the invoice
-            logger.debug("Attempting to send invoice ID: %s", invoice_data['id'])
+            logger.debug("Attempting to send invoice ID: %s", invoice_id)
             send_response = requests.post(
-                f"{invoice_url}/{invoice_data['id']}/send",
+                f"{invoice_url}/{invoice_id}/send",
                 headers=headers
             )
             logger.debug("PayPal send invoice response status: %s", send_response.status_code)
+            # Add logging for send response
+            logger.debug("Raw PayPal send response: %s", send_response.text)
+            
             send_response.raise_for_status()
 
             return {
-                "invoice_id": invoice_data["id"],
+                "invoice_id": invoice_id,
                 "status": "SENT",
-                "invoice_number": invoice_data["detail"]["invoice_number"]
+                "invoice_number": invoice_id,
+                "payment_url": f"https://www.paypal.com/invoice/p/#{payment_url_id}"
             }
 
         except requests.exceptions.RequestException as e:

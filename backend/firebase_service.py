@@ -36,30 +36,87 @@ class FirebaseService:
                 {
                     'name': str (optional),
                     'address': str (optional),
-                    'email': str (optional)
+                    'email': str (optional),
+                    'invoice_id': str (optional),
+                    'invoice_number': str (optional),
+                    'status': str (optional),
+                    'payment_url': str (optional)
                 }
         """
         try:
+            logger.info(f"Starting update_customer_info for user {user_id}")
+            logger.info(f"Received customer_info: {customer_info}")
+            
             # Get direct reference to the document using user_id
             design_ref = self.db.collection('designs').document(user_id)
+            logger.info(f"Got Firestore reference for document: {user_id}")
             
-            # Prepare update data with server timestamp
-            update_data = {
-        'customerInfo': {
-        'name': customer_info.get('name'),
-        'address': customer_info.get('address'),
-        'email': customer_info.get('email'),
-        'updatedAt': firestore.SERVER_TIMESTAMP
-        }
+            # Separate customer info and PayPal info
+            customer_data = {
+                'name': customer_info.get('name'),
+                'address': customer_info.get('address'),
+                'email': customer_info.get('email'),
+                'updatedAt': firestore.SERVER_TIMESTAMP
             }
+            logger.info(f"Created customer_data structure: {customer_data}")
+            
+            # Create PayPal data if present
+            paypal_data = {}
+            paypal_fields = ['invoice_id', 'invoice_number', 'status', 'payment_url']
+            logger.info(f"PayPal fields to check: {paypal_fields}")
+            logger.info(f"Keys present in customer_info: {customer_info.keys()}")
+            
+            # Log which PayPal fields are present
+            for field in paypal_fields:
+                logger.info(f"Checking field '{field}': {'present' if field in customer_info else 'absent'}")
+            
+            if any(field in customer_info for field in paypal_fields):
+                logger.info("Found PayPal fields in customer_info, processing...")
+                paypal_data = {}
+                for field in paypal_fields:
+                    if field in customer_info:
+                        paypal_data[field] = customer_info[field]
+                        logger.info(f"Added PayPal field {field} with value: {customer_info[field]}")
+                    else:
+                        logger.warning(f"PayPal field {field} not found in customer_info")
+                
+                logger.info(f"Final PayPal data structure: {paypal_data}")
+            else:
+                logger.info("No PayPal fields found in customer_info")
+            
+            # Prepare update data
+            update_data = {}
+            logger.info("Preparing final update_data structure")
+            
+            # Only include customerInfo if we have customer data
+            if any(v for k, v in customer_data.items() if k != 'updatedAt'):
+                update_data['customerInfo'] = customer_data
+                logger.info(f"Added customerInfo to update_data: {customer_data}")
+            else:
+                logger.info("No customer data to add to update_data")
+            
+            # Add PayPal data if present
+            if paypal_data:
+                update_data['paypalInfo'] = paypal_data
+                logger.info(f"Added paypalInfo to update_data: {paypal_data}")
+            else:
+                logger.info("No PayPal data to add to update_data")
+            
+            logger.info(f"Final update_data structure: {update_data}")
 
             # Update the document
+            logger.info("Attempting Firestore update...")
             design_ref.update(update_data)
-            logger.info(f"Updated customer info for user {user_id}")
+            logger.info(f"Successfully updated customer info for user {user_id}")
             return True
             
         except Exception as e:
             logger.error(f"Error updating customer info for user {user_id}: {str(e)}")
+            logger.error(f"Full customer_info that caused error: {customer_info}")
+            if 'paypal_data' in locals():
+                logger.error(f"PayPal data at time of error: {paypal_data}")
+            if 'update_data' in locals():
+                logger.error(f"Update data at time of error: {update_data}")
             raise
 
     async def upload_design(self, user_id: str, design_file, filename: str):
@@ -219,4 +276,3 @@ class FirebaseService:
         except Exception as e:
             logger.error(f"Error creating product preview: {str(e)}")
             raise
-        

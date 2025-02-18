@@ -352,18 +352,23 @@ class PlatoBot:
                     } 
                     try:
                             invoice_data = self.paypal.create_invoice(order_state)
+                            logger.info(f"PayPal invoice response: {invoice_data}")
 
                             self.conversation_manager.update_order_state(user_id, {
                                 "invoice_id": invoice_data["invoice_id"],
                                 "invoice_number": invoice_data["invoice_number"],
-                                "invoice_status": invoice_data["status"]
+                                "status": invoice_data["status"],
+                                "payment_url": invoice_data["payment_url"]
                             })
 
                             self.firebase_service.update_customer_info(user_id, {
                                 "invoice_id": invoice_data["invoice_id"],
                                 "invoice_number": invoice_data["invoice_number"],
-                                "invoice_status": invoice_data["status"]
+                                "status": invoice_data["status"],
+                                "payment_url": invoice_data["payment_url"]  # And add this line
                             })
+                                                       
+
                     except Exception as e:
                                 logger.error(f"Failed to create PayPal invoice: {e}")
 
