@@ -27,6 +27,9 @@ class OrderState:
     shipping_address: Optional[str] = None
     email: Optional[str] = None
     
+    # Payment Information
+    payment_url: Optional[str] = None
+
     def update_product(self, details: Dict):
         self.product_selected = True
         self.product_details = details
@@ -87,7 +90,8 @@ class OrderState:
             "customer_info_collected": self.customer_info_collected,
             "customer_name": self.customer_name,
             "shipping_address": self.shipping_address,
-            "email": self.email
+            "email": self.email,
+            "payment_url": self.payment_url
         }
     
     @classmethod

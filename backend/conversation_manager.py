@@ -137,6 +137,9 @@ class ConversationManager:
                         state_update['address'],
                         state_update['email']
                     )
+                # NEW: Update payment_url if present
+                if 'payment_url' in state_update:
+                    order_state.payment_url = state_update['payment_url']
             except Exception as e:
                 logger.error(f"Error updating order state: {str(e)}")
                 raise

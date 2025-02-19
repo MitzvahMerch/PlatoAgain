@@ -318,13 +318,11 @@ class PlatoBot:
                 self.firebase_service.update_customer_info(user_id, valid_info)
                 logger.info(f"Successfully updated Firestore with customer info for user {user_id}")
 
-                
-
                 # Update conversation manager state
                 self.conversation_manager.update_order_state(user_id, {
-                'name': extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name,
-                'address': extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address,
-                'email': extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+                    'name': extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name,
+                    'address': extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address,
+                    'email': extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
                 })
 
                 # Get fresh order state after updates
@@ -340,7 +338,30 @@ class PlatoBot:
                         {"role": "user", "content": "Generate response"}
                     ], temperature=0.7)
                 else:
-                    # Only prepare context if we have all information
+                    # Create PayPal invoice and update order state before building context
+                    try:
+                        invoice_data = self.paypal.create_invoice(order_state)
+                        logger.info(f"PayPal invoice response: {invoice_data}")
+
+                        self.conversation_manager.update_order_state(user_id, {
+                            "invoice_id": invoice_data["invoice_id"],
+                            "invoice_number": invoice_data["invoice_number"],
+                            "status": invoice_data["status"],
+                            "payment_url": invoice_data["payment_url"]
+                        })
+
+                        self.firebase_service.update_customer_info(user_id, {
+                            "invoice_id": invoice_data["invoice_id"],
+                            "invoice_number": invoice_data["invoice_number"],
+                            "status": invoice_data["status"],
+                            "payment_url": invoice_data["payment_url"]
+                        })
+                    except Exception as e:
+                        logger.error(f"Failed to create PayPal invoice: {e}")
+
+                    # Re-fetch the updated order state after invoice creation
+                    order_state = self.conversation_manager.get_order_state(user_id)
+                    # Now prepare context with updated order state (including payment_url)
                     context = {
                         'product_details': f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}" if order_state.product_details else "No product selected",
                         'placement': order_state.placement or 'Not selected',
@@ -348,30 +369,9 @@ class PlatoBot:
                         'total_price': f"${order_state.total_price:.2f}",
                         'customer_name': order_state.customer_name or '',
                         'shipping_address': order_state.shipping_address or '',
-                        'email': order_state.email or ''
-                    } 
-                    try:
-                            invoice_data = self.paypal.create_invoice(order_state)
-                            logger.info(f"PayPal invoice response: {invoice_data}")
-
-                            self.conversation_manager.update_order_state(user_id, {
-                                "invoice_id": invoice_data["invoice_id"],
-                                "invoice_number": invoice_data["invoice_number"],
-                                "status": invoice_data["status"],
-                                "payment_url": invoice_data["payment_url"]
-                            })
-
-                            self.firebase_service.update_customer_info(user_id, {
-                                "invoice_id": invoice_data["invoice_id"],
-                                "invoice_number": invoice_data["invoice_number"],
-                                "status": invoice_data["status"],
-                                "payment_url": invoice_data["payment_url"]  # And add this line
-                            })
-                                                       
-
-                    except Exception as e:
-                                logger.error(f"Failed to create PayPal invoice: {e}")
-
+                        'email': order_state.email or '',
+                        'payment_url': order_state.payment_url if hasattr(order_state, 'payment_url') else ''
+                    }
                     response = self.sonar.call_api([
                         {"role": "system", "content": prompts.ORDER_COMPLETION_PROMPT.format(**context)},
                         {"role": "user", "content": "Generate response"}
@@ -392,4 +392,3 @@ class PlatoBot:
             "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
             "images": []
         }
-       

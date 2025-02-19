@@ -59,15 +59,15 @@ class PayPalService:
         
         # Log input validation
         logger.debug("Validating order state - Name: %s, Email: %s, Address: %s", 
-                    order_state.customer_name, 
-                    order_state.email, 
-                    order_state.shipping_address)
+                     order_state.customer_name, 
+                     order_state.email, 
+                     order_state.shipping_address)
         
         # Log order details
         logger.debug("Order details - Product: %s, Color: %s, Placement: %s", 
-                    order_state.product_details.get('product_name'),
-                    order_state.product_details.get('color'),
-                    order_state.placement)
+                     order_state.product_details.get('product_name'),
+                     order_state.product_details.get('color'),
+                     order_state.placement)
         
         # Log quantities
         logger.debug("Order quantities: %s", str(order_state.sizes))
@@ -135,7 +135,7 @@ class PayPalService:
             )
             logger.debug("PayPal create invoice response status: %s", response.status_code)
             
-            # Add logging for raw response before json parsing
+            # Log raw response before JSON parsing
             logger.debug("Raw PayPal response: %s", response.text)
             
             response.raise_for_status()
@@ -147,8 +147,11 @@ class PayPalService:
             if 'href' in invoice_data:
                 invoice_id = invoice_data['href'].split('/')[-1]
                 logger.debug("Extracted invoice ID from href: %s", invoice_id)
-                # Format the payment URL ID by removing hyphens
-                payment_url_id = invoice_id.replace("-", "")
+                # Strip off "INV2" prefix and remove hyphens
+                if invoice_id.startswith("INV2"):
+                    payment_url_id = invoice_id[4:].replace("-", "")
+                else:
+                    payment_url_id = invoice_id.replace("-", "")
                 logger.debug("Formatted payment URL ID: %s", payment_url_id)
             else:
                 logger.error("PayPal response missing 'href' field. Full response: %s", str(invoice_data))
@@ -161,7 +164,7 @@ class PayPalService:
                 headers=headers
             )
             logger.debug("PayPal send invoice response status: %s", send_response.status_code)
-            # Add logging for send response
+            # Log raw send response
             logger.debug("Raw PayPal send response: %s", send_response.text)
             
             send_response.raise_for_status()
@@ -175,8 +178,8 @@ class PayPalService:
 
         except requests.exceptions.RequestException as e:
             logger.error("PayPal API error during invoice creation: %s. Response: %s", 
-                        str(e), 
-                        getattr(e.response, 'text', 'No response text'))
+                         str(e), 
+                         getattr(e.response, 'text', 'No response text'))
             raise
         except Exception as e:
             logger.error("Unexpected error during invoice creation: %s", str(e), exc_info=True)

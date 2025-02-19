@@ -210,12 +210,12 @@ Customer Information:
 - Name: {customer_name}
 - Address: {shipping_address}
 - Email: {email}
-- Payment Link: {payment_url}  # Add this line
+- Payment Link: {payment_url}  
 
 Provide a friendly confirmation that:
 1. Thanks {customer_name} for their order
 2. Confirms you've sent a PayPal invoice to {email}
-3. Provides the direct payment link
+3. Provides the direct {payment_url}
 4. Informs about 2-week delivery timeframe after payment
 5. Ends the conversation warmly
 
