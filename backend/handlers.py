@@ -96,11 +96,11 @@ def handle_product_selection(sonar, ss, conversation_manager, firebase_service, 
     return response
 
 def handle_design_placement(sonar, ss, conversation_manager, firebase_service, user_id, message, order_state):
-    """Handle design placement goal"""
+    """Handle design placement goal - now just manages conversation flow since preview is handled in frontend"""
     product_context = conversation_manager.get_product_context(user_id)
     design_context = conversation_manager.get_design_context(user_id)
     
-    # Generate placement response using the placement prompt
+    # Generate appropriate conversational response about design placement
     response = sonar.call_api(
         messages=[
             {"role": "system", "content": prompts.get_placement_prompt(product_context)},
@@ -111,41 +111,9 @@ def handle_design_placement(sonar, ss, conversation_manager, firebase_service, u
     
     response_text = utils.clean_response(response)
     
-    # Check message for placement selection and generate preview if we have a design
-    message_lower = message.lower()
-    placement = None
-    
-    if "left chest" in message_lower:
-        placement = "leftChest"
-    elif "full front" in message_lower:
-        placement = "fullFront"
-    elif "center chest" in message_lower:
-        placement = "centerChest"
-    elif "center back" in message_lower:
-        placement = "centerBack"
-    
-    preview_image = None
-    if placement and design_context and product_context:
-        try:
-            preview_result = firebase_service.create_product_preview(
-                user_id=user_id,
-                product_image=product_context['image'],
-                design_url=design_context['url'],
-                placement=placement
-            )
-            preview_image = {
-                "url": preview_result['preview_url'],
-                "alt": f"Design Preview - {placement} placement",
-                "type": "design_preview"
-            }
-            # Update order state with placement
-            conversation_manager.update_order_state(user_id, {"placement": placement})
-        except Exception as e:
-            logger.error(f"Error generating preview: {str(e)}")
-    
     response_dict = {
         "text": response_text,
-        "images": [preview_image] if preview_image else []
+        "images": []
     }
     
     conversation_manager.add_message(user_id, "assistant", response_text)

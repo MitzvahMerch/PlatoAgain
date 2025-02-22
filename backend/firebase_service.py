@@ -129,6 +129,8 @@ class FirebaseService:
             filename: Original filename of the design
         """
         try:
+            logger.info(f"Starting design upload for user {user_id}")
+            
             # Process design with Pillow
             if isinstance(design_file, Image.Image):
                 img = design_file
@@ -145,20 +147,23 @@ class FirebaseService:
                 temp_file_path = temp_file.name
 
             # Define storage path following your structure
-            storage_path = f'designs/user_{user_id}/{filename}'
+            storage_path = f'designs/{user_id}/{filename}'
+            logger.info(f"Storage path for design: {storage_path}")
             
             # Upload to Firebase Storage
             blob = self.bucket.blob(storage_path)
             blob.upload_from_filename(temp_file_path)
+            logger.info("Design uploaded to Firebase Storage successfully")
             
             # Get download URL
             expiration_time = int(datetime.now().timestamp() + 3600)
             download_url = blob.generate_signed_url(
                 expiration=expiration_time
             )
+            logger.info(f"Generated download URL: {download_url}")
             
-            # Store metadata in Firestore using your existing structure
-            design_ref = self.db.collection('designs').document()
+            # Store metadata in Firestore using user_id as document ID
+            design_ref = self.db.collection('designs').document(user_id)
             design_data = {
                 'downloadURL': download_url,
                 'fileName': filename,
@@ -166,9 +171,13 @@ class FirebaseService:
                 'fileType': 'image/png',
                 'status': 'pending_review',
                 'uploadDate': firestore.SERVER_TIMESTAMP,
-                'userId': f'user_{user_id}'
+                'userId': user_id
             }
-            design_ref.set(design_data)
+            
+            # Use set with merge=True to update or create the document
+            logger.info(f"Attempting to store metadata in Firestore for user {user_id}")
+            design_ref.set(design_data, merge=True)
+            logger.info("Design metadata stored in Firestore successfully")
             
             # Clean up temporary file
             os.unlink(temp_file_path)
@@ -176,103 +185,9 @@ class FirebaseService:
             return {
                 'storage_path': storage_path,
                 'download_url': download_url,
-                'design_id': design_ref.id
+                'design_id': user_id
             }
             
         except Exception as e:
             logger.error(f"Error uploading design: {str(e)}")
-            raise
-
-    async def create_product_preview(self, user_id: str, product_image: str, 
-                               design_url: str, placement: str):
-        """
-        Create preview of product with design placed according to specified position
-        
-        Args:
-            user_id: User identifier
-            product_image: Local path to the product image
-            design_url: URL of the design in Firebase Storage
-            placement: One of 'leftChest', 'fullFront', 'centerChest', 'centerBack'
-        """
-        try:
-            # Download design from Firebase Storage
-            try:
-                # Extract path from HTTP URL properly
-                path_start = design_url.find('/o/') + 3
-                path_end = design_url.find('?')
-                if path_start > 2 and path_end > path_start:
-                    design_path = design_url[path_start:path_end]
-                    design_path = urllib.parse.unquote(design_path)  # URL decode the path
-                    logger.info(f"Extracted design path: {design_path}")
-                else:
-                    raise ValueError(f"Invalid design URL format: {design_url}")
-                
-                design_blob = self.bucket.blob(design_path)
-                design_bytes = design_blob.download_as_bytes()
-                design = Image.open(io.BytesIO(design_bytes)).convert('RGB')
-                
-            except Exception as e:
-                logger.error(f"Error downloading design from Firebase: {str(e)}")
-                raise ValueError(f"Unable to download design from URL: {design_url}")
-
-            # Load product image from local path
-            try:
-                # Remove leading slash if present
-                local_image_path = product_image.lstrip('/')
-                preview = Image.open(local_image_path).convert('RGB')
-            except Exception as e:
-                logger.error(f"Error loading product image: {str(e)}")
-                raise ValueError(f"Unable to load product image from path: {product_image}")
-            
-            # Define fixed sizes and positions
-            positions = {
-                'fullFront': {
-                    'size': (200, 200),
-                    'position': (500, 475)  # 50% left, 38% top
-                },
-                'centerChest': {
-                    'size': (154, 154),
-                    'position': (500, 437)  # 50% left, 35% top
-                },
-                'leftChest': {
-                    'size': (90, 90),
-                    'position': (640, 375)  # 64% left, 30% top
-                },
-                'centerBack': {
-                    'size': (180, 180),
-                    'position': (500, 350)  # 50% left, 28% top
-                }
-            }
-            
-            if placement in positions:
-                specs = positions[placement]
-                
-                # Resize logo
-                resized_design = design.resize(specs['size'])
-                
-                # Mirror the logo horizontally for left chest placement
-                if placement == 'leftChest':
-                    resized_design = resized_design.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-                
-                # Simple paste
-                preview.paste(resized_design, specs['position'])
-                
-                # Create previews directory if it doesn't exist
-                preview_dir = f'productimages/previews/{user_id}'
-                os.makedirs(preview_dir, exist_ok=True)
-                
-                # Save preview image
-                preview_filename = f"preview_{placement}_{int(datetime.now().timestamp())}.png"
-                preview_path = f"{preview_dir}/{preview_filename}"
-                preview.save(preview_path, format="PNG")
-                
-                # Return the relative path that matches our product image format
-                return {
-                    'preview_url': f"/productimages/previews/{user_id}/{preview_filename}"
-                }
-            
-            raise ValueError(f"Invalid placement: {placement}")
-            
-        except Exception as e:
-            logger.error(f"Error creating product preview: {str(e)}")
             raise

@@ -13,7 +13,7 @@ class ConversationManager:
         self.timeout_minutes = timeout_minutes
 
     def add_message(self, user_id: str, role: str, content: str, goal: Optional[str] = None) -> None:
-        """Add a message to the user's conversation history with goal context."""
+        """Add a message to the user's conversation history."""
         if user_id not in self.conversations:
             self._initialize_conversation(user_id)
         
@@ -21,7 +21,7 @@ class ConversationManager:
             'role': role,
             'content': content,
             'timestamp': datetime.now(),
-            'goal': goal  # Track which conversation goal this message relates to
+            'goal': goal
         }
         
         self.conversations[user_id]['messages'].append(message)
@@ -42,175 +42,79 @@ class ConversationManager:
 
         messages = self.conversations[user_id]['messages']
         
-        # Filter relevant messages based on goal
-        goal_specific_messages = [
+        # Keep messages specific to current goal or last 3 messages
+        return [
             {'role': msg['role'], 'content': msg['content']}
             for msg in messages
-            if msg['goal'] == current_goal  # Messages specific to current goal
+            if msg['goal'] == current_goal  # Goal-specific messages
             or msg['goal'] is None  # General messages
-            or messages.index(msg) >= len(messages) - 3  # Last 3 messages for context
+            or messages.index(msg) >= len(messages) - 3  # Last 3 messages
         ]
 
-        return goal_specific_messages
-
-    def get_goal_context(self, user_id: str, current_goal: str) -> Dict:
-        """Get context information specific to the current goal."""
+    def get_order_state(self, user_id: str) -> OrderState:
+        """Get or create OrderState for a user."""
         if user_id not in self.conversations:
-            return {}
+            self._initialize_conversation(user_id)
+        return self.conversations[user_id]['order_state']
 
-        context = {
-            'current_goal': current_goal,
-            'order_state': self.get_order_state(user_id).to_dict(),
-            'product_context': self.conversations[user_id]['product_context'],
-            'design_context': self.conversations[user_id]['design_context']
-        }
-
-        # Add goal-specific context
-        if current_goal == "product_selection":
-            context['previous_products_discussed'] = self._get_previous_products(user_id)
-        elif current_goal == "design_placement":
-            context['previous_placements_discussed'] = self._get_previous_placements(user_id)
-        elif current_goal == "quantity_collection":
-            context['previous_quantities_discussed'] = self._get_previous_quantities(user_id)
-
-        return context
-
-    def create_goal_specific_prompt(self, user_id: str, goal: str, base_prompt: str) -> str:
-        """Enhance the base prompt with goal-specific context."""
-        context = self.get_goal_context(user_id, goal)
-        order_state = self.get_order_state(user_id)
-
-        # Format prompt with relevant context
-        enhanced_prompt = base_prompt.format(
-            order_state_summary=order_state.get_summary(),
-            product_context=context.get('product_context'),
-            design_context=context.get('design_context'),
-            previous_context=self._format_relevant_history(user_id, goal)
-        )
-
-        return enhanced_prompt
+    def update_order_state(self, user_id: str, order_state: OrderState) -> None:
+        """Update the entire OrderState object."""
+        if user_id in self.conversations:
+            self.conversations[user_id]['order_state'] = order_state
+            logger.info(f"Updated order state for user {user_id}")
 
     def get_conversation_messages(self, user_id: str) -> List[Dict]:
-        """Get the conversation history for API context."""
+        """Get full conversation history for API context."""
         if user_id not in self.conversations:
             return []
             
-        # Check for timeout
         if self._is_conversation_timed_out(user_id):
             self._reset_conversation(user_id)
             return []
             
-        # Format messages for API
         return [
             {'role': msg['role'], 'content': msg['content']}
             for msg in self.conversations[user_id]['messages']
         ]
 
-    def get_order_state(self, user_id: str) -> OrderState:
-        """Get the current order state for a user."""
+    def get_conversation_context(self, user_id: str, goal: str) -> Dict:
+        """Get full conversation context including OrderState and history."""
         if user_id not in self.conversations:
-            self._initialize_conversation(user_id)
-        return self.conversations[user_id]['order_state']
+            return {}
 
-    def update_order_state(self, user_id: str, state_update: Dict) -> None:
-        """Update order state with enhanced logging."""
-        if user_id in self.conversations:
-            order_state = self.conversations[user_id]['order_state']
-            logger.info(f"Updating order state for user {user_id}: {state_update}")
-            
-            try:
-                if 'product_details' in state_update:
-                    order_state.update_product(state_update['product_details'])
-                if 'placement' in state_update:
-                    order_state.update_design(
-                        design_path=state_update.get('design_path'),
-                        placement=state_update['placement']
-                    )
-                if 'sizes' in state_update and 'price_per_item' in state_update:
-                    order_state.update_quantities(
-                        state_update['sizes'],
-                        state_update['price_per_item']
-                    )
-                if all(key in state_update for key in ['name', 'address', 'email']):
-                    order_state.update_customer_info(
-                        state_update['name'],
-                        state_update['address'],
-                        state_update['email']
-                    )
-                # NEW: Update payment_url if present
-                if 'payment_url' in state_update:
-                    order_state.payment_url = state_update['payment_url']
-            except Exception as e:
-                logger.error(f"Error updating order state: {str(e)}")
-                raise
-
-    def set_product_context(self, user_id: str, product_info: Dict) -> None:
-        """Store product context for the conversation."""
-        if user_id in self.conversations:
-            self.conversations[user_id]['product_context'] = product_info
-            # Also update order state
-            self.update_order_state(user_id, {'product_details': product_info})
-
-    def get_product_context(self, user_id: str) -> Dict:
-        """Get the current product context."""
-        if user_id in self.conversations:
-            return self.conversations[user_id].get('product_context')
-        return None
-
-    def set_design_context(self, user_id: str, design_url: str) -> None:
-        """Store design context for the conversation."""
-        if user_id not in self.conversations:
-            self._initialize_conversation(user_id)
-        
-        self.conversations[user_id]['design_context'] = {
-            'url': design_url,
-            'timestamp': datetime.now()
-        }
-        
-        # Update order state with design path
-        self.update_order_state(user_id, {'design_path': design_url})
-
-    def get_design_context(self, user_id: str) -> Dict:
-        """Get the current design context."""
-        if user_id in self.conversations:
-            return self.conversations[user_id].get('design_context')
-        return None
-
-    def _get_previous_products(self, user_id: str) -> List[Dict]:
-        """Get history of products discussed in the conversation."""
-        return [msg for msg in self.conversations[user_id]['messages'] 
-                if msg.get('goal') == 'product_selection']
-
-    def _get_previous_placements(self, user_id: str) -> List[Dict]:
-        """Get history of design placements discussed."""
-        return [msg for msg in self.conversations[user_id]['messages'] 
-                if msg.get('goal') == 'design_placement']
-
-    def _get_previous_quantities(self, user_id: str) -> List[Dict]:
-        """Get history of quantities discussed."""
-        return [msg for msg in self.conversations[user_id]['messages'] 
-                if msg.get('goal') == 'quantity_collection']
-
-    def _format_relevant_history(self, user_id: str, goal: str) -> str:
-        """Format relevant conversation history for the current goal."""
-        relevant_messages = [
-            msg for msg in self.conversations[user_id]['messages'][-5:]
-            if msg.get('goal') == goal or msg.get('goal') is None
-        ]
-        
-        return "\n".join([
+        order_state = self.get_order_state(user_id)
+    
+        # Format previous messages for conversation history
+        conversation_history = "\n".join([
             f"{msg['role']}: {msg['content']}"
-            for msg in relevant_messages
+            for msg in self._get_relevant_messages(user_id, goal)
         ])
 
+        return {
+        'current_goal': goal,
+        'order_state_summary': "New order" if not order_state.product_selected else "Order in progress",
+        'order_state': order_state.to_dict(),
+        'product_context': order_state.product_details,  # Maintain backward compatibility
+        'design_context': {'url': order_state.design_path} if order_state.design_path else None,  # Maintain backward compatibility
+        'conversation_history': conversation_history,  # Required by prompts
+        'previous_context': conversation_history,  # Required by prompts
+        'next_step': order_state.get_next_required_step()
+    }
+
+    def _get_relevant_messages(self, user_id: str, goal: str) -> List[Dict]:
+        """Get messages relevant to the current goal."""
+        if user_id not in self.conversations:
+            return []
+        
+        messages = self.conversations[user_id]['messages']
+        return [msg for msg in messages if msg['goal'] == goal]
+
     def _initialize_conversation(self, user_id: str) -> None:
-        """Initialize a new conversation with all required fields."""
+        """Initialize a new conversation."""
         self.conversations[user_id] = {
             'messages': [],
             'last_active': datetime.now(),
-            'product_context': None,
-            'design_context': None,
-            'order_state': OrderState(),
+            'order_state': OrderState(user_id=user_id),
             'current_goal': None
         }
 

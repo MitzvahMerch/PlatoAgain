@@ -48,29 +48,51 @@ class PayPalService:
             logger.error("PayPal authentication failed: %s. Response: %s", str(e), getattr(e.response, 'text', 'No response text'))
             raise
 
+    def _validate_order_state(self, order_state: 'OrderState') -> bool:
+        """Validate order state has all required information for PayPal invoice"""
+        required_fields = {
+            'customer_name': order_state.customer_name,
+            'email': order_state.email,
+            'shipping_address': order_state.shipping_address,
+            'product_details': order_state.product_details,
+            'sizes': order_state.sizes,
+            'total_quantity': order_state.total_quantity,
+            'total_price': order_state.total_price
+        }
+        
+        missing_fields = [field for field, value in required_fields.items() if not value]
+        
+        if missing_fields:
+            logger.error(f"Missing required fields for PayPal invoice: {', '.join(missing_fields)}")
+            return False
+            
+        return True
+
     def create_invoice(self, order_state: 'OrderState') -> Dict:
         """
         Create a PayPal invoice for an order using OrderState
         
         Args:
             order_state: OrderState instance containing all order details
+        
+        Returns:
+            Dict containing invoice_id, status, invoice_number, and payment_url
+        
+        Raises:
+            ValueError: If order_state is missing required information
+            RequestException: If PayPal API request fails
         """
         logger.info("Starting PayPal invoice creation for order")
         
-        # Log input validation
-        logger.debug("Validating order state - Name: %s, Email: %s, Address: %s", 
-                     order_state.customer_name, 
-                     order_state.email, 
-                     order_state.shipping_address)
+        # Validate order state
+        if not self._validate_order_state(order_state):
+            raise ValueError("Order state missing required information for PayPal invoice")
         
         # Log order details
-        logger.debug("Order details - Product: %s, Color: %s, Placement: %s", 
+        logger.debug("Creating invoice for order - Product: %s, Total: $%.2f, Quantity: %d", 
                      order_state.product_details.get('product_name'),
-                     order_state.product_details.get('color'),
-                     order_state.placement)
-        
-        # Log quantities
-        logger.debug("Order quantities: %s", str(order_state.sizes))
+                     order_state.total_price,
+                     order_state.total_quantity)
 
         try:
             access_token = self._get_access_token()
@@ -90,21 +112,30 @@ class PayPalService:
                 "postal_code": address_parts[3].strip() if len(address_parts) > 3 else "",
                 "country_code": "US"
             }
-            logger.debug("Formatted address: %s", str(address))
 
+            # Calculate unit price
+            unit_price = order_state.total_price / order_state.total_quantity
+            
             # Prepare items list
             items = []
             for size, quantity in order_state.sizes.items():
                 items.append({
                     "name": f"{order_state.product_details['product_name']} - Size {size.upper()}",
-                    "description": f"Color: {order_state.product_details['color']}, Placement: {order_state.placement}",
+                    "description": (f"Color: {order_state.product_details['color']}, "
+                                  f"Placement: {order_state.placement}"),
                     "quantity": str(quantity),
                     "unit_amount": {
                         "currency_code": "USD",
-                        "value": str(order_state.total_price / order_state.total_quantity)
+                        "value": f"{unit_price:.2f}"
                     }
                 })
-            logger.debug("Prepared invoice items: %s", str(items))
+
+            # Prepare customer name
+            name_parts = order_state.customer_name.split()
+            customer_name = {
+                "given_name": name_parts[0],
+                "surname": " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+            }
 
             invoice_data = {
                 "detail": {
@@ -116,57 +147,31 @@ class PayPalService:
                 },
                 "primary_recipients": [{
                     "billing_info": {
-                        "name": {
-                            "given_name": order_state.customer_name.split()[0],
-                            "surname": " ".join(order_state.customer_name.split()[1:]) if len(order_state.customer_name.split()) > 1 else ""
-                        },
+                        "name": customer_name,
                         "email_address": order_state.email,
                         "address": address
                     }
                 }],
                 "items": items
             }
-            logger.debug("Preparing PayPal invoice request data: %s", str(invoice_data))
 
-            response = requests.post(
-                invoice_url,
-                headers=headers,
-                json=invoice_data
-            )
-            logger.debug("PayPal create invoice response status: %s", response.status_code)
-            
-            # Log raw response before JSON parsing
-            logger.debug("Raw PayPal response: %s", response.text)
-            
+            # Create invoice
+            response = requests.post(invoice_url, headers=headers, json=invoice_data)
             response.raise_for_status()
-            
             invoice_data = response.json()
-            logger.debug("Raw PayPal response data after JSON parse: %s", str(invoice_data))
 
-            # Extract invoice ID from href
-            if 'href' in invoice_data:
-                invoice_id = invoice_data['href'].split('/')[-1]
-                logger.debug("Extracted invoice ID from href: %s", invoice_id)
-                # Strip off "INV2" prefix and remove hyphens
-                if invoice_id.startswith("INV2"):
-                    payment_url_id = invoice_id[4:].replace("-", "")
-                else:
-                    payment_url_id = invoice_id.replace("-", "")
-                logger.debug("Formatted payment URL ID: %s", payment_url_id)
-            else:
-                logger.error("PayPal response missing 'href' field. Full response: %s", str(invoice_data))
+            # Extract invoice ID and create payment URL
+            if 'href' not in invoice_data:
                 raise ValueError("PayPal API response missing required 'href' field")
+                
+            invoice_id = invoice_data['href'].split('/')[-1]
+            payment_url_id = invoice_id[4:].replace("-", "") if invoice_id.startswith("INV2") else invoice_id.replace("-", "")
             
             # Send the invoice
-            logger.debug("Attempting to send invoice ID: %s", invoice_id)
             send_response = requests.post(
                 f"{invoice_url}/{invoice_id}/send",
                 headers=headers
             )
-            logger.debug("PayPal send invoice response status: %s", send_response.status_code)
-            # Log raw send response
-            logger.debug("Raw PayPal send response: %s", send_response.text)
-            
             send_response.raise_for_status()
 
             return {
@@ -177,9 +182,9 @@ class PayPalService:
             }
 
         except requests.exceptions.RequestException as e:
-            logger.error("PayPal API error during invoice creation: %s. Response: %s", 
-                         str(e), 
-                         getattr(e.response, 'text', 'No response text'))
+            logger.error("PayPal API error: %s. Response: %s", 
+                        str(e), 
+                        getattr(e.response, 'text', 'No response text'))
             raise
         except Exception as e:
             logger.error("Unexpected error during invoice creation: %s", str(e), exc_info=True)

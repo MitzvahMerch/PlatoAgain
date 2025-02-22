@@ -17,10 +17,8 @@ window.addEventListener('DOMContentLoaded', (event) => {
             firebase.initializeApp(firebaseConfig);
         }
 
-        // Get Firebase Storage and Firestore instances
+        // Get Firebase Storage instance (removed Firestore as we don't need it anymore)
         window.storage = firebase.storage();
-        window.db = firebase.firestore();
-
         console.log('Firebase initialized successfully');
     } catch (error) {
         console.error("Firebase initialization error:", error);
@@ -40,9 +38,11 @@ async function uploadDesignImage(file, userId) {
             throw new Error('No file provided');
         }
 
-        // Create a reference with a timestamp to avoid name conflicts
-        const timestamp = Date.now();
-        const designRef = window.storage.ref(`designs/${userId}/${timestamp}_${file.name}`);
+        // Add user_ prefix if not present
+        const fullUserId = userId.startsWith('user_') ? userId : `user_${userId}`;
+        
+        // Create storage reference with correct path format
+        const designRef = window.storage.ref(`designs/${fullUserId}/${file.name}`);
         
         // Upload the file with progress monitoring
         const uploadTask = designRef.put(file);
@@ -75,22 +75,14 @@ async function uploadDesignImage(file, userId) {
                     try {
                         const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
                         
-                        // Store metadata in Firestore using userId as document ID
-                        await window.db.collection('designs').doc(userId).set({
-                            userId: userId,
-                            fileName: file.name,
-                            fileType: file.type,
-                            fileSize: file.size,
-                            uploadDate: firebase.firestore.FieldValue.serverTimestamp(),
-                            downloadURL: downloadURL,
-                            status: 'pending_review'
-                        });
-
+                        // Hide progress bar
                         progressElement.style.display = 'none';
+                        
+                        // Return success with URL and path (needed for logo placement)
                         resolve({
                             success: true,
                             url: downloadURL,
-                            path: `designs/${userId}/${timestamp}_${file.name}`
+                            path: `designs/${fullUserId}/${file.name}`
                         });
                     } catch (error) {
                         console.error('Error getting download URL:', error);
