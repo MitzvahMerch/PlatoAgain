@@ -132,48 +132,13 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             console.error('Required elements not found');
             return;
         }
-
-        // Get bounding rectangles
-        const designRect = designElement.getBoundingClientRect();
-        const productRect = productImg.getBoundingClientRect();
-
-        // Get the scaled design dimensions
-        const designDisplayWidth = scaledWidth;  // Use the existing scaledWidth calculation
-        const designDisplayHeight = scaledHeight;  // Use the existing scaledHeight calculation
-
-        // Calculate position as percentages of the product display area
-        const percentX = (position.x) / productRect.width;
-        const percentY = (position.y) / productRect.height;
-
-        // Calculate scale relative to product width
-        const relativeScale = designDisplayWidth / productRect.width;
-
-        console.log('Saving placement with relative measurements:', {
-            position: {
-                original: position,
-                percent: { x: percentX, y: percentY }
-            },
-            scale: {
-                original: scale,
-                relative: relativeScale
-            },
-            dimensions: {
-                design: {
-                    original: designSize,
-                    display: { width: designDisplayWidth, height: designDisplayHeight }
-                },
-                product: {
-                    display: { width: productRect.width, height: productRect.height },
-                    natural: productDimensions
-                }
-            }
-        });
-
+    
+        // Pass the actual element references to the onSave callback
         onSave?.({
-            positionPercent: { x: percentX, y: percentY },
-            relativeScale,
-            originalDesignSize: designSize,
-            showBackImage
+            designElement: designElement,
+            productImg: productImg,
+            showBackImage: showBackImage,
+            designUrl: designUrl // Pass the URL for loading the original image
         });
     };
 

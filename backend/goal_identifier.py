@@ -4,8 +4,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 class GoalIdentifier:
-    def __init__(self, sonar_client):
-        self.sonar_client = sonar_client
+    def __init__(self, ai_client):
+        self.ai_client = ai_client
         # Keep keywords as fallback
         self._init_fallback_keywords()
 
@@ -32,7 +32,7 @@ class GoalIdentifier:
             ]
 
             # Get intent from Sonar
-            identified_goal = self.sonar_client.call_api(
+            identified_goal = self.ai_client.call_api(
                 intent_prompt, 
                 temperature=0.3  # Lower temperature for more consistent results
             ).strip().lower()

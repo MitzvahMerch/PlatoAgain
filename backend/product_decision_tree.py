@@ -9,9 +9,10 @@ logger = logging.getLogger(__name__)
 class ProductCategory:
     """Represents a category of products with similar attributes"""
     
-    def __init__(self, name: str, products: List[Dict] = None):
+    def __init__(self, name: str, products: List[Dict] = None, claude_client=None):
         self.name = name
         self.products = products or []
+        self.claude_client = claude_client
         
     def add_product(self, product: Dict):
         """Add a product to this category"""
@@ -22,6 +23,28 @@ class ProductCategory:
         if not self.products:
             return None
             
+        # Get AI color match if needed and available
+        ai_matched_color = None
+        if preferences.get('color') and self.claude_client:
+            user_color = preferences.get('color')
+            # Check if direct string matching will work
+            exact_color_match = any(user_color.lower() in product.get('color', '').lower() for product in self.products)
+            
+            # If no exact match, try AI matching
+            if not exact_color_match:
+                available_colors = list(set(product.get('color', '') for product in self.products))
+                try:
+                    ai_matched_color = ProductDecisionTree.match_color_for_category(
+                        user_color, 
+                        available_colors, 
+                        self.name,
+                        self.claude_client
+                    )
+                    if ai_matched_color:
+                        logger.info(f"AI matched '{user_color}' to '{ai_matched_color}' in category '{self.name}'")
+                except Exception as e:
+                    logger.error(f"Error in AI color matching: {str(e)}")
+        
         # Score products rather than filtering
         scored_products = []
         
@@ -29,11 +52,14 @@ class ProductCategory:
             score = 0
             
             # Color matching (highest priority)
-            if preferences.get('color') and preferences['color'].lower() in product.get('color', '').lower():
-                score += 100  # Major boost for color match
-            elif preferences.get('color'):
-                # Skip products that don't match explicitly requested color
-                continue
+            if preferences.get('color'):
+                if preferences['color'].lower() in product.get('color', '').lower():
+                    score += 100  # Major boost for exact color match
+                elif ai_matched_color and ai_matched_color == product.get('color'):
+                    score += 90   # Good boost for AI-matched color
+                elif preferences.get('color') and not ai_matched_color:
+                    # Skip products that don't match explicitly requested color if no AI match found
+                    continue
                 
             # Price scoring - for budget options, prioritize cheaper products
             if preferences.get('price') == 'budget-friendly':
@@ -85,11 +111,58 @@ class ProductCategory:
 class ProductDecisionTree:
     """Decision tree for product selection"""
     
-    def __init__(self):
+    def __init__(self, claude_client=None):
         self.categories = {}
         self.product_data = {}
+        self.claude_client = claude_client
         self.init_product_data()
+    
+    @staticmethod
+    def match_color_for_category(user_color: str, available_colors: List[str], category_name: str, claude_client) -> Optional[str]:
+        """Use Claude to match a user's color description to available colors ONLY within a specific category"""
         
+        if not user_color or not available_colors or not claude_client:
+            return None
+            
+        # Format colors as a comma-separated list
+        color_list = ", ".join(available_colors)
+        
+        # Create a category-specific prompt for Claude
+        color_matching_prompt = [
+            {"role": "user", "content": f"""<instructions>
+            You are a color matching expert for a custom apparel print shop. Match the customer's color description 
+            to the most similar color from our available options for {category_name}s.
+            
+            Available colors for {category_name}s: {color_list}
+            
+            Rules:
+            1. ONLY consider colors available for {category_name}s
+            2. Return EXACTLY ONE color from the list provided, no explanation
+            3. If no close match exists, return "NO_MATCH"
+            4. Do not invent new colors or modify existing ones
+            </instructions>"""},
+            {"role": "user", "content": f"Find the closest match to: {user_color}"}
+        ]
+        
+        # Call Claude API
+        try:
+            matched_color = claude_client.call_api(color_matching_prompt, temperature=0.2)
+            matched_color = matched_color.strip()
+            
+            # Validate the response
+            if matched_color in available_colors:
+                logger.info(f"Successfully matched user color '{user_color}' to catalog color '{matched_color}' in {category_name}")
+                return matched_color
+            elif matched_color == "NO_MATCH":
+                logger.info(f"No match found for user color '{user_color}' in {category_name}")
+                return None
+            else:
+                logger.warning(f"Invalid color match result: '{matched_color}' not in available colors")
+                return None
+        except Exception as e:
+            logger.error(f"Error in color matching: {str(e)}")
+            return None
+    
     def parse_sonar_analysis(self, analysis_text: str) -> Dict:
         """Parse the structured output from Sonar's analysis"""
         preferences = {}
@@ -201,25 +274,25 @@ class ProductDecisionTree:
     def init_product_data(self):
         """Initialize the product data with preset prices and details"""
         # T-Shirts category
-        self.categories['t-shirt'] = ProductCategory('T-Shirts')
+        self.categories['t-shirt'] = ProductCategory('T-Shirts', claude_client=self.claude_client)
         
         # JERZEES - Dri-Power 50/50 T-Shirt
         jerzees_colors = [
-            "White", "Black", "Aquatic Blue", "Ash", "Athletic Heather", "Black Heather", 
-            "Burnt Orange", "California Blue", "Cardinal", "Charcoal Grey", "Classic Pink", 
-            "Columbia Blue", "Cool Mint", "Cyber Pink", "Deep Purple", "Forest Green", 
-            "Gold", "Irish Green Heather", "Island Yellow", "J. Navy", "Jade", "Kelly", 
-            "Kiwi", "Light Blue", "Maroon", "Military Green", "Neon Green", "Neon Pink", 
-            "Neon Yellow", "Oxford", "Royal", "Safety Green", "Safety Orange", "Scuba Blue", 
-            "Silver", "Tennessee Orange", "True Red", "Vintage Heather Blue", 
-            "Vintage Heather Maroon", "Vintage Heather Navy", "Vintage Heather Red", "Violet"
+            "White", "Black", "Aquatic_Blue", "Ash", "Athletic_Heather", "Black_Heather", 
+            "Burnt_Orange", "California_Blue", "Cardinal", "Charcoal_Grey", "Classic_Pink", 
+            "Columbia_Blue", "Cool_Mint", "Cyber_Pink", "Deep_Purple", "Forest_Green", 
+            "Gold", "Irish_Green_Heather", "Island_Yellow", "J._Navy", "Jade", "Kelly", 
+            "Kiwi", "Light_Blue", "Maroon", "Military_Green", "Neon_Green", "Neon_Pink", 
+            "Neon_Yellow", "Oxford", "Royal", "Safety_Green", "Safety_Orange", "Scuba_Blue", 
+            "Silver", "Tennessee_Orange", "True_Red", "Vintage_Heather_Blue", 
+            "Vintage_Heather_Maroon", "Vintage_Heather_Navy", "Vintage_Heather_Red", "Violet"
         ]
         
         for color in jerzees_colors:
             self.categories['t-shirt'].add_product({
                 'style_number': '29M',
                 'product_name': 'JERZEES - Dri-Power 50/50 T-Shirt',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$12.36',
                 'material': '50/50 cotton/polyester',
                 'weight': 'midweight',
@@ -235,25 +308,47 @@ class ProductDecisionTree:
                     'Tear away label'
                 ],
                 'images': {
-                    'front': f'/productimages/29M/JERZEES_29M_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/29M/JERZEES_29M_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/29MR/JERZEES_29MR_{color}_Front_High.jpg',
+                    'back': f'/productimages/29MR/JERZEES_29MR_{color}_Back_High.jpg'
                 }
             })
             
         # Sport-Tek PosiCharge Competitor Tee
         sporttek_colors = [
-            "Atomic Blue", "Black", "Cardinal", "Carolina Blue", "Deep Orange", 
-            "Deep Red", "Forest Green", "Gold", "Grey Concrete", "Grey Concrete Heather", 
-            "Iron Grey", "Iron Grey Heather", "Kelly Green", "Lime Shock", "Maroon", 
-            "Neon Orange", "Neon Pink", "Neon Yellow", "Purple", "Royal", "Silver", 
-            "Texas Orange", "Tropic Blue", "True Navy", "True Red", "True Royal", "White"
+            {"display": "Atomic Blue", "filename": "ST350_Atomic Blue_Flat"},
+            {"display": "Black", "filename": "ST350_Black_flat"},
+            {"display": "Cardinal", "filename": "ST350_cardinal_flat"},
+            {"display": "Carolina Blue", "filename": "ST350_Carolina Blue_Flat"},
+            {"display": "Deep Orange", "filename": "ST350_Deep Orange_Flat"},
+            {"display": "Deep Red", "filename": "ST350_DEEP RED_Flat"},
+            {"display": "Forest Green", "filename": "ST350_Forest Green_Flat"},
+            {"display": "Gold", "filename": "ST350_gold_flat"},
+            {"display": "Grey Concrete", "filename": "ST350_Grey Concrete_Flat"},
+            {"display": "Grey Concrete Heather", "filename": "ST350_Grey Concrete Heather_Flat"},
+            {"display": "Iron Grey", "filename": "ST350_Iron Grey_Flat"},
+            {"display": "Iron Grey Heather", "filename": "ST350_Iron Grey Heather_Flat"},
+            {"display": "Kelly Green", "filename": "ST350_Kelly Green_Flat"},
+            {"display": "Lime Shock", "filename": "ST350_Lime Shock_Flat"},
+            {"display": "Maroon", "filename": "ST350_maroon_flat"},
+            {"display": "Neon Orange", "filename": "ST350_Neon Orange_Flat"},
+            {"display": "Neon Pink", "filename": "ST350_Neon Pink_Flat"},
+            {"display": "Neon Yellow", "filename": "ST350_Neon Yellow_Flat"},
+            {"display": "Purple", "filename": "ST350_purple_flat"},
+            {"display": "Royal", "filename": "ST350_Royal_Flat"},
+            {"display": "Silver", "filename": "ST350_silver_flat"},
+            {"display": "Texas Orange", "filename": "ST350_Texas Orange_Flat"},
+            {"display": "Tropic Blue", "filename": "ST350_Tropic Blue_Flat"},
+            {"display": "True Navy", "filename": "ST350_True Navy_Flat"},
+            {"display": "True Red", "filename": "ST350_True Red_Flat"},
+            {"display": "True Royal Heather", "filename": "ST350_True Royal Heather_Flat"},
+            {"display": "White", "filename": "ST350_white_flat"}
         ]
         
         for color in sporttek_colors:
             self.categories['t-shirt'].add_product({
                 'style_number': 'ST350',
                 'product_name': 'Sport-Tek PosiCharge Competitor Tee',
-                'color': color,
+                'color': color["display"],
                 'price': '$13.99',
                 'material': '100% polyester',
                 'weight': 'lightweight',
@@ -268,26 +363,26 @@ class ProductDecisionTree:
                     'Removable tag for comfort and relabeling'
                 ],
                 'images': {
-                    'front': f'/productimages/ST350/SportTek_ST350_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/ST350/SportTek_ST350_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/ST350/{color["filename"]}_Front.jpg',
+                    'back': f'/productimages/ST350/{color["filename"]}_Back.jpg'
                 }
             })
             
         # Bella + Canvas Jersey Tee
         bella_colors = [
-            "White", "Black", "Ash", "Asphalt", "Berry", "Blue Storm", "Cardinal", 
-            "Columbia Blue", "Dark Grey", "Dusty Blue", "Forest", "Gold", "Kelly Green", 
-            "Lavender Blue", "Light Violet", "Maroon", "Mauve", "Military Green", "Mint", 
-            "Mustard", "Natural", "Navy", "Peach", "Pink", "Red", "Royal Purple", "Silver", 
-            "Soft Cream", "Solid Athletic Grey", "Steel Blue", "Storm", "Tan", "Teal", 
-            "Team Purple", "Toast", "True Royal", "Vintage Black", "Vintage White"
+            "White", "Black", "Ash", "Asphalt", "Berry", "Blue_Storm", "Cardinal", 
+            "Columbia_Blue", "Dark_Grey", "Dusty_Blue", "Forest", "Gold", "Kelly", 
+            "Lavender_Blue", "Light_Violet", "Maroon", "Mauve", "Military_Green", "Mint", 
+            "Mustard", "Natural", "Navy", "Peach", "Pink", "Red", "Royal_Purple", "Silver", 
+            "Soft_Cream", "Solid_Athletic_Grey", "Steel_Blue", "Storm", "Tan", "Teal", 
+            "Team_Purple", "Toast", "True_Royal", "Vintage_Black", "Vintage_White"
         ]
         
         for color in bella_colors:
             self.categories['t-shirt'].add_product({
                 'style_number': '3001',
                 'product_name': 'Bella + Canvas Jersey Tee',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$13.99',
                 'material': '100% Airlume combed and ring-spun cotton',
                 'weight': 'lightweight',
@@ -303,25 +398,25 @@ class ProductDecisionTree:
                     'Tear away label'
                 ],
                 'images': {
-                    'front': f'/productimages/3001/BellaCanvas_3001_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/3001/BellaCanvas_3001_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/3001/BELLA_+_CANVAS_3001_{color}_Front_High.jpg',
+                    'back': f'/productimages/3001/BELLA_+_CANVAS_3001_{color}_Back_High.jpg'
                 }
             })
             
         # Comfort Colors - Garment-Dyed Heavyweight T-Shirt
         comfort_colors = [
-            "White", "Black", "Blossom", "Blue Jean", "Butter", "Chalky Mint", "Chambray", 
-            "China Blue", "Crimson", "Crunchberry", "Denim", "Flo Blue", "Granite", "Grey", 
-            "Ice Blue", "Island Green", "Island Reef", "Lagoon", "Melon", "Neon Pink", 
-            "Orchid", "Pepper", "Royal Caribe", "Seafoam", "Terracotta", "Topaz Blue", 
-            "True Navy", "Violet", "Washed Denim", "Watermelon"
+            "White", "Black", "Blossom", "Blue_Jean", "Butter", "Chalky_Mint", "Chambray", 
+            "China_Blue", "Crimson", "Crunchberry", "Denim", "Flo_Blue", "Granite", "Grey", 
+            "Ice_Blue", "Island_Green", "Island_Reef", "Lagoon", "Melon", "Neon_Pink", 
+            "Orchid", "Pepper", "Royal_Caribe", "Seafoam", "Terracotta", "Topaz_Blue", 
+            "True_Navy", "Violet", "Washed_Denim", "Watermelon"
         ]
         
         for color in comfort_colors:
             self.categories['t-shirt'].add_product({
                 'style_number': '1717',
                 'product_name': 'Comfort Colors - Garment-Dyed Heavyweight T-Shirt',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$15.46',
                 'material': '100% ring-spun cotton',
                 'weight': 'heavyweight',
@@ -336,8 +431,8 @@ class ProductDecisionTree:
                     'Made with OEKO-TEX certified low-impact dyes'
                 ],
                 'images': {
-                    'front': f'/productimages/1717/ComfortColors_1717_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/1717/ComfortColors_1717_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/1717/Comfort_Colors_1717_{color}_Front_High.jpg',
+                    'back': f'/productimages/1717/Comfort_Colors_1717_{color}_Back_High.jpg'
                 }
             })
         
@@ -346,15 +441,15 @@ class ProductDecisionTree:
         
         # Gildan - Heavy Cotton Long Sleeve T-Shirt
         gildan_ls_colors = [
-            "White", "Black", "Carolina Blue", "Forest Green", "Gold", "Irish Green", 
-            "Navy", "Purple", "Red", "Royal", "Sport Grey"
+            "White", "Black", "Carolina_Blue", "Forest_Green", "Gold", "Irish_Green", 
+            "Navy", "Purple", "Red", "Royal", "Sport_Grey"
         ]
         
         for color in gildan_ls_colors:
             self.categories['long-sleeve'].add_product({
                 'style_number': '5400',
                 'product_name': 'Gildan - Heavy Cotton Long Sleeve T-Shirt',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$14.17',
                 'material': '100% cotton',
                 'weight': 'heavyweight',
@@ -369,24 +464,41 @@ class ProductDecisionTree:
                     'Tear away label'
                 ],
                 'images': {
-                    'front': f'/productimages/5400/Gildan_5400_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/5400/Gildan_5400_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/5400/5400_{color}_Front.jpg',
+                    'back': f'/productimages/5400/5400_{color}_Back.jpg'
                 }
             })
             
         # Sport-Tek Long Sleeve PosiCharge Competitor Tee
         sporttek_ls_colors = [
-            "Atomic Blue", "Black", "Carolina Blue", "Deep Red", "Forest Green", 
-            "Gold", "Grey Concrete", "Grey Concrete Heather", "Iron Grey", 
-            "Iron Grey Heather", "Lime Shock", "Maroon", "Neon Orange", "Neon Pink", 
-            "Purple", "Royal", "Silver", "True Navy", "True Red", "True Royal", "White"
+            {"display": "Atomic Blue", "filename": "ST350LS_Atomic Blue_Flat"},
+            {"display": "Black", "filename": "ST350LS_black_flat"},
+            {"display": "Carolina Blue", "filename": "ST350LS_Carolina Blue_Flat"},
+            {"display": "Deep Red", "filename": "ST350LS_DEEP RED_Flat"},
+            {"display": "Forest Green", "filename": "ST350LS_Forest Green_Flat"},
+            {"display": "Gold", "filename": "ST350LS_gold_flat"},
+            {"display": "Grey Concrete", "filename": "ST350LS_GREY CONCRETE_Flat"},
+            {"display": "Grey Concrete Heather", "filename": "ST350LS_GREY CONCRETE HEATHER_Flat"},
+            {"display": "Iron Grey", "filename": "ST350LS_Iron Grey_Flat"},
+            {"display": "Iron Grey Heather", "filename": "ST350LS_IRON GREY HEATHER_Flat"},
+            {"display": "Lime Shock", "filename": "ST350LS_Lime Shock_Flat"},
+            {"display": "Maroon", "filename": "ST350LS_maroon_flat"},
+            {"display": "Neon Orange", "filename": "ST350LS_Neon Orange_Flat"},
+            {"display": "Neon Pink", "filename": "ST350LS_Neon Pink_Flat"},
+            {"display": "Purple", "filename": "ST350LS_purple_flat"},
+            {"display": "Royal", "filename": "ST350LS_Royal_Flat"},
+            {"display": "Silver", "filename": "ST350LS_silver_flat"},
+            {"display": "True Navy", "filename": "ST350LS_True Navy_Flat"},
+            {"display": "True Red", "filename": "ST350LS_True Red_Flat"},
+            {"display": "True Royal", "filename": "ST350LS_TRUE ROYAL_Flat"},
+            {"display": "White", "filename": "ST350LS_white_flat"}
         ]
         
         for color in sporttek_ls_colors:
             self.categories['long-sleeve'].add_product({
                 'style_number': 'ST350LS',
                 'product_name': 'Sport-Tek Long Sleeve PosiCharge Competitor Tee',
-                'color': color,
+                'color': color["display"],
                 'price': '$14.99',
                 'material': '100% polyester interlock',
                 'weight': 'lightweight',
@@ -401,8 +513,8 @@ class ProductDecisionTree:
                     'Removable tag for comfort and relabeling'
                 ],
                 'images': {
-                    'front': f'/productimages/ST350LS/SportTek_ST350LS_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/ST350LS/SportTek_ST350LS_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/ST350LS/{color["filename"]}_Front.jpg',
+                    'back': f'/productimages/ST350LS/{color["filename"]}_Back.jpg'
                 }
             })
         
@@ -411,16 +523,16 @@ class ProductDecisionTree:
         
         # Hanes - Ecosmart Hooded Sweatshirt
         hanes_hoodie_colors = [
-            "White", "Black", "Ash", "Carolina Blue", "Charcoal Heather", "Deep Forest", 
-            "Deep Red", "Deep Royal", "Gold", "Heather Navy", "Heather Red", "Light Blue", 
-            "Light Steel", "Maroon", "Navy", "Pale Pink", "Smoke Grey", "Teal"
+            "White", "Black", "Ash", "Carolina_Blue", "Charcoal_Heather", "Deep_Forest", 
+            "Deep_Red", "Deep_Royal", "Gold", "Heather_Navy", "Heather_Red", "Light_Blue", 
+            "Light_Steel", "Maroon", "Navy", "Pale_Pink", "Smoke_Grey", "Teal"
         ]
         
         for color in hanes_hoodie_colors:
             self.categories['hoodie'].add_product({
                 'style_number': 'P170',
                 'product_name': 'Hanes - Ecosmart Hooded Sweatshirt',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$19.40',
                 'material': '50/50 cotton/polyester',
                 'weight': 'midweight',
@@ -436,23 +548,23 @@ class ProductDecisionTree:
                     'Ribbed cuffs and waistband'
                 ],
                 'images': {
-                    'front': f'/productimages/P170/Hanes_P170_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/P170/Hanes_P170_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/P170/Hanes_P170_{color}_Front_High.jpg',
+                    'back': f'/productimages/P170/Hanes_P170_{color}_Back_High.jpg'
                 }
             })
             
         # Augusta Sportswear 60/40 Fleece Hoodie
         augusta_hoodie_colors = [
-            "White", "Black", "Carbon Heather", "Charcoal Heather", "Columbia Blue", 
-            "Dark Green", "Graphite", "Kelly", "Maroon", "Navy", "Orange", "Power Pink", 
-            "Purple", "Red", "Royal", "Vegas Gold"
+            "White", "Black", "Carbon_Heather", "Charcoal_Heather", "Columbia_Blue", 
+            "Dark_Green", "Graphite", "Kelly", "Maroon", "Navy", "Orange", "Power_Pink", 
+            "Purple", "Red", "Royal", "Vegas_Gold"
         ]
         
         for color in augusta_hoodie_colors:
             self.categories['hoodie'].add_product({
                 'style_number': '5414',
                 'product_name': 'Augusta Sportswear 60/40 Fleece Hoodie',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$27.50',
                 'material': '60/40 cotton/polyester athletic fleece',
                 'weight': 'heavyweight',
@@ -468,8 +580,8 @@ class ProductDecisionTree:
                     'Rib-knit cuffs and bottom band'
                 ],
                 'images': {
-                    'front': f'/productimages/5414/Augusta_5414_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/5414/Augusta_5414_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/5414/Augusta_Sportswear_5414_{color}_Front_High.jpg',
+                    'back': f'/productimages/5414/Augusta_Sportswear_5414_{color}_Back_High.jpg'
                 }
             })
         
@@ -478,15 +590,15 @@ class ProductDecisionTree:
         
         # Gildan - Heavy Blend Sweatshirt
         gildan_crewneck_colors = [
-            "White", "Black", "Dark Heather", "Forest", "Maroon", "Navy", 
-            "Red", "Royal", "Safety Pink", "Sport Grey"
+            "White", "Black", "Dark_Heather", "Forest", "Maroon", "Navy", 
+            "Red", "Royal", "Safety_Pink", "Sport_Grey"
         ]
         
         for color in gildan_crewneck_colors:
             self.categories['crewneck'].add_product({
                 'style_number': '18000',
                 'product_name': 'Gildan - Heavy Blend Sweatshirt',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$15.95',
                 'material': '50/50 cotton/polyester',
                 'weight': 'heavyweight',
@@ -501,8 +613,8 @@ class ProductDecisionTree:
                     'Tear away label'
                 ],
                 'images': {
-                    'front': f'/productimages/18000/Gildan_18000_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/18000/Gildan_18000_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/18000/Gildan_18000_{color}_Front_High.jpg',
+                    'back': f'/productimages/18000/Gildan_18000_{color}_Back_High.jpg'
                 }
             })
             
@@ -511,14 +623,14 @@ class ProductDecisionTree:
         
         # JERZEES - NuBlend Sweatpants
         jerzees_sweatpants_colors = [
-            "Black", "Ash", "Forest Green", "J. Navy", "Maroon", "Oxford", "Royal", "True Red"
+            "Black", "Ash", "Forest_Green", "J._Navy", "Maroon", "Oxford", "Royal", "True_Red"
         ]
         
         for color in jerzees_sweatpants_colors:
             self.categories['sweatpants'].add_product({
                 'style_number': '973M',
                 'product_name': 'JERZEES - NuBlend Sweatpants',
-                'color': color,
+                'color': color.replace("_", " "),
                 'price': '$18.50',
                 'material': '50/50 cotton/polyester',
                 'weight': 'heavyweight',
@@ -534,8 +646,8 @@ class ProductDecisionTree:
                     'Elastic bottom leg openings'
                 ],
                 'images': {
-                    'front': f'/productimages/973M/JERZEES_973M_{color.replace(" ", "_")}_Front_High.jpg',
-                    'back': f'/productimages/973M/JERZEES_973M_{color.replace(" ", "_")}_Back_High.jpg'
+                    'front': f'/productimages/973M/JERZEES_973MR_{color}_Front_High.jpg',
+                    'back': f'/productimages/973M/JERZEES_973MR_{color}_Back_High.jpg'
                 }
             })
         

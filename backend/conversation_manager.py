@@ -6,8 +6,8 @@ from order_state import OrderState
 logger = logging.getLogger(__name__)
 
 class ConversationManager:
-    def __init__(self, sonar_client, max_history: int = 10, timeout_minutes: int = 30):
-        self.sonar_client = sonar_client
+    def __init__(self, ai_client, max_history: int = 10, timeout_minutes: int = 30):
+        self.ai_client = ai_client
         self.conversations: Dict[str, Dict] = {}
         self.max_history = max_history
         self.timeout_minutes = timeout_minutes

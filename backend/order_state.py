@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class OrderState:
@@ -68,9 +71,11 @@ class OrderState:
     
     def update_placement(self, placement: str, preview_url: Optional[str] = None):
         """Update design placement and preview"""
+        logger.info(f"Updating placement for order: placement={placement}, preview_url={preview_url}")
         self.placement_selected = True
         self.placement = "Custom"
         self.preview_url = preview_url
+        logger.info(f"Placement updated successfully, placement_selected={self.placement_selected}, placement={self.placement}")
     
     def update_quantities(self, sizes: Dict[str, int]):
         """Update quantities and calculate totals"""
@@ -82,22 +87,55 @@ class OrderState:
     
     def update_customer_info(self, name: str, address: str, email: str):
         """Update customer information"""
+        logger.info(f"Updating customer info: name='{name}', address='{address}', email='{email}'")
+        
+        # Log previous values if they exist
+        if self.customer_name or self.shipping_address or self.email:
+            logger.info(f"Previous customer info: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}'")
+        
+        # Update the values
         self.customer_info_collected = True
         self.customer_name = name
         self.shipping_address = address
         self.email = email
+        
+        logger.info(f"Customer info updated successfully, customer_info_collected={self.customer_info_collected}")
+        logger.info(f"Updated values: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}'")
     
     def update_payment_info(self, invoice_data: Dict):
         """Update payment information from PayPal response"""
+        logger.info(f"Updating payment info with invoice data: {invoice_data}")
+        
+        # Log previous values if they exist
+        if any([self.payment_url, self.invoice_id, self.invoice_number, self.payment_status]):
+            logger.info(f"Previous payment info: payment_url='{self.payment_url}', invoice_id='{self.invoice_id}', invoice_number='{self.invoice_number}', status='{self.payment_status}'")
+        
+        # Update the values
         self.payment_info_collected = True
         self.payment_url = invoice_data.get('payment_url')
         self.invoice_id = invoice_data.get('invoice_id')
         self.invoice_number = invoice_data.get('invoice_number')
         self.payment_status = invoice_data.get('status')
+        
+        # Log the updated values
+        logger.info(f"Payment info updated successfully, payment_info_collected={self.payment_info_collected}")
+        logger.info(f"Updated values: payment_url='{self.payment_url}', invoice_id='{self.invoice_id}', invoice_number='{self.invoice_number}', status='{self.payment_status}'")
+        
+        # Log warnings for any missing values
+        if not self.payment_url:
+            logger.warning("Payment URL is missing in the updated payment info")
+        if not self.invoice_id:
+            logger.warning("Invoice ID is missing in the updated payment info")
+        if not self.invoice_number:
+            logger.warning("Invoice number is missing in the updated payment info")
+        if not self.payment_status:
+            logger.warning("Payment status is missing in the updated payment info")
     
     def update_status(self, status: str):
         """Update order status"""
+        logger.info(f"Updating order status from '{self.status}' to '{status}'")
         self.status = status
+        logger.info(f"Order status updated successfully to '{self.status}'")
     
     def get_next_required_step(self) -> str:
         """Returns the next step needed to complete the order"""
@@ -113,17 +151,51 @@ class OrderState:
     
     def is_complete(self) -> bool:
         """Check if all required information has been collected"""
-        return all([
-            self.product_selected,
-            self.design_uploaded,
-            self.placement_selected,
-            self.quantities_collected,
-            self.customer_info_collected
+        logger.info("Checking if order is complete")
+        
+        # Check each required condition separately for better logging
+        product_check = self.product_selected
+        design_check = self.design_uploaded
+        # Removed placement_check since it's no longer required
+        quantities_check = self.quantities_collected
+        customer_info_check = self.customer_info_collected
+        
+        # Log the state of each condition
+        logger.info(f"Order completeness check - product_selected: {product_check}")
+        logger.info(f"Order completeness check - design_uploaded: {design_check}")
+        logger.info(f"Order completeness check - quantities_collected: {quantities_check}")
+        logger.info(f"Order completeness check - customer_info_collected: {customer_info_check}")
+        
+        # Perform the completeness check (removed placement_check)
+        is_complete = all([
+            product_check,
+            design_check,
+            quantities_check,
+            customer_info_check
         ])
+        
+        logger.info(f"Order completeness result: {is_complete}")
+        
+        if not is_complete:
+            # Log which specific conditions failed
+            missing_steps = []
+            if not product_check:
+                missing_steps.append("product selection")
+            if not design_check:
+                missing_steps.append("design upload")
+            if not quantities_check:
+                missing_steps.append("quantities collection")
+            if not customer_info_check:
+                missing_steps.append("customer information")
+            
+            logger.warning(f"Order is incomplete. Missing steps: {', '.join(missing_steps)}")
+        
+        return is_complete
     
     def to_firestore_dict(self) -> Dict:
         """Convert the order state to a dictionary for Firestore storage"""
-        return {
+        logger.debug("Converting order state to Firestore dictionary")
+        result = {
             'userId': self.user_id,
             'productInfo': {
                 'selected': self.product_selected,
@@ -165,6 +237,11 @@ class OrderState:
             'status': self.status,
             'lastActive': self.last_active
         }
+        
+        # Log payment URL specifically since it's causing issues
+        logger.info(f"Payment URL in Firestore dict: {result['paymentInfo']['paymentUrl']}")
+        
+        return result
     
     def to_dict(self) -> Dict:
         """Convert the order state to a flat dictionary for internal use"""

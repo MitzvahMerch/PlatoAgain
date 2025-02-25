@@ -6,7 +6,7 @@ from product_decision_tree import ProductDecisionTree
 from goal_identifier import GoalIdentifier
 from paypal_service import PayPalService
 from conversation_manager import ConversationManager
-from sonar_client import SonarClient
+from claude_client import ClaudeClient
 from ss_client import SSClient
 from firebase_service import FirebaseService
 from firebase_admin import firestore
@@ -21,104 +21,139 @@ logger = logging.getLogger(__name__)
 
 class PlatoBot:
    def __init__(self):
-       logger.info("Initializing PlatoBot...")
-       self.sonar = SonarClient()
-       self.conversation_manager = ConversationManager(
-           sonar_client=self.sonar,
-           max_history=MAX_HISTORY,
-           timeout_minutes=TIMEOUT_MINUTES
-       )
-       self.goal_identifier = GoalIdentifier(self.sonar)
-       self.firebase_service = FirebaseService()
-       self.paypal = PayPalService()
+    logger.info("Initializing PlatoBot...")
+    self.claude = ClaudeClient()
+    self.conversation_manager = ConversationManager(
+        ai_client=self.claude,
+        max_history=MAX_HISTORY,
+        timeout_minutes=TIMEOUT_MINUTES
+    )
+    self.goal_identifier = GoalIdentifier(self.claude)
+    self.firebase_service = FirebaseService()
+    self.paypal = PayPalService()
 
-       # Initialize SS Client
-       try:
-           if not SS_USERNAME or not SS_API_KEY:
-               logger.error("SS_USERNAME or SS_API_KEY not set in environment!")
-               raise Exception("Missing S&S credentials")
-           self.ss = SSClient(username=SS_USERNAME, api_key=SS_API_KEY)
-           logger.info("Successfully initialized S&S client")
-           self.product_tree = ProductDecisionTree()
-       except Exception as e:
-           logger.exception("Error initializing S&S services:")
-           raise
+    # Initialize SS Client
+    try:
+        if not SS_USERNAME or not SS_API_KEY:
+            logger.error("SS_USERNAME or SS_API_KEY not set in environment!")
+            raise Exception("Missing S&S credentials")
+        self.ss = SSClient(username=SS_USERNAME, api_key=SS_API_KEY)
+        logger.info("Successfully initialized S&S client")
+        # Pass the Claude client to ProductDecisionTree
+        self.product_tree = ProductDecisionTree(claude_client=self.claude)
+    except Exception as e:
+        logger.exception("Error initializing S&S services:")
+        raise
 
    def process_message(self, user_id: str, message: str, design_url: str = None) -> dict:
-       logger.info(f"Processing message from user '{user_id}': {message}")
-       
-       try:
-           # Get or initialize OrderState
-           order_state = self.conversation_manager.get_order_state(user_id)
-           
-           # Store design URL if provided
-           if design_url:
-               logger.info(f"Setting design for user {user_id}: {design_url}")
-               # Extract filename from design URL
-               filename = design_url.split('/')[-1].split('?')[0]
-               order_state.update_design(
-                   design_path=design_url,
-                   filename=filename
-               )
-               self.conversation_manager.update_order_state(user_id, order_state)
+    logger.info(f"Processing message from user '{user_id}': {message}")
+    
+    try:
+        # Get or initialize OrderState
+        order_state = self.conversation_manager.get_order_state(user_id)
+        
+        # Store design URL if provided
+        if design_url:
+            logger.info(f"Setting design for user {user_id}: {design_url}")
+            # Extract filename from design URL
+            filename = design_url.split('/')[-1].split('?')[0]
+            order_state.update_design(
+                design_path=design_url,
+                filename=filename
+            )
+            # Also set placement as selected since we're removing that check
+            if not order_state.placement_selected:
+                logger.info(f"Automatically setting placement_selected=True for user {user_id}")
+                order_state.update_placement(placement="Custom", preview_url=design_url)
+            
+            self.conversation_manager.update_order_state(user_id, order_state)
+            
+            # Log updated order state
+            logger.info(f"Updated order state after design upload - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
 
-           # Use Sonar to identify the goal
-           intent_messages = [
-               {"role": "system", "content": prompts.get_intent_prompt(message, self._prepare_context(order_state))},
-               {"role": "user", "content": message}
-           ]
-           sonar_response = self.sonar.call_api(intent_messages)
-           identified_goal = utils.clean_response(sonar_response).strip().lower()
-           logger.info(f"Sonar identified goal: {identified_goal}")
+        # Check for "I'd like to share this design with you" message which indicates design upload
+        if "I'd like to share this design with you" in message:
+            logger.info(f"Detected design share confirmation message from user {user_id}")
+            # If the message contains this text but no design_url was provided,
+            # the design might have been uploaded in a previous message
+            if order_state.design_path and not order_state.design_uploaded:
+                logger.info(f"Setting design_uploaded=True for user {user_id} based on confirmation message")
+                order_state.design_uploaded = True
+                # Also set placement as selected since we're removing that check
+                if not order_state.placement_selected:
+                    logger.info(f"Automatically setting placement_selected=True for user {user_id}")
+                    order_state.update_placement(placement="Custom", preview_url=order_state.design_path)
+                
+                self.conversation_manager.update_order_state(user_id, order_state)
+                logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
 
-           # Add message to conversation history
-           self.conversation_manager.add_message(user_id, "user", message, identified_goal)
+        # STEP 1: Intent Classification - Use a structured prompt to get ONLY the category
+        intent_messages = [
+            {"role": "system", "content": prompts.get_intent_prompt(message, self._prepare_context(order_state))},
+            {"role": "user", "content": message}
+        ]
+        
+        # Get a clean, single-category response
+        claude_response = self.claude.call_api(intent_messages)
+        identified_goal = utils.clean_response(claude_response).strip().lower()
+        
+        # Validate that identified_goal is one of the expected categories
+        valid_goals = ["product_selection", "design_placement", "quantity_collection", "customer_information"]
+        if identified_goal not in valid_goals:
+            # Fallback to goal identifier if Claude returns unexpected format
+            identified_goal = self.goal_identifier.identify_goal(message, order_state)
+            logger.info(f"Invalid goal format from Claude, reclassified as: {identified_goal}")
+        
+        logger.info(f"Identified goal: {identified_goal}")
 
-           # Handle each goal
-           handlers = {
-               "product_selection": self._handle_product_selection,
-               "design_placement": self._handle_design_placement,
-               "quantity_collection": self._handle_quantity_collection,
-               "customer_information": self._handle_customer_information
-           }
+        # Add message to conversation history
+        self.conversation_manager.add_message(user_id, "user", message, identified_goal)
 
-           handler = handlers.get(identified_goal)
-           if handler:
-               response = handler(user_id, message, order_state)
-               self.conversation_manager.add_message(
-                   user_id, "assistant", response["text"], identified_goal
-               )
-               return response
-           else:
-               return {
-                   "text": "I'm not sure how to help with that. Could you please rephrase your request?",
-                   "images": []
-               }
+        # Handle each goal
+        handlers = {
+            "product_selection": self._handle_product_selection,
+            "design_placement": self._handle_design_placement,
+            "quantity_collection": self._handle_quantity_collection,
+            "customer_information": self._handle_customer_information
+        }
 
-       except Exception as e:
-           logger.exception("Error processing message")
-           error_response = {
-               "text": "I encountered an error processing your request. Please try again or contact our support team for assistance.",
-               "images": []
-           }
-           self.conversation_manager.add_message(user_id, "assistant", error_response["text"])
-           return error_response
+        handler = handlers.get(identified_goal)
+        if handler:
+            response = handler(user_id, message, order_state)
+            self.conversation_manager.add_message(
+                user_id, "assistant", response["text"], identified_goal
+            )
+            return response
+        else:
+            return {
+                "text": "I'm not sure how to help with that. Could you please rephrase your request?",
+                "images": []
+            }
+
+    except Exception as e:
+        logger.exception("Error processing message")
+        error_response = {
+            "text": "I encountered an error processing your request. Please try again or contact our support team for assistance.",
+            "images": []
+        }
+        self.conversation_manager.add_message(user_id, "assistant", error_response["text"])
+        return error_response
 
    def _handle_product_selection(self, user_id: str, message: str, order_state) -> dict:
     """Handle product selection with decision tree approach."""
     logger.info(f"Handling product selection for: {message}")
     
     try:
-        # Get structured analysis from Sonar
+        # STEP 1: Get structured analysis from Claude
         analysis_prompt = [
             {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
             {"role": "user", "content": message}
         ]
         
-        enhanced_query = self.sonar.call_api(analysis_prompt, temperature=0.3)
+        enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
         logger.info(f"Enhanced query: {enhanced_query}")
         
-        # Use product decision tree to select the best product based on Sonar's analysis
+        # STEP 2: Use product decision tree to select the best product based on Claude's analysis
         product_match = self.product_tree.select_product(message, enhanced_query)
         
         if not product_match:
@@ -164,8 +199,8 @@ class PlatoBot:
             formatted_price=formatted_price
         )
         
-        # Get response from Sonar
-        response = self.sonar.call_api([
+        # Get response from Claude
+        response = self.claude.call_api([
             {"role": "system", "content": response_prompt},
             {"role": "user", "content": "Generate the response."}
         ], temperature=0.7)
@@ -198,21 +233,34 @@ class PlatoBot:
 
    def _handle_design_placement(self, user_id: str, message: str, order_state) -> dict:
     """Handle design placement conversation flow."""
+    logger.info(f"Handling design placement for user {user_id}: {message}")
     
     # Check if this is a confirmation of placement completion
     message_lower = message.lower()
-    if "placement saved" in message_lower or "design placed" in message_lower:
-        # Update order state to mark placement as complete
+    
+    # Check for the exact system-generated message
+    if "i'd like to share this design with you" in message_lower:
+        logger.info(f"Detected design placement confirmation from user {user_id}")
+        
+        # Always mark both design_uploaded and placement_selected as true when these phrases are detected
+        order_state.design_uploaded = True
+        logger.info(f"Set design_uploaded=True for user {user_id}")
+        
+        # Update placement if a design path exists
         if order_state.design_path:
-            order_state.update_placement(preview_url=order_state.design_path)
+            logger.info(f"Updating placement with design_path: {order_state.design_path}")
+            order_state.update_placement(placement="Custom", preview_url=order_state.design_path)
             self.conversation_manager.update_order_state(user_id, order_state)
+            
+            logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
+            
             return {
-                "text": "Great! Your design placement has been saved. Would you like to proceed with selecting quantities?",
+                "text": "Great! Your design has been saved. Would you like to proceed with selecting quantities?",
                 "images": []
             }
     
     # Generate general response about placement
-    response = self.sonar.call_api([
+    response = self.claude.call_api([
         {"role": "system", "content": prompts.DESIGN_PLACEMENT_PROMPT},
         {"role": "user", "content": message}
     ], temperature=0.7)
@@ -243,7 +291,7 @@ class PlatoBot:
            response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
        else:
            context = self._prepare_context(order_state)
-           response = self.sonar.call_api([
+           response = self.claude.call_api([
                {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
                {"role": "user", "content": message}
            ], temperature=0.7)
@@ -252,83 +300,119 @@ class PlatoBot:
        return {"text": response_text, "images": []}
 
    def _handle_customer_information(self, user_id: str, message: str, order_state) -> dict:
-       """Handle customer information collection and save complete order to Firestore."""
-       logger.info(f"Handling customer information for user {user_id}")
+    """Handle customer information collection and save complete order to Firestore."""
+    logger.info(f"Handling customer information for user {user_id}")
 
-       # Extract customer information
-       extraction_messages = [
-           {"role": "system", "content": prompts.CUSTOMER_INFO_EXTRACTION_PROMPT},
-           {"role": "user", "content": message}
-       ]
-       extraction_response = self.sonar.call_api(extraction_messages, temperature=0.1)
-       extracted_info = utils.parse_customer_info(extraction_response)
+    # Extract customer information
+    extraction_messages = [
+        {"role": "system", "content": prompts.CUSTOMER_INFO_EXTRACTION_PROMPT},
+        {"role": "user", "content": message}
+    ]
+    extraction_response = self.claude.call_api(extraction_messages, temperature=0.1)
+    extracted_info = utils.parse_customer_info(extraction_response)
+    
+    # Log extracted information
+    logger.info(f"Extracted customer info: {extracted_info}")
 
-       # Update OrderState if valid information provided
-       if any(value != 'none' for value in extracted_info.values()):
-           name = extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name
-           address = extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address
-           email = extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
-           
-           if any([name, address, email]):
-               order_state.update_customer_info(name, address, email)
-               self.conversation_manager.update_order_state(user_id, order_state)
+    # Update OrderState if valid information provided
+    if any(value != 'none' for value in extracted_info.values()):
+        name = extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name
+        address = extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address
+        email = extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+        
+        if any([name, address, email]):
+            logger.info(f"Updating order state with: name={name}, address={address}, email={email}")
+            order_state.update_customer_info(name, address, email)
+            self.conversation_manager.update_order_state(user_id, order_state)
 
-           # Check if order is now complete
-           if order_state.is_complete():
-               try:
-                   # Create PayPal invoice
-                   invoice_data = self.paypal.create_invoice(order_state)
-                   logger.info(f"PayPal invoice created: {invoice_data}")
+        # Log order state completeness
+        logger.info(f"Order state complete check: {order_state.is_complete()}")
+        logger.info(f"Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
+        
+        # Check if order is now complete
+        if order_state.is_complete():
+            logger.info("Order state is complete, proceeding to PayPal invoice creation")
+            try:
+                # Create PayPal invoice
+                logger.info("Attempting to create PayPal invoice...")
+                invoice_data = self.paypal.create_invoice(order_state)
+                logger.info(f"PayPal invoice created successfully: {invoice_data}")
 
-                   # Update OrderState with payment info
-                   order_state.update_payment_info(invoice_data)
-                   order_state.update_status('pending_review')
-                   self.conversation_manager.update_order_state(user_id, order_state)
+                # Update OrderState with payment info
+                logger.info("Updating order state with payment info")
+                order_state.update_payment_info(invoice_data)
+                order_state.update_status('pending_review')
+                self.conversation_manager.update_order_state(user_id, order_state)
+                
+                # Log payment info update
+                logger.info(f"Payment info updated: URL={order_state.payment_url}, ID={order_state.invoice_id}")
 
-                   # Save complete order to Firestore
-                   self.firebase_service.db.collection('designs').document(user_id).set(
-                       order_state.to_firestore_dict()
-                   )
-                   logger.info(f"Saved complete order to Firestore for user {user_id}")
+                # Save complete order to Firestore
+                logger.info(f"Saving order to Firestore for user {user_id}")
+                self.firebase_service.db.collection('designs').document(user_id).set(
+                    order_state.to_firestore_dict()
+                )
+                logger.info(f"Saved complete order to Firestore for user {user_id}")
 
-                   # Generate completion message
-                   context = {
-                       'product_details': f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}",
-                       'placement': order_state.placement,
-                       'quantities': ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items()),
-                       'total_price': f"${order_state.total_price:.2f}",
-                       'customer_name': order_state.customer_name,
-                       'shipping_address': order_state.shipping_address,
-                       'email': order_state.email,
-                       'payment_url': order_state.payment_url
-                   }
+                # Format the ORDER_COMPLETION_PROMPT with actual values
+                logger.info("Formatting order completion prompt")
+                formatted_prompt = prompts.ORDER_COMPLETION_PROMPT.format(
+                    product_details=f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}",
+                    placement=order_state.placement or "Unknown Placement",
+                    quantities=', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items()) if order_state.sizes else "Unknown Quantities",
+                    total_price=f"${order_state.total_price:.2f}" if order_state.total_price else "Unknown Price",
+                    customer_name=order_state.customer_name or "Unknown Name",
+                    shipping_address=order_state.shipping_address or "Unknown Address",
+                    email=order_state.email or "Unknown Email",
+                    payment_url=order_state.payment_url or "Unknown Payment URL"
+                )
+                
+                # Log formatted prompt values
+                logger.info(f"Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
+                
+                response = self.claude.call_api([
+                    {"role": "system", "content": formatted_prompt},
+                    {"role": "user", "content": "Generate response"}
+                ], temperature=0.7)
+                
+            except Exception as e:
+                logger.error(f"Failed to process completed order: {str(e)}", exc_info=True)
+                return {
+                    "text": "I apologize, but I encountered an error processing your order. Please try again or contact support.",
+                    "images": []
+                }
+        else:
+            logger.info("Order state is not complete, using INCOMPLETE_INFO_PROMPT")
+            # Log which fields are missing
+            missing_fields = []
+            if not order_state.product_selected: missing_fields.append("product")
+            if not order_state.design_uploaded: missing_fields.append("design")
+            if not order_state.placement_selected: missing_fields.append("placement")
+            if not order_state.quantities_collected: missing_fields.append("quantities")
+            if not order_state.customer_info_collected: missing_fields.append("customer_info")
+            logger.info(f"Missing order fields: {', '.join(missing_fields)}")
+            
+            # Format the INCOMPLETE_INFO_PROMPT with actual values
+            formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
+                customer_name=order_state.customer_name or "None",
+                shipping_address=order_state.shipping_address or "None",
+                email=order_state.email or "None"
+            )
+            
+            response = self.claude.call_api([
+                {"role": "system", "content": formatted_prompt},
+                {"role": "user", "content": "Generate response"}
+            ], temperature=0.7)
 
-                   response = self.sonar.call_api([
-                       {"role": "system", "content": prompts.ORDER_COMPLETION_PROMPT.format(**context)},
-                       {"role": "user", "content": "Generate response"}
-                   ], temperature=0.7)
-                   
-               except Exception as e:
-                   logger.error(f"Failed to process completed order: {e}")
-                   return {
-                       "text": "I apologize, but I encountered an error processing your order. Please try again or contact support.",
-                       "images": []
-                   }
-           else:
-               # Order incomplete, ask for remaining information
-               response = self.sonar.call_api([
-                   {"role": "system", "content": prompts.INCOMPLETE_INFO_PROMPT},
-                   {"role": "user", "content": "Generate response"}
-               ], temperature=0.7)
-
-           response_text = utils.clean_response(response)
-           return {"text": response_text, "images": []}
-       
-       # No valid information extracted
-       return {
-           "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
-           "images": []
-       }
+        response_text = utils.clean_response(response)
+        return {"text": response_text, "images": []}
+    
+    # No valid information extracted
+    logger.warning("No valid information extracted from customer message")
+    return {
+        "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
+        "images": []
+    }
 
    def _prepare_context(self, order_state) -> dict:
     """Prepare context based on the order state."""

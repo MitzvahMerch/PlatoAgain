@@ -80,46 +80,96 @@ imageUploadButton.addEventListener('change', async (e) => {
                 designUrl: uploadResult.url,
 // In the imageUploadButton event listener, replace the onSave handler with this:
 // In script.js, update the onSave handler
+// Update the onSave handler with a simpler approach:
+
+// Update the onSave handler with a dynamic multiplier:
+
 onSave: async (placement) => {
     try {
+        // Access the elements directly
+        const designElement = placement.designElement;
+        const productImg = placement.productImg;
+        
+        if (!designElement || !productImg) {
+            console.error('Element references not found in placement data');
+            throw new Error('Missing element references needed for visual capture');
+        }
+        
+        // Create a canvas
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        const [productImg, designImg] = await Promise.all([
+        // Load the original product and design images
+        const [originalProductImg, designImg] = await Promise.all([
             loadImage(placement.showBackImage ? currentProductBackImageUrl : currentProductImageUrl),
             loadImage(uploadResult.url)
         ]);
         
-        // Set canvas size to match product image
-        canvas.width = productImg.width;
-        canvas.height = productImg.height;
+        // Set canvas to match the actual product image size
+        canvas.width = originalProductImg.width;
+        canvas.height = originalProductImg.height;
         
-        // Draw product
-        ctx.drawImage(productImg, 0, 0);
+        // Draw the product
+        ctx.drawImage(originalProductImg, 0, 0);
         
-        // Calculate absolute position based on percentages
-        const absoluteX = productImg.width * placement.positionPercent.x;
-        const absoluteY = productImg.height * placement.positionPercent.y;
+        // Get the design and product dimensions
+        const designRect = designElement.getBoundingClientRect();
+        const productRect = productImg.getBoundingClientRect();
         
-        // Calculate absolute scale based on product width
-        const absoluteScale = placement.relativeScale * productImg.width;
+        // Find the center of the design relative to the product in percentages
+        const centerXPercent = (designRect.left + designRect.width/2 - productRect.left) / productRect.width;
+        const centerYPercent = (designRect.top + designRect.height/2 - productRect.top) / productRect.height;
         
-        console.log('Drawing with absolute measurements:', {
-            position: { x: absoluteX, y: absoluteY },
-            scale: absoluteScale,
-            productSize: {
-                width: productImg.width,
-                height: productImg.height
+        // Calculate corresponding center position in the actual product image
+        const actualCenterX = originalProductImg.width * centerXPercent;
+        const actualCenterY = originalProductImg.height * centerYPercent;
+        
+        // Calculate aspect ratios for both display and actual product images
+        const displayAspectRatio = productRect.width / productRect.height;
+        const actualAspectRatio = originalProductImg.width / originalProductImg.height;
+        
+        // Calculate the adaptive multiplier based on the aspect ratio difference
+        // This compensates for how differently the browser displays the image vs. the actual dimensions
+        const adaptiveMultiplier = actualAspectRatio / displayAspectRatio;
+        
+        // Further adjustment factor based on testing (fine-tune as needed)
+        const sizeAdjustment = 2.0;
+        
+        // Determine what percentage of the product's width the design should be
+        const designWidthPercent = designRect.width / productRect.width;
+        
+        // Apply the adaptive multiplier and adjustment
+        const designWidthInPixels = originalProductImg.width * designWidthPercent * sizeAdjustment;
+        
+        // Calculate the final design dimensions and position
+        const finalDesignWidth = designWidthInPixels;
+        const finalDesignHeight = finalDesignWidth; // Maintain 1:1 aspect ratio
+        
+        // Calculate top-left position for drawing (centered at the desired point)
+        const drawX = actualCenterX - (finalDesignWidth / 2);
+        const drawY = actualCenterY - (finalDesignHeight / 2);
+        
+        console.log('Drawing with adaptive multiplier:', {
+            center: {
+                percentages: { x: centerXPercent, y: centerYPercent },
+                actual: { x: actualCenterX, y: actualCenterY }
+            },
+            aspectRatios: {
+                display: displayAspectRatio,
+                actual: actualAspectRatio,
+                adaptiveMultiplier: adaptiveMultiplier
+            },
+            design: {
+                widthPercent: designWidthPercent,
+                finalWidth: finalDesignWidth,
+                finalHeight: finalDesignHeight,
+                drawPosition: { x: drawX, y: drawY },
+                sizeAdjustment: sizeAdjustment
             }
         });
         
         // Draw the design
-        ctx.save();
-        ctx.translate(absoluteX, absoluteY);
-        ctx.scale(placement.relativeScale, placement.relativeScale);
-        ctx.translate(-designImg.width/2, -designImg.height/2);
-        ctx.drawImage(designImg, 0, 0);
-        ctx.restore();
+        ctx.drawImage(designImg, drawX, drawY, finalDesignWidth, finalDesignHeight);
         
         // Create and upload composite
         const blob = await new Promise(resolve => 
