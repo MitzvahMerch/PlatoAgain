@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Optional, List
 from PIL import Image
 import utils
+from product_decision_tree import ProductDecisionTree
 from goal_identifier import GoalIdentifier
 from paypal_service import PayPalService
 from conversation_manager import ConversationManager
@@ -38,6 +39,7 @@ class PlatoBot:
                raise Exception("Missing S&S credentials")
            self.ss = SSClient(username=SS_USERNAME, api_key=SS_API_KEY)
            logger.info("Successfully initialized S&S client")
+           self.product_tree = ProductDecisionTree()
        except Exception as e:
            logger.exception("Error initializing S&S services:")
            raise
@@ -103,95 +105,96 @@ class PlatoBot:
            return error_response
 
    def _handle_product_selection(self, user_id: str, message: str, order_state) -> dict:
-       """Handle product selection with proper image handling."""
-       product_messages = [
-           {"role": "system", "content": prompts.PRODUCT_SELECTION_PROMPT},
-           {"role": "user", "content": f"Search www.ssactivewear.com for: {message}"}
-       ]
-       
-       # Get product match and extract details
-       product_match = self.sonar.call_api(product_messages, temperature=0.3)
-       logger.info(f"Product match received: {product_match}")
+    """Handle product selection with decision tree approach."""
+    logger.info(f"Handling product selection for: {message}")
+    
+    try:
+        # Get structured analysis from Sonar
+        analysis_prompt = [
+            {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
+            {"role": "user", "content": message}
+        ]
+        
+        enhanced_query = self.sonar.call_api(analysis_prompt, temperature=0.3)
+        logger.info(f"Enhanced query: {enhanced_query}")
+        
+        # Use product decision tree to select the best product based on Sonar's analysis
+        product_match = self.product_tree.select_product(message, enhanced_query)
+        
+        if not product_match:
+            return {
+                "text": "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details about what you're looking for?",
+                "images": []
+            }
+            
+        # Extract product details
+        details = {
+            "style_number": product_match.get("style_number"),
+            "product_name": product_match.get("product_name"),
+            "color": product_match.get("color")
+        }
+        
+        # Get images
+        images = product_match.get("images")
+        if not images:
+            return {
+                "text": "I found a matching product but couldn't retrieve the images. Would you like me to suggest another option?",
+                "images": []
+            }
+        
+        # Use price directly from product_match
+        formatted_price = product_match.get("price")
+        
+        # Update product details with price and images
+        product_data = {
+            **details,
+            "price": formatted_price,
+            "images": images
+        }
+        
+        # Update OrderState
+        order_state.update_product(product_data)
+        self.conversation_manager.update_order_state(user_id, order_state)
 
-       details = utils.extract_product_details(product_match)
-       if not all(details.values()):
-           return {
-               "text": "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details?",
-               "images": []
-           }
+        # Generate response using the same prompt
+        response_prompt = prompts.get_product_response_prompt(
+            message=message,
+            product_name=details["product_name"],
+            color=details["color"],
+            formatted_price=formatted_price
+        )
+        
+        # Get response from Sonar
+        response = self.sonar.call_api([
+            {"role": "system", "content": response_prompt},
+            {"role": "user", "content": "Generate the response."}
+        ], temperature=0.7)
 
-       # Get images
-       images = utils.get_product_images(details["style_number"], details["color"])
-       if not images:
-           return {
-               "text": "I found a matching product but couldn't retrieve the images. Would you like me to suggest another option?",
-               "images": []
-           }
+        response = utils.clean_response(response)
 
-       # Get price from SS
-       try:
-           base_price = self.ss.get_price(
-               style=details["style_number"],
-               color=details["color"]
-           )
-           if base_price is None:
-               logger.error(f"No price found for style {details['style_number']} in color {details['color']}")
-               return {
-                   "text": "I found a matching product but couldn't verify its current pricing. Would you like me to suggest another option?",
-                   "images": []
-               }
-           
-           final_price = utils.process_price(base_price, PRINTING_COST, PROFIT_MARGIN)
-           formatted_price = f"${final_price:.2f}"
-           
-           # Update product details with price and images
-           product_data = {
-               **details,
-               "price": formatted_price,
-               "images": images
-           }
-           
-           # Update OrderState
-           order_state.update_product(product_data)
-           self.conversation_manager.update_order_state(user_id, order_state)
-
-           # Generate response
-           response_prompt = prompts.get_product_response_prompt(
-               message=message,
-               product_name=details["product_name"],
-               color=details["color"],
-               formatted_price=formatted_price
-           )
-           
-           response = self.sonar.call_api([
-               {"role": "system", "content": response_prompt},
-               {"role": "user", "content": "Generate the response."}
-           ], temperature=0.7)
-
-           response = utils.clean_response(response)
-
-           return {
-               "text": response,
-               "images": [
-                   {
-                       "url": images["front"],
-                       "alt": f"{details['product_name']} in {details['color']} - Front View",
-                       "type": "product_front"
-                   },
-                   {
-                       "url": images["back"],
-                       "alt": f"{details['product_name']} in {details['color']} - Back View",
-                       "type": "product_back"
-                   }
-               ]
-           }
-           
-       except Exception as e:
-           logger.error(f"Error getting price: {e}")
-           return {
-               "text": "I found a potential match but couldn't verify its current pricing. Would you like me to suggest another option?",
-               "images": []
-           }
+        # Return the response
+        return {
+            "text": response,
+            "images": [
+                {
+                    "url": images["front"],
+                    "alt": f"{details['product_name']} in {details['color']} - Front View",
+                    "type": "product_front"
+                },
+                {
+                    "url": images["back"],
+                    "alt": f"{details['product_name']} in {details['color']} - Back View",
+                    "type": "product_back"
+                }
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in product selection: {e}")
+        return {
+            "text": "I encountered an error while trying to find the right product for you. Could you please try again with more specific details?",
+            "images": []
+        }
 
    def _handle_design_placement(self, user_id: str, message: str, order_state) -> dict:
     """Handle design placement conversation flow."""

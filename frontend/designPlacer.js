@@ -1,15 +1,29 @@
-const DesignPlacer = ({ productImage, designUrl, onSave }) => {
-    console.log('DesignPlacer initializing with:', { productImage, designUrl });
+const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
+    console.log('DesignPlacer props:', { frontImage, backImage, designUrl });
     
+    const [showBackImage, setShowBackImage] = React.useState(false);
     const [position, setPosition] = React.useState({ x: 400, y: 300 });
     const [scale, setScale] = React.useState(1);
     const [isDragging, setIsDragging] = React.useState(false);
     const [isResizing, setIsResizing] = React.useState(false);
     const [designSize, setDesignSize] = React.useState({ width: 0, height: 0 });
+    const [productDimensions, setProductDimensions] = React.useState({ width: 0, height: 0 });
     const containerRef = React.useRef(null);
     const designRef = React.useRef(null);
     const startPosRef = React.useRef({ x: 0, y: 0 });
     const startScaleRef = React.useRef(1);
+
+    React.useEffect(() => {
+        const img = new Image();
+        img.onload = () => {
+            setProductDimensions({
+                width: img.width,
+                height: img.height
+            });
+        };
+        img.src = showBackImage ? backImage : frontImage;
+    }, [showBackImage, frontImage, backImage]);
+
 
     React.useEffect(() => {
         console.log('Loading design image effect triggered');
@@ -21,8 +35,8 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
             const container = containerRef.current;
             if (container) {
                 const maxScale = Math.min(
-                    (container.clientWidth * 0.5) / img.width,
-                    (container.clientHeight * 0.5) / img.height
+                    (container.clientWidth * 0.3) / img.width,
+                    (container.clientHeight * 0.3) / img.height
                 );
                 console.log('Setting initial scale:', maxScale);
                 setScale(maxScale);
@@ -79,8 +93,8 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
                 startScale: startScaleRef.current
             });
             
-            const newScale = startScaleRef.current * (1 + direction * distance * 0.005); // Reduced from 0.01 to 0.005 for finer control
-            const clampedScale = Math.max(0.01, Math.min(2, newScale)); // Changed minimum from 0.1 to 0.01
+            const newScale = startScaleRef.current * (1 + direction * distance * 0.005);
+            const clampedScale = Math.max(0.01, Math.min(2, newScale));
             console.log('New scale:', { raw: newScale, clamped: clampedScale });
             setScale(clampedScale);
         }
@@ -108,11 +122,58 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
         };
     }, [isDragging, isResizing]);
 
+    // Modify the handleSave function in DesignPlacer.js
     const handleSave = () => {
-        console.log('Save triggered with:', { position, scale });
+        // Get HTML elements
+        const productImg = containerRef.current.querySelector('img[alt="Product"]');
+        const designElement = designRef.current;
+        
+        if (!productImg || !designElement) {
+            console.error('Required elements not found');
+            return;
+        }
+
+        // Get bounding rectangles
+        const designRect = designElement.getBoundingClientRect();
+        const productRect = productImg.getBoundingClientRect();
+
+        // Get the scaled design dimensions
+        const designDisplayWidth = scaledWidth;  // Use the existing scaledWidth calculation
+        const designDisplayHeight = scaledHeight;  // Use the existing scaledHeight calculation
+
+        // Calculate position as percentages of the product display area
+        const percentX = (position.x) / productRect.width;
+        const percentY = (position.y) / productRect.height;
+
+        // Calculate scale relative to product width
+        const relativeScale = designDisplayWidth / productRect.width;
+
+        console.log('Saving placement with relative measurements:', {
+            position: {
+                original: position,
+                percent: { x: percentX, y: percentY }
+            },
+            scale: {
+                original: scale,
+                relative: relativeScale
+            },
+            dimensions: {
+                design: {
+                    original: designSize,
+                    display: { width: designDisplayWidth, height: designDisplayHeight }
+                },
+                product: {
+                    display: { width: productRect.width, height: productRect.height },
+                    natural: productDimensions
+                }
+            }
+        });
+
         onSave?.({
-            position,
-            scale
+            positionPercent: { x: percentX, y: percentY },
+            relativeScale,
+            originalDesignSize: designSize,
+            showBackImage
         });
     };
 
@@ -132,7 +193,7 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
                 border: '2px solid #666',
                 borderRadius: '50%',
                 cursor: 'pointer',
-                zIndex: 2000, // Ensure handles are above other elements
+                zIndex: 2000,
                 ...(corner === 'nw' ? { top: -8, left: -8 } :
                    corner === 'ne' ? { top: -8, right: -8 } :
                    corner === 'se' ? { bottom: -8, right: -8 } :
@@ -155,9 +216,9 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
             width: scaledWidth,
             height: scaledHeight,
             cursor: isDragging ? 'grabbing' : 'grab',
-            zIndex: 1000, // Above product image, below handles
-            userSelect: 'none', // Prevent text selection during drag
-            touchAction: 'none' // Prevent scrolling during touch
+            zIndex: 1000,
+            userSelect: 'none',
+            touchAction: 'none'
         },
         onMouseDown: (e) => handleMouseDown(e, 'drag')
     }, [
@@ -169,11 +230,32 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                pointerEvents: 'none' // Prevent image from interfering with drag
+                pointerEvents: 'none'
             }
         }),
         ...resizeHandles
     ]);
+
+    // Toggle button
+    const toggleButton = React.createElement('button', {
+        onClick: () => {
+            console.log('Toggle clicked, switching from', showBackImage ? 'back' : 'front', 
+                       'to', showBackImage ? 'front' : 'back');
+            setShowBackImage(!showBackImage);
+        },
+        style: {
+            position: 'absolute',
+            bottom: '20px',
+            left: '20px',
+            padding: '10px 20px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            zIndex: 3000
+        }
+    }, showBackImage ? 'Show Front' : 'Show Back');
 
     // Save button
     const saveButton = React.createElement('button', {
@@ -188,7 +270,7 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
-            zIndex: 3000 // Always on top
+            zIndex: 3000
         }
     }, 'Save Placement');
 
@@ -206,20 +288,20 @@ const DesignPlacer = ({ productImage, designUrl, onSave }) => {
         // Product image background
         React.createElement('img', {
             key: 'product-image',
-            src: productImage,
+            src: showBackImage ? backImage : frontImage,
             alt: "Product",
             style: {
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                pointerEvents: 'none' // Prevent image from interfering with interactions
+                pointerEvents: 'none'
             }
         }),
         designLayer,
-        saveButton
+        saveButton,
+        toggleButton
     ]);
 
-    // Wrap in StrictMode if available
     return React.StrictMode ? 
         React.createElement(React.StrictMode, null, container) : 
         container;

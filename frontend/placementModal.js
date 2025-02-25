@@ -14,16 +14,17 @@ const createPlacementModal = () => {
     `;
     
     const modalContent = document.createElement('div');
-    modalContent.className = 'placement-modal-content';
-    modalContent.style.cssText = `
-        position: relative;
-        width: 90%;
-        height: 90%;
-        margin: 2% auto;
-        background: white;
-        border-radius: 8px;
-        overflow: hidden;
-    `;
+modalContent.className = 'placement-modal-content';
+modalContent.style.cssText = `
+    position: relative;
+    width: 90%;
+    height: 90%;
+    margin: 2% auto;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    z-index: 2000;  // Add this line
+`;
     
     modal.appendChild(modalContent);
     document.body.appendChild(modal);

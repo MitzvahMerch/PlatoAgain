@@ -13,6 +13,7 @@ function loadImage(src) {
 const userId = 'user_' + Math.random().toString(36).substr(2, 9);
 const API_BASE_URL = 'http://localhost:5001';
 let currentProductImageUrl = null;  // Add this variable to store front product image
+let currentProductBackImageUrl = null;
 
 // DOM Elements
 const chatMessages = document.getElementById('chat-messages');
@@ -74,66 +75,76 @@ imageUploadButton.addEventListener('change', async (e) => {
         const root = ReactDOM.createRoot(window.placementModal.content);
         root.render(
             React.createElement(window.DesignPlacer, {
-                productImage: currentProductImageUrl,  // Use stored product image URL
+                frontImage: currentProductImageUrl,
+                backImage: currentProductBackImageUrl,
                 designUrl: uploadResult.url,
-                onSave: async (placement) => {
-                    try {
-                        // Create canvas for composite
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        
-                        // Load both images
-                        const [productImg, designImg] = await Promise.all([
-                            loadImage(currentProductImageUrl),  // Use stored product image URL
-                            loadImage(uploadResult.url)
-                        ]);
-                        
-                        // Set canvas size
-                        canvas.width = productImg.width;
-                        canvas.height = productImg.height;
-                        
-                        // Draw product
-                        ctx.drawImage(productImg, 0, 0);
-                        
-                        // Apply design transformations
-                        ctx.save();
-                        ctx.translate(placement.position.x, placement.position.y);
-                        ctx.scale(placement.scale, placement.scale);
-                        ctx.translate(-designImg.width/2, -designImg.height/2);
-                        ctx.drawImage(designImg, 0, 0);
-                        ctx.restore();
-                        
-                        // Create composite file
-                        const blob = await new Promise(resolve => 
-                            canvas.toBlob(resolve, 'image/png')
-                        );
-                        
-                        // Create path for composite in same folder
-                        const originalPath = uploadResult.path;
-                        const folderPath = originalPath.substring(0, originalPath.lastIndexOf('/'));
-                        const originalFileName = originalPath.split('/').pop();
-                        const compositeFileName = `composite_${Date.now()}_${originalFileName}`;
-                        const compositePath = `${folderPath}/${compositeFileName}`;
-                        
-                        // Upload composite
-                        const compositeRef = window.storage.ref(compositePath);
-                        await compositeRef.put(blob);
-                        const compositeUrl = await compositeRef.getDownloadURL();
-                        
-                        // Hide modal
-                        window.placementModal.hide();
-                        
-                        // Show the composite in chat
-                        addProductImage(compositeUrl, 'Design placement preview');
-                        
-                        // Continue with chat flow
-                        await sendMessage();
-                        
-                    } catch (error) {
-                        console.error('Error saving placement:', error);
-                        addMessage('Sorry, there was an error saving your design placement. Please try again.', 'system');
-                    }
-                }
+// In the imageUploadButton event listener, replace the onSave handler with this:
+// In script.js, update the onSave handler
+onSave: async (placement) => {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const [productImg, designImg] = await Promise.all([
+            loadImage(placement.showBackImage ? currentProductBackImageUrl : currentProductImageUrl),
+            loadImage(uploadResult.url)
+        ]);
+        
+        // Set canvas size to match product image
+        canvas.width = productImg.width;
+        canvas.height = productImg.height;
+        
+        // Draw product
+        ctx.drawImage(productImg, 0, 0);
+        
+        // Calculate absolute position based on percentages
+        const absoluteX = productImg.width * placement.positionPercent.x;
+        const absoluteY = productImg.height * placement.positionPercent.y;
+        
+        // Calculate absolute scale based on product width
+        const absoluteScale = placement.relativeScale * productImg.width;
+        
+        console.log('Drawing with absolute measurements:', {
+            position: { x: absoluteX, y: absoluteY },
+            scale: absoluteScale,
+            productSize: {
+                width: productImg.width,
+                height: productImg.height
+            }
+        });
+        
+        // Draw the design
+        ctx.save();
+        ctx.translate(absoluteX, absoluteY);
+        ctx.scale(placement.relativeScale, placement.relativeScale);
+        ctx.translate(-designImg.width/2, -designImg.height/2);
+        ctx.drawImage(designImg, 0, 0);
+        ctx.restore();
+        
+        // Create and upload composite
+        const blob = await new Promise(resolve => 
+            canvas.toBlob(resolve, 'image/png')
+        );
+        
+        const originalPath = uploadResult.path;
+        const folderPath = originalPath.substring(0, originalPath.lastIndexOf('/'));
+        const originalFileName = originalPath.split('/').pop();
+        const compositeFileName = `composite_${Date.now()}_${originalFileName}`;
+        const compositePath = `${folderPath}/${compositeFileName}`;
+        
+        const compositeRef = window.storage.ref(compositePath);
+        await compositeRef.put(blob);
+        const compositeUrl = await compositeRef.getDownloadURL();
+        
+        window.placementModal.hide();
+        addProductImage(compositeUrl, 'Design placement preview');
+        await sendMessage();
+        
+    } catch (error) {
+        console.error('Error saving placement:', error);
+        addMessage('Sorry, there was an error saving your design placement. Please try again.', 'system');
+    }
+}
             })
         );
         
@@ -196,8 +207,10 @@ async function sendMessage() {
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {
                 const imageUrl = `${API_BASE_URL}${image.url}`;
-                if (image.type === 'product_front') {  // Store front image URL
+                if (image.type === 'product_front') {
                     currentProductImageUrl = imageUrl;
+                } else if (image.type === 'product_back') {
+                    currentProductBackImageUrl = imageUrl;
                 }
                 addProductImage(imageUrl, image.alt);
             });
