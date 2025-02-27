@@ -28,7 +28,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const health = await response.json();
         
         if (health.status === 'healthy') {
-            addMessage("Hi! I'm Plato, your AI print design assistant. I can help you with product information, pricing, and custom designs. What can I help you with today?", 'bot');
+            addMessage("Hello! I'm Plato, here to make custom printing simple. No more endless emails or complicated design processes - just tell me what you need and I'll handle everything right here. What type of clothing are you looking for today?", 'bot');
         } else {
             addMessage("Warning: System is currently unavailable. Please try again later.", 'system');
         }
