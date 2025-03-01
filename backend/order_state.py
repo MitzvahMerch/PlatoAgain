@@ -17,6 +17,8 @@ class OrderState:
     product_selected: bool = False
     product_details: Optional[Dict] = None # Includes name, color, style, price, images
     product_category: Optional[str] = None # Store the product category (T-Shirt, Sweatshirt, etc.)
+    youth_sizes: Optional[str] = None
+    adult_sizes: Optional[str] = None
     price_per_item: float = 0
     
     # Design Info
@@ -62,7 +64,10 @@ class OrderState:
         # Save the product category if provided
         if 'category' in details:
             self.product_category = details['category']
-            
+        if 'youth_sizes' in details:
+            self.youth_sizes = details['youth_sizes']
+        if 'adult_sizes' in details:
+            self.adult_sizes = details['adult_sizes']
         if 'price' in details:
             self.price_per_item = float(details['price'].replace('$', ''))
     

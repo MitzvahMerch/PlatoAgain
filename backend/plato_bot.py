@@ -167,8 +167,10 @@ class PlatoBot:
     "style_number": product_match.get("style_number"),
     "product_name": product_match.get("product_name"),
     "color": product_match.get("color"),
-    "category": product_match.get("category")  # Add this line
-                    }
+    "category": product_match.get("category"),
+    "youth_sizes": product_match.get("youth_sizes"),
+    "adult_sizes": product_match.get("adult_sizes")
+        }
         
         # Get images
         images = product_match.get("images")
@@ -278,7 +280,7 @@ class PlatoBot:
         "text": response_text,
         "images": []
     }
-
+   
    def _handle_quantity_collection(self, user_id: str, message: str, order_state) -> dict:
     """Handle quantity collection."""
     # Try to extract size information
@@ -288,36 +290,45 @@ class PlatoBot:
         order_state.update_quantities(sizes)
         self.conversation_manager.update_order_state(user_id, order_state)
         
-        # Log state for debugging
-        logger.info(f"Order state product_category: {order_state.product_category}")
-        logger.info(f"Order state product_details: {order_state.product_details}")
-        
-        # Get product type and pluralize if needed
-        # First try order_state.product_category, then fallback to product_details['category']
+        # Get product type
         product_type = None
-        
         if order_state.product_category:
             product_type = order_state.product_category.lower()
-            logger.info(f"Using product_category: {product_type}")
         elif order_state.product_details and 'category' in order_state.product_details:
             product_type = order_state.product_details['category'].lower()
-            logger.info(f"Using product_details['category']: {product_type}")
         else:
             product_type = "t-shirt"
-            logger.info(f"No category found, defaulting to: {product_type}")
             
         # Make plural if needed
         if not product_type.endswith('s'):
             product_type += "s"  # Make plural
-            
-        logger.info(f"Final product type for response: {product_type}")
         
+        # Create response text as before
         response_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}:\n"
         for size, qty in sizes.items():
             response_text += f"- {qty} {size.upper()}\n"
         response_text += f"\nTotal price will be ${order_state.total_price:.2f}. "
         response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
+        
+        # Extract product details for the modal
+        product_name = f"{order_state.product_details.get('product_name', 'Product')} in {order_state.product_details.get('color', 'Color')}"
+        quantities = ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items())
+        
+        # Add the action trigger for the modal
+        return {
+            "text": response_text,
+            "images": [], 
+            "action": {
+                "type": "showShippingModal",
+                "orderDetails": {
+                    "product": product_name,
+                    "quantity": quantities,
+                    "total": f"{order_state.total_price:.2f}"
+                }
+            }
+        }
     else:
+        # Original code for non-size responses
         context = self._prepare_context(order_state)
         response = self.claude.call_api([
             {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
@@ -325,65 +336,157 @@ class PlatoBot:
         ], temperature=0.7)
         response_text = utils.clean_response(response)
      
-    return {"text": response_text, "images": []}
+        return {"text": response_text, "images": []}
 
-   def _handle_customer_information(self, user_id: str, message: str, order_state) -> dict:
+   def _handle_customer_information(self, user_id: str, message: str, order_state, form_submission=False) -> dict:
     """Handle customer information collection and save complete order to Firestore."""
     logger.info(f"Handling customer information for user {user_id}")
 
-    # Extract customer information
-    extraction_messages = [
-        {"role": "system", "content": prompts.CUSTOMER_INFO_EXTRACTION_PROMPT},
-        {"role": "user", "content": message}
-    ]
-    extraction_response = self.claude.call_api(extraction_messages, temperature=0.1)
-    extracted_info = utils.parse_customer_info(extraction_response)
-    
-    # Log extracted information
-    logger.info(f"Extracted customer info: {extracted_info}")
-
-    # Update OrderState if valid information provided
-    if any(value != 'none' for value in extracted_info.values()):
-        name = extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name
-        address = extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address
-        email = extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+    # Skip extraction if this is a form submission since we already have the data
+    if not form_submission:
+        # Extract customer information
+        extraction_messages = [
+            {"role": "system", "content": prompts.CUSTOMER_INFO_EXTRACTION_PROMPT},
+            {"role": "user", "content": message}
+        ]
+        extraction_response = self.claude.call_api(extraction_messages, temperature=0.1)
+        extracted_info = utils.parse_customer_info(extraction_response)
         
-        if any([name, address, email]):
-            logger.info(f"Updating order state with: name={name}, address={address}, email={email}")
-            order_state.update_customer_info(name, address, email)
-            self.conversation_manager.update_order_state(user_id, order_state)
+        # Log extracted information
+        logger.info(f"Extracted customer info: {extracted_info}")
 
+        # Update OrderState if valid information provided
+        if any(value != 'none' for value in extracted_info.values()):
+            name = extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name
+            address = extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address
+            email = extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+            
+            if any([name, address, email]):
+                logger.info(f"Updating order state with: name={name}, address={address}, email={email}")
+                order_state.update_customer_info(name, address, email)
+                self.conversation_manager.update_order_state(user_id, order_state)
+
+            # Log order state completeness
+            logger.info(f"Order state complete check: {order_state.is_complete()}")
+            logger.info(f"Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
+            
+            # Check if order is now complete
+            if order_state.is_complete():
+                logger.info("Order state is complete, proceeding to PayPal invoice creation")
+                try:
+                    # Create PayPal invoice
+                    logger.info("Attempting to create PayPal invoice...")
+                    invoice_data = self.paypal.create_invoice(order_state)
+                    logger.info(f"PayPal invoice created successfully: {invoice_data}")
+
+                    # Update OrderState with payment info
+                    logger.info("Updating order state with payment info")
+                    order_state.update_payment_info(invoice_data)
+                    order_state.update_status('pending_review')
+                    self.conversation_manager.update_order_state(user_id, order_state)
+                    
+                    # Log payment info update
+                    logger.info(f"Payment info updated: URL={order_state.payment_url}, ID={order_state.invoice_id}")
+
+                    # Save complete order to Firestore
+                    logger.info(f"Saving order to Firestore for user {user_id}")
+                    self.firebase_service.db.collection('designs').document(user_id).set(
+                        order_state.to_firestore_dict()
+                    )
+                    logger.info(f"Saved complete order to Firestore for user {user_id}")
+
+                    # Format the ORDER_COMPLETION_PROMPT with actual values
+                    logger.info("Formatting order completion prompt")
+                    formatted_prompt = prompts.ORDER_COMPLETION_PROMPT.format(
+                        product_details=f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}",
+                        placement=order_state.placement or "Unknown Placement",
+                        quantities=', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items()) if order_state.sizes else "Unknown Quantities",
+                        total_price=f"${order_state.total_price:.2f}" if order_state.total_price else "Unknown Price",
+                        customer_name=order_state.customer_name or "Unknown Name",
+                        shipping_address=order_state.shipping_address or "Unknown Address",
+                        email=order_state.email or "Unknown Email",
+                        payment_url=order_state.payment_url or "Unknown Payment URL"
+                    )
+                    
+                    # Log formatted prompt values
+                    logger.info(f"Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
+                    
+                    response = self.claude.call_api([
+                        {"role": "system", "content": formatted_prompt},
+                        {"role": "user", "content": "Generate response"}
+                    ], temperature=0.7)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to process completed order: {str(e)}", exc_info=True)
+                    return {
+                        "text": "I apologize, but I encountered an error processing your order. Please try again or contact support.",
+                        "images": []
+                    }
+            else:
+                logger.info("Order state is not complete, using INCOMPLETE_INFO_PROMPT")
+                # Log which fields are missing
+                missing_fields = []
+                if not order_state.product_selected: missing_fields.append("product")
+                if not order_state.design_uploaded: missing_fields.append("design")
+                if not order_state.placement_selected: missing_fields.append("placement")
+                if not order_state.quantities_collected: missing_fields.append("quantities")
+                if not order_state.customer_info_collected: missing_fields.append("customer_info")
+                logger.info(f"Missing order fields: {', '.join(missing_fields)}")
+                
+                # Format the INCOMPLETE_INFO_PROMPT with actual values
+                formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
+                    customer_name=order_state.customer_name or "None",
+                    shipping_address=order_state.shipping_address or "None",
+                    email=order_state.email or "None"
+                )
+                
+                response = self.claude.call_api([
+                    {"role": "system", "content": formatted_prompt},
+                    {"role": "user", "content": "Generate response"}
+                ], temperature=0.7)
+
+            response_text = utils.clean_response(response)
+            return {"text": response_text, "images": []}
+        else:
+            # No valid information extracted
+            logger.warning("No valid information extracted from customer message")
+            return {
+                "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
+                "images": []
+            }
+    else:
+        # For form submissions, skip extraction and proceed directly to order completion
         # Log order state completeness
-        logger.info(f"Order state complete check: {order_state.is_complete()}")
-        logger.info(f"Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
+        logger.info(f"Form submission: Order state complete check: {order_state.is_complete()}")
+        logger.info(f"Form submission: Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
         
         # Check if order is now complete
         if order_state.is_complete():
-            logger.info("Order state is complete, proceeding to PayPal invoice creation")
+            logger.info("Form submission: Order state is complete, proceeding to PayPal invoice creation")
             try:
                 # Create PayPal invoice
-                logger.info("Attempting to create PayPal invoice...")
+                logger.info("Form submission: Attempting to create PayPal invoice...")
                 invoice_data = self.paypal.create_invoice(order_state)
-                logger.info(f"PayPal invoice created successfully: {invoice_data}")
+                logger.info(f"Form submission: PayPal invoice created successfully: {invoice_data}")
 
                 # Update OrderState with payment info
-                logger.info("Updating order state with payment info")
+                logger.info("Form submission: Updating order state with payment info")
                 order_state.update_payment_info(invoice_data)
                 order_state.update_status('pending_review')
                 self.conversation_manager.update_order_state(user_id, order_state)
                 
                 # Log payment info update
-                logger.info(f"Payment info updated: URL={order_state.payment_url}, ID={order_state.invoice_id}")
+                logger.info(f"Form submission: Payment info updated: URL={order_state.payment_url}, ID={order_state.invoice_id}")
 
                 # Save complete order to Firestore
-                logger.info(f"Saving order to Firestore for user {user_id}")
+                logger.info(f"Form submission: Saving order to Firestore for user {user_id}")
                 self.firebase_service.db.collection('designs').document(user_id).set(
                     order_state.to_firestore_dict()
                 )
-                logger.info(f"Saved complete order to Firestore for user {user_id}")
+                logger.info(f"Form submission: Saved complete order to Firestore for user {user_id}")
 
-                # Format the ORDER_COMPLETION_PROMPT with actual values
-                logger.info("Formatting order completion prompt")
+                # Format the ORDER_COMPLETION_PROMPT with actual values for form submission
+                logger.info("Form submission: Formatting order completion prompt")
                 formatted_prompt = prompts.ORDER_COMPLETION_PROMPT.format(
                     product_details=f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}",
                     placement=order_state.placement or "Unknown Placement",
@@ -396,21 +499,21 @@ class PlatoBot:
                 )
                 
                 # Log formatted prompt values
-                logger.info(f"Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
+                logger.info(f"Form submission: Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
                 
                 response = self.claude.call_api([
                     {"role": "system", "content": formatted_prompt},
-                    {"role": "user", "content": "Generate response"}
+                    {"role": "user", "content": "Generate response for form submission"}
                 ], temperature=0.7)
                 
             except Exception as e:
-                logger.error(f"Failed to process completed order: {str(e)}", exc_info=True)
+                logger.error(f"Form submission: Failed to process completed order: {str(e)}", exc_info=True)
                 return {
                     "text": "I apologize, but I encountered an error processing your order. Please try again or contact support.",
                     "images": []
                 }
         else:
-            logger.info("Order state is not complete, using INCOMPLETE_INFO_PROMPT")
+            logger.info("Form submission: Order state is not complete, using INCOMPLETE_INFO_PROMPT")
             # Log which fields are missing
             missing_fields = []
             if not order_state.product_selected: missing_fields.append("product")
@@ -418,7 +521,7 @@ class PlatoBot:
             if not order_state.placement_selected: missing_fields.append("placement")
             if not order_state.quantities_collected: missing_fields.append("quantities")
             if not order_state.customer_info_collected: missing_fields.append("customer_info")
-            logger.info(f"Missing order fields: {', '.join(missing_fields)}")
+            logger.info(f"Form submission: Missing order fields: {', '.join(missing_fields)}")
             
             # Format the INCOMPLETE_INFO_PROMPT with actual values
             formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
@@ -429,18 +532,12 @@ class PlatoBot:
             
             response = self.claude.call_api([
                 {"role": "system", "content": formatted_prompt},
-                {"role": "user", "content": "Generate response"}
+                {"role": "user", "content": "Generate response for form submission"}
             ], temperature=0.7)
 
         response_text = utils.clean_response(response)
         return {"text": response_text, "images": []}
     
-    # No valid information extracted
-    logger.warning("No valid information extracted from customer message")
-    return {
-        "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
-        "images": []
-    }
 
    def _prepare_context(self, order_state) -> dict:
     """Prepare context based on the order state."""
@@ -460,7 +557,11 @@ class PlatoBot:
         "customer_name": order_state.customer_name,
         "shipping_address": order_state.shipping_address,
         "email": order_state.email,
-        "status": order_state.status if hasattr(order_state, 'status') else None
+        "status": order_state.status if hasattr(order_state, 'status') else None,
+        "product_name": order_state.product_details.get('product_name', 'Product') if order_state.product_details else 'Product',
+        "youth_sizes": order_state.youth_sizes or "XS-XL",
+        "adult_sizes": order_state.adult_sizes or "S-5XL",
+        "product_category": order_state.product_category or "product"
     }
     
     # Add next required step

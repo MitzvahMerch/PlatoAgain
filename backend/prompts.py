@@ -122,17 +122,16 @@ Design: {design_context}
 Previous: {previous_context}
 
 Create a brief response that:
-1. Acknowledges their completed design placement positively
-2. Compliments how the design looks on the product
-3. Immediately transitions to collecting order quantities and sizes with a question like "How many would you like to order, and in what sizes?" or "What sizes and quantities do you need?"
+1. Acknowledge their completed design placement with a positive, naturally-varied compliment
+2. Use a naturally varied phrase like "Your design looks amazing on the product!" or similar
+3. Then follow with this sentence: "Your product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each sizes would you like to order?"
 
 Important guidelines:
 - Keep your response under 3 sentences
-- Assume the design placement is complete - DO NOT ask them to upload or position their design
-- Focus on moving the sale forward to quantity/size collection 
-- Be enthusiastic but concise
-
-Example: "Your design looks fantastic on the mint shirt! The placement is perfect. How many shirts would you like to order and in what sizes?"
+- Vary the compliment language naturally
+- Always use the exact format for the size question with product name and size ranges
+- Assume the design placement is complete
+- Focus on moving the sale forward to quantity collection
 """
 
 QUANTITY_PROMPT = """

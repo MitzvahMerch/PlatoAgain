@@ -86,3 +86,43 @@ def init_routes(app, plato_bot: PlatoBot):
         except Exception as e:
             logger.exception("Error getting product context")
             return jsonify({'error': str(e)}), 500
+        
+    @app.route('/api/submit-order', methods=['POST'])
+    def submit_order():
+        try:
+            data = request.json
+            user_id = data.get('user_id')
+    
+            if not user_id:
+                return jsonify({"error": "Missing user ID"}), 400
+        
+            logger.info(f"Processing order submission for user {user_id}")
+    
+            # Get the order state
+            order_state = plato_bot.conversation_manager.get_order_state(user_id)
+    
+            # Update customer info with form data
+            name = data.get('name')
+            address = data.get('address')
+            email = data.get('email')
+    
+            if not all([name, address, email]):
+                return jsonify({"error": "Missing required fields"}), 400
+        
+            logger.info(f"Updating customer info: name={name}, address={address}, email={email}")
+    
+            # Use your existing method to update customer info
+            order_state.update_customer_info(name, address, email)
+            plato_bot.conversation_manager.update_order_state(user_id, order_state)
+    
+            # Now handle the order, indicating this is a form submission
+            response = plato_bot._handle_customer_information(user_id, "", order_state, form_submission=True)
+    
+            return jsonify(response)
+
+        except Exception as e:
+            logger.error(f"Error in submit_order: {str(e)}", exc_info=True)
+        return jsonify({
+            "error": "Server error",
+            "message": "An unexpected error occurred. Please try again."
+        }), 500

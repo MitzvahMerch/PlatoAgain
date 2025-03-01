@@ -266,6 +266,62 @@ async function sendMessage() {
             });
         }
 
+        // Check for action directives from the backend
+        if (data.action && data.action.type === 'showShippingModal') {
+            // Show the shipping modal with order details
+            window.shippingModal.show(data.action.orderDetails);
+            
+            // NOTE: Address autocomplete is now handled directly in the shippingModal.js
+            
+            // Handle form submission
+            window.shippingModal.form.onsubmit = async function(e) {
+                e.preventDefault();
+                
+                // Get form data
+                const formData = window.shippingModal.getFormData();
+                
+                // Hide the modal
+                window.shippingModal.hide();
+                
+                // Show a loading indicator
+                const typingIndicator = addTypingIndicator();
+                
+                try {
+                    // Send data to backend
+                    const response = await fetch(`${API_BASE_URL}/api/submit-order`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            user_id: userId,
+                            name: formData.name,
+                            address: formData.address,
+                            email: formData.email
+                        }),
+                    });
+                    
+                    typingIndicator.remove();
+                    
+                    if (!response.ok) {
+                        throw new Error(`Server responded with ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Display the response (order confirmation)
+                    if (data.text) {
+                        addMessage(data.text, 'bot');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error submitting order:', error);
+                    typingIndicator.remove();
+                    addMessage('Sorry, I encountered an error processing your order. Please try again.', 'bot');
+                }
+            };
+        }
+
     } catch (error) {
         console.error('Error:', error);
         addMessage('Sorry, I encountered an error. Please try again or check if the server is running.', 'bot');
