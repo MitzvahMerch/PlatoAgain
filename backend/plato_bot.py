@@ -164,10 +164,11 @@ class PlatoBot:
             
         # Extract product details
         details = {
-            "style_number": product_match.get("style_number"),
-            "product_name": product_match.get("product_name"),
-            "color": product_match.get("color")
-        }
+    "style_number": product_match.get("style_number"),
+    "product_name": product_match.get("product_name"),
+    "color": product_match.get("color"),
+    "category": product_match.get("category")  # Add this line
+                    }
         
         # Get images
         images = product_match.get("images")
@@ -191,7 +192,10 @@ class PlatoBot:
         order_state.update_product(product_data)
         self.conversation_manager.update_order_state(user_id, order_state)
 
-        # Generate response using the same prompt
+        # Generate response using Claude
+        # Include Claude's explanation if available
+        match_explanation = product_match.get('match_explanation', '')
+        
         response_prompt = prompts.get_product_response_prompt(
             message=message,
             product_name=details["product_name"],
@@ -276,28 +280,52 @@ class PlatoBot:
     }
 
    def _handle_quantity_collection(self, user_id: str, message: str, order_state) -> dict:
-       """Handle quantity collection."""
-       # Try to extract size information
-       sizes = utils.extract_size_info(message)
-       
-       if sizes:
-           order_state.update_quantities(sizes)
-           self.conversation_manager.update_order_state(user_id, order_state)
-           
-           response_text = f"Great! I've got your order for {order_state.total_quantity} shirts:\n"
-           for size, qty in sizes.items():
-               response_text += f"- {qty} {size.upper()}\n"
-           response_text += f"\nTotal price will be ${order_state.total_price:.2f}. "
-           response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
-       else:
-           context = self._prepare_context(order_state)
-           response = self.claude.call_api([
-               {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
-               {"role": "user", "content": message}
-           ], temperature=0.7)
-           response_text = utils.clean_response(response)
-
-       return {"text": response_text, "images": []}
+    """Handle quantity collection."""
+    # Try to extract size information
+    sizes = utils.extract_size_info(message)
+    
+    if sizes:
+        order_state.update_quantities(sizes)
+        self.conversation_manager.update_order_state(user_id, order_state)
+        
+        # Log state for debugging
+        logger.info(f"Order state product_category: {order_state.product_category}")
+        logger.info(f"Order state product_details: {order_state.product_details}")
+        
+        # Get product type and pluralize if needed
+        # First try order_state.product_category, then fallback to product_details['category']
+        product_type = None
+        
+        if order_state.product_category:
+            product_type = order_state.product_category.lower()
+            logger.info(f"Using product_category: {product_type}")
+        elif order_state.product_details and 'category' in order_state.product_details:
+            product_type = order_state.product_details['category'].lower()
+            logger.info(f"Using product_details['category']: {product_type}")
+        else:
+            product_type = "t-shirt"
+            logger.info(f"No category found, defaulting to: {product_type}")
+            
+        # Make plural if needed
+        if not product_type.endswith('s'):
+            product_type += "s"  # Make plural
+            
+        logger.info(f"Final product type for response: {product_type}")
+        
+        response_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}:\n"
+        for size, qty in sizes.items():
+            response_text += f"- {qty} {size.upper()}\n"
+        response_text += f"\nTotal price will be ${order_state.total_price:.2f}. "
+        response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
+    else:
+        context = self._prepare_context(order_state)
+        response = self.claude.call_api([
+            {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
+            {"role": "user", "content": message}
+        ], temperature=0.7)
+        response_text = utils.clean_response(response)
+     
+    return {"text": response_text, "images": []}
 
    def _handle_customer_information(self, user_id: str, message: str, order_state) -> dict:
     """Handle customer information collection and save complete order to Firestore."""

@@ -16,6 +16,7 @@ class OrderState:
     # Product Selection
     product_selected: bool = False
     product_details: Optional[Dict] = None # Includes name, color, style, price, images
+    product_category: Optional[str] = None # Store the product category (T-Shirt, Sweatshirt, etc.)
     price_per_item: float = 0
     
     # Design Info
@@ -57,6 +58,11 @@ class OrderState:
         """Update product selection details"""
         self.product_selected = True
         self.product_details = details
+        
+        # Save the product category if provided
+        if 'category' in details:
+            self.product_category = details['category']
+            
         if 'price' in details:
             self.price_per_item = float(details['price'].replace('$', ''))
     
@@ -200,6 +206,7 @@ class OrderState:
             'productInfo': {
                 'selected': self.product_selected,
                 'details': self.product_details,
+                'category': self.product_category,  # Include the product category
                 'pricePerItem': self.price_per_item
             },
             'designInfo': {
@@ -249,6 +256,7 @@ class OrderState:
             "user_id": self.user_id,
             "product_selected": self.product_selected,
             "product_details": self.product_details,
+            "product_category": self.product_category,  # Include product category
             "price_per_item": self.price_per_item,
             "design_uploaded": self.design_uploaded,
             "design_path": self.design_path,

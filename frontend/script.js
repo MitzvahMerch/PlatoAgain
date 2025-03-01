@@ -28,7 +28,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const health = await response.json();
         
         if (health.status === 'healthy') {
-            addMessage("Hey! I'm Plato. I love making custom printing as simple as it should be. Just talk to me like a friend and we'll finalize your order in seconds. Let's start off with finding a product, what type of clothing or swag are you looking to customize today?", 'bot');
+            addMessage("Hey! I'm Plato. I love making custom printing as simple as it should be. Just talk to me like a friend and I'll finalize your order in seconds. Let's start off with finding a product, what type of clothing, and in what color, are you looking to customize today?", 'bot');
         } else {
             addMessage("Warning: System is currently unavailable. Please try again later.", 'system');
         }

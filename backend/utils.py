@@ -42,20 +42,29 @@ def parse_customer_info(extraction_response: str) -> dict:
 
 def extract_size_info(message: str) -> Dict[str, int]:
     """
-    Extract size quantities from customer messages.
+    Extract size quantities from customer messages, including youth sizes.
     Returns a dictionary of sizes and their quantities.
-    Example: {'s': 7, 'm': 8, 'l': 9, 'xl': 2}
+    Example: {'s': 7, 'm': 8, 'l': 9, 'xl': 2, 'ys': 5, 'ym': 3}
     """
     # Convert message to lowercase for consistent matching
     message = message.lower()
     
     # Dictionary to store size mappings (including common variations)
     size_patterns = {
-        's': r'(?:small|sm|s)\w*',
-        'm': r'(?:medium|med|m)\w*',
-        'l': r'(?:large|lg|l)\w*',
-        'xl': r'(?:extra\s*large|xl)\w*',
-        '2xl': r'(?:double\s*extra\s*large|double\s*xl|2xl|xxl)\w*'
+        # Adult sizes
+        'xs': r'(?<!youth\s)(?:extra\s*small|xs)\w*', # Added XS for adult
+        's': r'(?<!youth\s)(?:small|sm|s)\w*',      # Negative lookbehind to avoid matching youth sizes
+        'm': r'(?<!youth\s)(?:medium|med|m)\w*',    # Negative lookbehind to avoid matching youth sizes
+        'l': r'(?<!youth\s)(?:large|lg|l)\w*',      # Negative lookbehind to avoid matching youth sizes
+        'xl': r'(?<!youth\s)(?:extra\s*large|xl)\w*',
+        '2xl': r'(?<!youth\s)(?:double\s*extra\s*large|double\s*xl|2xl|xxl)\w*',
+        '3xl': r'(?<!youth\s)(?:triple\s*extra\s*large|triple\s*xl|3xl|xxxl)\w*', # Added 3XL for adult
+        # Youth sizes
+        'yxs': r'(?:youth\s*extra\s*small|youth\s*xs|yxs)\w*', # Added youth XS
+        'ys': r'(?:youth\s*small|youth\s*s|ys)\w*',
+        'ym': r'(?:youth\s*medium|youth\s*m|ym)\w*',
+        'yl': r'(?:youth\s*large|youth\s*l|yl)\w*',
+        'yxl': r'(?:youth\s*extra\s*large|youth\s*xl|yxl)\w*'
     }
     
     sizes = {}

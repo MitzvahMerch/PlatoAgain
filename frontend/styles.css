@@ -289,7 +289,18 @@ body {
     background: var(--background-color);
 }
 
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
+.header-text {
+    margin: 0 15px;
+}
 
-
- 
+.header-icon {
+    width: 80px;
+    height: 120px;
+    object-fit: contain;
+}

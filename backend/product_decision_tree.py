@@ -17,95 +17,6 @@ class ProductCategory:
     def add_product(self, product: Dict):
         """Add a product to this category"""
         self.products.append(product)
-        
-    def get_best_match(self, preferences: Dict) -> Optional[Dict]:
-        """Find the best product match using a scoring system"""
-        if not self.products:
-            return None
-            
-        # Get AI color match if needed and available
-        ai_matched_color = None
-        if preferences.get('color') and self.claude_client:
-            user_color = preferences.get('color')
-            # Check if direct string matching will work
-            exact_color_match = any(user_color.lower() in product.get('color', '').lower() for product in self.products)
-            
-            # If no exact match, try AI matching
-            if not exact_color_match:
-                available_colors = list(set(product.get('color', '') for product in self.products))
-                try:
-                    ai_matched_color = ProductDecisionTree.match_color_for_category(
-                        user_color, 
-                        available_colors, 
-                        self.name,
-                        self.claude_client
-                    )
-                    if ai_matched_color:
-                        logger.info(f"AI matched '{user_color}' to '{ai_matched_color}' in category '{self.name}'")
-                except Exception as e:
-                    logger.error(f"Error in AI color matching: {str(e)}")
-        
-        # Score products rather than filtering
-        scored_products = []
-        
-        for product in self.products:
-            score = 0
-            
-            # Color matching (highest priority)
-            if preferences.get('color'):
-                if preferences['color'].lower() in product.get('color', '').lower():
-                    score += 100  # Major boost for exact color match
-                elif ai_matched_color and ai_matched_color == product.get('color'):
-                    score += 90   # Good boost for AI-matched color
-                elif preferences.get('color') and not ai_matched_color:
-                    # Skip products that don't match explicitly requested color if no AI match found
-                    continue
-                
-            # Price scoring - for budget options, prioritize cheaper products
-            if preferences.get('price') == 'budget-friendly':
-                price_val = float(product.get('price', '$100').replace('$', ''))
-                # Inverse score based on price - cheaper gets higher score
-                score += 50 * (1 - (price_val / 30))  # Assuming $30 is max price
-                
-            # Material/softness scoring
-            if preferences.get('material') and preferences['material'].lower() in product.get('material', '').lower():
-                score += 20
-            # If soft was mentioned (parsed as material)
-            elif preferences.get('material') == 'soft':
-                if 'cotton' in product.get('material', '').lower() or 'ring-spun' in product.get('material', '').lower():
-                    score += 15
-                    
-            # Weight preferences
-            if preferences.get('weight') and preferences['weight'].lower() in product.get('weight', '').lower():
-                score += 10
-                
-            # Fit preferences
-            if preferences.get('fit') and preferences['fit'].lower() in product.get('fit', '').lower():
-                score += 10
-                
-            # Size requirements
-            if preferences.get('size') == 'youth' and product.get('has_youth_sizes'):
-                score += 15
-                
-            # Brand preferences
-            if preferences.get('brand') and preferences['brand'].lower() in product.get('product_name', '').lower():
-                score += 15
-                
-            scored_products.append((product, score))
-        
-        # Sort by score, highest first
-        scored_products.sort(key=lambda x: x[1], reverse=True)
-        
-        if scored_products:
-            top_products = [(p[0]['product_name'], p[0]['color'], p[1]) for p in scored_products[:3] if len(scored_products) >= 3]
-            logger.info(f"Top scored products: {top_products}")
-        
-        # Return highest scoring product or first product if none scored
-        if scored_products:
-            return scored_products[0][0]
-            
-        # If no matches (due to color filtering), return None
-        return None
 
 
 class ProductDecisionTree:
@@ -117,153 +28,212 @@ class ProductDecisionTree:
         self.claude_client = claude_client
         self.init_product_data()
     
-    @staticmethod
-    def match_color_for_category(user_color: str, available_colors: List[str], category_name: str, claude_client) -> Optional[str]:
-        """Use Claude to match a user's color description to available colors ONLY within a specific category"""
-        
-        if not user_color or not available_colors or not claude_client:
-            return None
-            
-        # Format colors as a comma-separated list
-        color_list = ", ".join(available_colors)
-        
-        # Create a category-specific prompt for Claude
-        color_matching_prompt = [
-            {"role": "user", "content": f"""<instructions>
-            You are a color matching expert for a custom apparel print shop. Match the customer's color description 
-            to the most similar color from our available options for {category_name}s.
-            
-            Available colors for {category_name}s: {color_list}
-            
-            Rules:
-            1. ONLY consider colors available for {category_name}s
-            2. Return EXACTLY ONE color from the list provided, no explanation
-            3. If no close match exists, return "NO_MATCH"
-            4. Do not invent new colors or modify existing ones
-            </instructions>"""},
-            {"role": "user", "content": f"Find the closest match to: {user_color}"}
-        ]
-        
-        # Call Claude API
-        try:
-            matched_color = claude_client.call_api(color_matching_prompt, temperature=0.2)
-            matched_color = matched_color.strip()
-            
-            # Validate the response
-            if matched_color in available_colors:
-                logger.info(f"Successfully matched user color '{user_color}' to catalog color '{matched_color}' in {category_name}")
-                return matched_color
-            elif matched_color == "NO_MATCH":
-                logger.info(f"No match found for user color '{user_color}' in {category_name}")
-                return None
-            else:
-                logger.warning(f"Invalid color match result: '{matched_color}' not in available colors")
-                return None
-        except Exception as e:
-            logger.error(f"Error in color matching: {str(e)}")
-            return None
-    
     def parse_sonar_analysis(self, analysis_text: str) -> Dict:
-        """Parse the structured output from Sonar's analysis"""
+        """Parse the structured output from Claude's analysis"""
         preferences = {}
         
         # Define patterns to extract each preference
         patterns = {
-            'garment': r'Garment Type:\s*([^\n]+)',
-            'brand': r'Brand Preferences:\s*([^\n]+)',
-            'material': r'Material Preferences:\s*([^\n]+)',
-            'color': r'Color Preferences:\s*([^\n]+)',
-            'weight': r'Weight Preferences:\s*([^\n]+)',
-            'fit': r'Fit Preferences:\s*([^\n]+)',
-            'size': r'Size Requirements:\s*([^\n]+)',
-            'price': r'Price Points:\s*([^\n]+)'
+            'category': r'Category:\s*([^\n]+)',
+            'color': r'Color:\s*([^\n]+)',
+            'material': r'Material:\s*([^\n]+)',
+            'brand': r'Brand:\s*([^\n]+)',
+            'price': r'Price Point:\s*([^\n]+)',
+            'fit': r'Fit:\s*([^\n]+)',
+            'size': r'Size:\s*([^\n]+)'
         }
         
         # Extract each preference
         for key, pattern in patterns.items():
             match = re.search(pattern, analysis_text)
-            if match and "No specific" not in match.group(1):
-                preferences[key] = match.group(1).strip()
+            if match:
+                value = match.group(1).strip()
+                # Only include preferences that aren't "None"
+                if value.lower() != "none":
+                    preferences[key] = value
         
-        logger.info(f"Parsed preferences: {preferences}")
+        logger.info(f"Parsed preferences (excluding None values): {preferences}")
         return preferences
+    
+    def map_category_to_internal(self, category: str) -> str:
+        """Map Claude's category to our internal category names"""
+        category = category.lower()
         
-    def get_category_from_garment(self, garment_type: str) -> str:
-        """Map garment type to category"""
-        garment_type = garment_type.lower()
+        category_map = {
+            't-shirt': 't-shirt',
+            'sweatshirt': 'hoodie',  # Map Sweatshirt to hoodie category
+            'long sleeve shirt': 'long-sleeve',
+            'crewneck': 'crewneck',
+            'sweatpants': 'sweatpants'
+        }
         
-        if 't-shirt' in garment_type or 'tee' in garment_type:
-            return 't-shirt'
-        elif 'long sleeve' in garment_type:
-            return 'long-sleeve'
-        elif 'hoodie' in garment_type or 'hooded' in garment_type:
-            return 'hoodie'
-        elif 'sweatshirt' in garment_type or 'crewneck' in garment_type:
-            return 'crewneck'
-        elif 'sweatpant' in garment_type or 'jogger' in garment_type:
-            return 'sweatpants'
+        # Find the matching category
+        for key, value in category_map.items():
+            if key in category:
+                return value
         
         # Default to t-shirt if no match
+        logger.warning(f"Could not map category '{category}' to internal category, defaulting to t-shirt")
         return 't-shirt'
+    
+    def select_product_with_claude(self, category: str, user_query: str, preferences: Dict) -> Tuple[Optional[Dict], str]:
+        """Use Claude to select the best product from a category based on preferences"""
+        
+        # Get all products in the category
+        if category not in self.categories:
+            logger.warning(f"Category {category} not found, defaulting to t-shirt")
+            category = 't-shirt'
+            
+        products = self.categories[category].products
+        
+        # Create a formatted list of products with key attributes
+        product_options = []
+        for product in products:
+            # Extract material type category
+            material_type = "100% Cotton" if "100% cotton" in product['material'].lower() else \
+                           "Athletic/Polyester" if "polyester" in product['material'].lower() else \
+                           "Cotton/Poly Blend"
+            
+            product_options.append(
+                f"Product: {product['product_name']}\n"
+                f"Color: {product['color']}\n"
+                f"Material: {product['material']} (Type: {material_type})\n"
+                f"Brand: {product['product_name'].split(' ')[0]}\n"  # Extract brand from name
+                f"Price: {product['price']}\n"
+            )
+        
+        product_list = "\n---\n".join(product_options)
+        
+        # Build the priorities section based on what was specified
+        priorities = ["1. COLOR MATCH - This is the absolute most important factor"]
+        
+        if "material" in preferences:
+            priorities.append("2. MATERIAL TYPE - Must match the specified material type")
+            priorities.append("3. BRAND - If customer mentioned a specific brand")
+            priorities.append("4. PRICE - Match budget/affordable to cheaper options, premium/quality to higher-end")
+        elif "brand" in preferences:
+            priorities.append("2. BRAND - Must match the specified brand")
+            priorities.append("3. PRICE - Match budget/affordable to cheaper options, premium/quality to higher-end")
+        else:
+            priorities.append("2. PRICE - Match budget/affordable to cheaper options, premium/quality to higher-end")
+        
+        priorities_text = "\n".join(priorities)
+        
+        # List only the specified preferences
+        preferences_text = "\n".join([f"{k.capitalize()}: {v}" for k, v in preferences.items()])
+        
+        # Create the prompt for Claude
+        prompt = [
+            {"role": "system", "content": f"""
+            You are a product matching expert for a custom apparel print shop. 
+            The customer has requested: "{user_query}"
+            
+            We've identified these preferences:
+            {preferences_text}
+            
+            Available options in this category:
+            {product_list}
+            
+            Select the BEST match based on these priorities:
+            {priorities_text}
+            
+            CRITICAL RULES:
+            - COLOR is always the #1 priority - find the closest color match
+            - If MATERIAL was specified, it must be the second priority
+            - If multiple products are equal on higher priorities, use lower priorities as tiebreakers
+            - Never sacrifice a better color match for other attributes
+            
+            Explain your decision focusing on how it matches the customer's requirements.
+            Then provide the exact product name and color as your final answer in this format:
+            SELECTED: [Product Name] in [Color]
+            """},
+            {"role": "user", "content": "Select the best product match."}
+        ]
+        
+        # Call Claude API
+        try:
+            response = self.claude_client.call_api(prompt, temperature=0.2)
+            
+            # Extract the selected product
+            match = re.search(r"SELECTED: (.+) in (.+)$", response, re.MULTILINE)
+            if match:
+                product_name = match.group(1).strip()
+                color = match.group(2).strip()
+                
+                # Find the matching product
+                for product in products:
+                    if product['product_name'] == product_name and product['color'] == color:
+                        return product, response
+                    # Try partial matching if exact match fails
+                    elif product_name in product['product_name'] and color in product['color']:
+                        return product, response
+                
+                logger.warning(f"Could not find exact product match for '{product_name}' in '{color}'")
+            else:
+                logger.warning(f"Could not parse product selection from Claude's response")
+                
+        except Exception as e:
+            logger.error(f"Error in Claude product selection: {str(e)}")
+            response = f"Error: {str(e)}"
+            
+        # Fallback to first product if no match found
+        logger.warning(f"Falling back to first product in category")
+        return (products[0], response) if products else (None, response)
     
     def select_product(self, query: str, sonar_analysis: str) -> Optional[Dict]:
         """
-        Select a product based on user query and Sonar analysis.
-        Returns product details dictionary.
+        Select a product based on user query and Claude's analysis.
+        Returns product details dictionary with explanation.
         """
         try:
-            # Parse the structured Sonar analysis
+            # Parse the structured analysis from Claude
             preferences = self.parse_sonar_analysis(sonar_analysis)
             
-            # Determine product category from garment type
-            category = self.get_category_from_garment(preferences.get('garment', 't-shirt'))
+            # Get the category from Claude's analysis
+            original_category = None
+            if 'category' in preferences:
+                # Save the original category from Claude
+                original_category = preferences['category']
+                # Map the Claude category to our internal category
+                category = self.map_category_to_internal(preferences['category'])
+            else:
+                category = 't-shirt'  # Default category
+                original_category = "T-Shirt"  # Default category name
             
             logger.info(f"Category identified: {category}")
+            logger.info(f"Original category from Claude: {original_category}")
             logger.info(f"Preferences extracted: {preferences}")
             
-            # Try to find a match in the primary category
-            if category in self.categories:
-                best_match = self.categories[category].get_best_match(preferences)
-                if best_match:
-                    logger.info(f"Selected product: {best_match['product_name']} in {best_match['color']}")
-                    return best_match
+            # Use Claude to select the best product from this category
+            selected_product, explanation = self.select_product_with_claude(category, query, preferences)
             
-            # If no match in primary category, try other categories
-            for cat_name, category_obj in self.categories.items():
-                if cat_name != category:
-                    best_match = category_obj.get_best_match(preferences)
-                    if best_match:
-                        logger.info(f"Selected product from alternate category {cat_name}: {best_match['product_name']} in {best_match['color']}")
-                        return best_match
+            if selected_product:
+                logger.info(f"Selected product: {selected_product['product_name']} in {selected_product['color']}")
+                # Add the explanation to the product info
+                selected_product['match_explanation'] = explanation
+                # Add the original category from Claude's analysis
+                selected_product['category'] = original_category
+                logger.info(f"Added category to product: {original_category}")
+                return selected_product
             
-            # If color is specified but no matches, try again without strict color matching
-            if preferences.get('color'):
-                logger.info(f"No matches for color '{preferences['color']}', trying without strict color matching")
-                color = preferences.pop('color')  # Remove color to try without it
+            # Fallback to default product
+            logger.warning("No product selected, falling back to default")
+            default_product = None
+            
+            if 't-shirt' in self.categories and self.categories['t-shirt'].products:
+                default_product = self.categories['t-shirt'].products[0].copy()  # Create a copy to avoid modifying the original
+                default_product['category'] = original_category or "T-Shirt"  # Set the category
+                logger.info(f"Set category on default product: {default_product['category']}")
+                return default_product
+            return None
                 
-                # Try primary category first
-                if category in self.categories:
-                    products = self.categories[category].products
-                    if products:
-                        # Sort by price if budget-friendly
-                        if preferences.get('price') == 'budget-friendly':
-                            products_copy = products.copy()
-                            products_copy.sort(key=lambda p: float(p.get('price', '$100').replace('$', '')))
-                            logger.info(f"Selected cheapest product: {products_copy[0]['product_name']} in {products_copy[0]['color']}")
-                            return products_copy[0]
-                        else:
-                            logger.info(f"Selected default product: {products[0]['product_name']} in {products[0]['color']}")
-                            return products[0]
-            
-            # Last resort - return first t-shirt
-            logger.info("No suitable match found, defaulting to first t-shirt")
-            return self.categories['t-shirt'].products[0] if 't-shirt' in self.categories else None
-            
         except Exception as e:
             logger.error(f"Error in product selection: {str(e)}")
             # Default product if there's an error
             if self.categories.get('t-shirt') and self.categories['t-shirt'].products:
-                return self.categories['t-shirt'].products[0]
+                default_product = self.categories['t-shirt'].products[0].copy()  # Create a copy
+                default_product['category'] = "T-Shirt"  # Add default category
+                return default_product
             return None
     
     def get_product_by_style_color(self, style: str, color: str) -> Optional[Dict]:
@@ -437,7 +407,7 @@ class ProductDecisionTree:
             })
         
         # Long Sleeve Shirts category
-        self.categories['long-sleeve'] = ProductCategory('Long Sleeve Shirts')
+        self.categories['long-sleeve'] = ProductCategory('Long Sleeve Shirts', claude_client=self.claude_client)
         
         # Gildan - Heavy Cotton Long Sleeve T-Shirt
         gildan_ls_colors = [
@@ -518,8 +488,8 @@ class ProductDecisionTree:
                 }
             })
         
-        # Hoodies/Sweatshirts category
-        self.categories['hoodie'] = ProductCategory('Hoodies')
+        # Hoodies category (maps to "Sweatshirt" in Claude)
+        self.categories['hoodie'] = ProductCategory('Hoodies', claude_client=self.claude_client)
         
         # Hanes - Ecosmart Hooded Sweatshirt
         hanes_hoodie_colors = [
@@ -586,7 +556,7 @@ class ProductDecisionTree:
             })
         
         # Crewneck sweatshirts
-        self.categories['crewneck'] = ProductCategory('Crewneck Sweatshirts')
+        self.categories['crewneck'] = ProductCategory('Crewneck Sweatshirts', claude_client=self.claude_client)
         
         # Gildan - Heavy Blend Sweatshirt
         gildan_crewneck_colors = [
@@ -619,7 +589,7 @@ class ProductDecisionTree:
             })
             
         # Sweatpants
-        self.categories['sweatpants'] = ProductCategory('Sweatpants')
+        self.categories['sweatpants'] = ProductCategory('Sweatpants', claude_client=self.claude_client)
         
         # JERZEES - NuBlend Sweatpants
         jerzees_sweatpants_colors = [

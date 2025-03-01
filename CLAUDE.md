@@ -24,7 +24,6 @@ Plato is a custom t-shirt ordering system with AI assistance. It helps users sel
 - **conversation_manager.py**: Manages user conversations and state
 - **order_state.py**: Tracks complete order lifecycle
 - **firebase_service.py**: Handles data persistence and design uploads
-- **ss_client.py**: Integrates with S&S Activewear API for pricing
 - **paypal_service.py**: Handles PayPal invoice generation
 - **utils.py**: General utility functions for parsing and formatting
 - **size_utils.py**: Size extraction from customer messages
@@ -96,4 +95,3 @@ To implement tests:
 - **Claude AI**: Handles conversational intelligence
 - **Firebase**: Stores customer data and design files
 - **PayPal**: Processes payments through invoices
-- **S&S Activewear**: Provides product information and pricing
