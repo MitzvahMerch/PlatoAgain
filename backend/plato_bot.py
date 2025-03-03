@@ -202,7 +202,8 @@ class PlatoBot:
             message=message,
             product_name=details["product_name"],
             color=details["color"],
-            formatted_price=formatted_price
+            formatted_price=formatted_price,
+            category=details["category"] 
         )
         
         # Get response from Claude
@@ -260,21 +261,37 @@ class PlatoBot:
             
             logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
             
+            # Get category and product details for a better response
+            category = order_state.product_category or "T-Shirt"
+            product_details = order_state.product_details or {}
+            product_name = product_details.get('product_name', 'Product')
+            color = product_details.get('color', 'Color')
+            youth_sizes = order_state.youth_sizes or "XS-XL"
+            adult_sizes = order_state.adult_sizes or "S-5XL"
+            
+            # Create a better response using the product category
+            response_text = f"Great! Your design looks amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
+            
             return {
-                "text": "Great! Your design has been saved. Would you like to proceed with selecting quantities?",
+                "text": response_text,
                 "images": []
             }
     
-    # Generate general response about placement
+    # Prepare full context for the prompt
+    context = self._prepare_context(order_state)
+    
+    # Generate general response about placement using the proper context
     response = self.claude.call_api([
-        {"role": "system", "content": prompts.DESIGN_PLACEMENT_PROMPT},
+        {"role": "system", "content": prompts.DESIGN_PLACEMENT_PROMPT.format(**context)},
         {"role": "user", "content": message}
     ], temperature=0.7)
     response_text = utils.clean_response(response)
     
     # Add context about placement tool if design exists
     if order_state.design_path and order_state.product_details:
-        response_text += "\n\nYou can adjust your design's position and size using the placement tool. Once you're happy with the placement, save it and let me know."
+        # Use correct category in the additional text
+        category = order_state.product_category or "T-Shirt"
+        response_text += f"\n\nYou can adjust your design's position and size on the {category} using the placement tool. Once you're happy with the placement, save it and let me know."
     
     return {
         "text": response_text,
@@ -303,7 +320,8 @@ class PlatoBot:
         if not product_type.endswith('s'):
             product_type += "s"  # Make plural
         
-        # Create response text as before
+        # Create response text as before - we'll store it but not return it
+        # This is needed to maintain all context variables
         response_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}:\n"
         for size, qty in sizes.items():
             response_text += f"- {qty} {size.upper()}\n"
@@ -314,9 +332,9 @@ class PlatoBot:
         product_name = f"{order_state.product_details.get('product_name', 'Product')} in {order_state.product_details.get('color', 'Color')}"
         quantities = ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items())
         
-        # Add the action trigger for the modal
+        # Add the action trigger for the modal but with empty text
         return {
-            "text": response_text,
+            "text": "",  # Empty text to avoid redundant message
             "images": [], 
             "action": {
                 "type": "showShippingModal",
@@ -343,8 +361,93 @@ class PlatoBot:
     logger.info(f"Handling customer information for user {user_id}")
 
     # Skip extraction if this is a form submission since we already have the data
-    if not form_submission:
-        # Extract customer information
+    if form_submission:
+        # For form submissions, skip extraction and proceed directly to order completion
+        # Log order state completeness
+        logger.info(f"Form submission: Order state complete check: {order_state.is_complete()}")
+        logger.info(f"Form submission: Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
+        
+        # Check if order is now complete
+        if order_state.is_complete():
+            logger.info("Form submission: Order state is complete, proceeding to PayPal invoice creation")
+            try:
+                # Create PayPal invoice
+                logger.info("Form submission: Attempting to create PayPal invoice...")
+                invoice_data = self.paypal.create_invoice(order_state)
+                logger.info(f"Form submission: PayPal invoice created successfully: {invoice_data}")
+
+                # Update OrderState with payment info
+                logger.info("Form submission: Updating order state with payment info")
+                order_state.update_payment_info(invoice_data)
+                order_state.update_status('pending_review')
+                self.conversation_manager.update_order_state(user_id, order_state)
+                
+                # Log payment info update
+                logger.info(f"Form submission: Payment info updated: URL={order_state.payment_url}, ID={order_state.invoice_id}")
+
+                # Save complete order to Firestore
+                logger.info(f"Form submission: Saving order to Firestore for user {user_id}")
+                self.firebase_service.db.collection('designs').document(user_id).set(
+                    order_state.to_firestore_dict()
+                )
+                logger.info(f"Form submission: Saved complete order to Firestore for user {user_id}")
+
+                # Format the ORDER_COMPLETION_PROMPT with actual values for form submission
+                logger.info("Form submission: Formatting order completion prompt")
+                formatted_prompt = prompts.ORDER_COMPLETION_PROMPT.format(
+                    product_details=f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}",
+                    placement=order_state.placement or "Unknown Placement",
+                    quantities=', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items()) if order_state.sizes else "Unknown Quantities",
+                    total_price=f"${order_state.total_price:.2f}" if order_state.total_price else "Unknown Price",
+                    customer_name=order_state.customer_name or "Unknown Name",
+                    shipping_address=order_state.shipping_address or "Unknown Address",
+                    email=order_state.email or "Unknown Email",
+                    payment_url=order_state.payment_url or "Unknown Payment URL"
+                )
+                
+                # Log formatted prompt values
+                logger.info(f"Form submission: Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
+                
+                response = self.claude.call_api([
+                    {"role": "system", "content": formatted_prompt},
+                    {"role": "user", "content": "Generate response for form submission"}
+                ], temperature=0.7)
+                
+                response_text = utils.clean_response(response)
+                return {"text": response_text, "images": []}
+            except Exception as e:
+                logger.error(f"Form submission: Failed to process completed order: {str(e)}", exc_info=True)
+                return {
+                    "text": "I apologize, but I encountered an error processing your order. Please try again or contact support.",
+                    "images": []
+                }
+        else:
+            logger.info("Form submission: Order state is not complete, using INCOMPLETE_INFO_PROMPT")
+            # Log which fields are missing
+            missing_fields = []
+            if not order_state.product_selected: missing_fields.append("product")
+            if not order_state.design_uploaded: missing_fields.append("design")
+            if not order_state.placement_selected: missing_fields.append("placement")
+            if not order_state.quantities_collected: missing_fields.append("quantities")
+            if not order_state.customer_info_collected: missing_fields.append("customer_info")
+            logger.info(f"Form submission: Missing order fields: {', '.join(missing_fields)}")
+            
+            # Format the INCOMPLETE_INFO_PROMPT with actual values
+            formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
+                customer_name=order_state.customer_name or "None",
+                shipping_address=order_state.shipping_address or "None",
+                email=order_state.email or "None"
+            )
+            
+            response = self.claude.call_api([
+                {"role": "system", "content": formatted_prompt},
+                {"role": "user", "content": "Generate response for form submission"}
+            ], temperature=0.7)
+            
+            response_text = utils.clean_response(response)
+            return {"text": response_text, "images": []}
+    else:
+        # Extract customer information for non-form submissions
         extraction_messages = [
             {"role": "system", "content": prompts.CUSTOMER_INFO_EXTRACTION_PROMPT},
             {"role": "user", "content": message}
@@ -454,90 +557,7 @@ class PlatoBot:
                 "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
                 "images": []
             }
-    else:
-        # For form submissions, skip extraction and proceed directly to order completion
-        # Log order state completeness
-        logger.info(f"Form submission: Order state complete check: {order_state.is_complete()}")
-        logger.info(f"Form submission: Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
-        
-        # Check if order is now complete
-        if order_state.is_complete():
-            logger.info("Form submission: Order state is complete, proceeding to PayPal invoice creation")
-            try:
-                # Create PayPal invoice
-                logger.info("Form submission: Attempting to create PayPal invoice...")
-                invoice_data = self.paypal.create_invoice(order_state)
-                logger.info(f"Form submission: PayPal invoice created successfully: {invoice_data}")
 
-                # Update OrderState with payment info
-                logger.info("Form submission: Updating order state with payment info")
-                order_state.update_payment_info(invoice_data)
-                order_state.update_status('pending_review')
-                self.conversation_manager.update_order_state(user_id, order_state)
-                
-                # Log payment info update
-                logger.info(f"Form submission: Payment info updated: URL={order_state.payment_url}, ID={order_state.invoice_id}")
-
-                # Save complete order to Firestore
-                logger.info(f"Form submission: Saving order to Firestore for user {user_id}")
-                self.firebase_service.db.collection('designs').document(user_id).set(
-                    order_state.to_firestore_dict()
-                )
-                logger.info(f"Form submission: Saved complete order to Firestore for user {user_id}")
-
-                # Format the ORDER_COMPLETION_PROMPT with actual values for form submission
-                logger.info("Form submission: Formatting order completion prompt")
-                formatted_prompt = prompts.ORDER_COMPLETION_PROMPT.format(
-                    product_details=f"{order_state.product_details.get('product_name', 'Unknown Product')} in {order_state.product_details.get('color', 'Unknown Color')}",
-                    placement=order_state.placement or "Unknown Placement",
-                    quantities=', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items()) if order_state.sizes else "Unknown Quantities",
-                    total_price=f"${order_state.total_price:.2f}" if order_state.total_price else "Unknown Price",
-                    customer_name=order_state.customer_name or "Unknown Name",
-                    shipping_address=order_state.shipping_address or "Unknown Address",
-                    email=order_state.email or "Unknown Email",
-                    payment_url=order_state.payment_url or "Unknown Payment URL"
-                )
-                
-                # Log formatted prompt values
-                logger.info(f"Form submission: Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
-                
-                response = self.claude.call_api([
-                    {"role": "system", "content": formatted_prompt},
-                    {"role": "user", "content": "Generate response for form submission"}
-                ], temperature=0.7)
-                
-            except Exception as e:
-                logger.error(f"Form submission: Failed to process completed order: {str(e)}", exc_info=True)
-                return {
-                    "text": "I apologize, but I encountered an error processing your order. Please try again or contact support.",
-                    "images": []
-                }
-        else:
-            logger.info("Form submission: Order state is not complete, using INCOMPLETE_INFO_PROMPT")
-            # Log which fields are missing
-            missing_fields = []
-            if not order_state.product_selected: missing_fields.append("product")
-            if not order_state.design_uploaded: missing_fields.append("design")
-            if not order_state.placement_selected: missing_fields.append("placement")
-            if not order_state.quantities_collected: missing_fields.append("quantities")
-            if not order_state.customer_info_collected: missing_fields.append("customer_info")
-            logger.info(f"Form submission: Missing order fields: {', '.join(missing_fields)}")
-            
-            # Format the INCOMPLETE_INFO_PROMPT with actual values
-            formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
-                customer_name=order_state.customer_name or "None",
-                shipping_address=order_state.shipping_address or "None",
-                email=order_state.email or "None"
-            )
-            
-            response = self.claude.call_api([
-                {"role": "system", "content": formatted_prompt},
-                {"role": "user", "content": "Generate response for form submission"}
-            ], temperature=0.7)
-
-        response_text = utils.clean_response(response)
-        return {"text": response_text, "images": []}
-    
 
    def _prepare_context(self, order_state) -> dict:
     """Prepare context based on the order state."""

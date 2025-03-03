@@ -7,6 +7,7 @@
     --success-color: #28a745;
     --warning-color: #ffc107;
     --error-color: #dc3545;
+    --text2-color: #ffffff; 
 }
 
 body {
@@ -68,8 +69,10 @@ body {
 
 .message.bot {
     background-color: var(--background-color);
-    color: var(--text-color);
+    color: var(--text2-color);
     margin-right: auto;
+    -webkit-text-stroke: 0.3px rgba(255, 255, 255, 0.3);
+    font-weight: 500;
 }
 
 .message.system {
