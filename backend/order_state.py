@@ -45,6 +45,7 @@ class OrderState:
     customer_name: Optional[str] = None
     shipping_address: Optional[str] = None
     email: Optional[str] = None
+    received_by_date: Optional[str] = None  # New field for target delivery date
     
     # Payment Information
     payment_info_collected: bool = False
@@ -96,22 +97,23 @@ class OrderState:
         if self.price_per_item > 0:
             self.total_price = self.total_quantity * self.price_per_item
     
-    def update_customer_info(self, name: str, address: str, email: str):
+    def update_customer_info(self, name: str, address: str, email: str, received_by_date: str = None):
         """Update customer information"""
-        logger.info(f"Updating customer info: name='{name}', address='{address}', email='{email}'")
+        logger.info(f"Updating customer info: name='{name}', address='{address}', email='{email}', received_by_date='{received_by_date}'")
         
         # Log previous values if they exist
-        if self.customer_name or self.shipping_address or self.email:
-            logger.info(f"Previous customer info: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}'")
+        if self.customer_name or self.shipping_address or self.email or self.received_by_date:
+            logger.info(f"Previous customer info: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}', received_by_date='{self.received_by_date}'")
         
         # Update the values
         self.customer_info_collected = True
         self.customer_name = name
         self.shipping_address = address
         self.email = email
+        self.received_by_date = received_by_date
         
         logger.info(f"Customer info updated successfully, customer_info_collected={self.customer_info_collected}")
-        logger.info(f"Updated values: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}'")
+        logger.info(f"Updated values: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}', received_by_date='{self.received_by_date}'")
     
     def update_payment_info(self, invoice_data: Dict):
         """Update payment information from PayPal response"""
@@ -237,7 +239,8 @@ class OrderState:
                 'collected': self.customer_info_collected,
                 'name': self.customer_name,
                 'address': self.shipping_address,
-                'email': self.email
+                'email': self.email,
+                'receivedByDate': self.received_by_date  # Add the received by date to the Firestore dict
             },
             'paymentInfo': {
                 'collected': self.payment_info_collected,
@@ -280,6 +283,7 @@ class OrderState:
             "customer_name": self.customer_name,
             "shipping_address": self.shipping_address,
             "email": self.email,
+            "received_by_date": self.received_by_date,  # Add the received by date to the dict
             "payment_info_collected": self.payment_info_collected,
             "payment_url": self.payment_url,
             "invoice_id": self.invoice_id,

@@ -219,12 +219,13 @@ Customer Information:
 - Address: {shipping_address}
 - Email: {email}
 - Payment Link: {payment_url}  
+- Requested delivery by: {received_by_date}
 
 Provide a friendly confirmation that:
-1. Thanks {customer_name} for their order
+1. Thanks {customer_name} for their order of {quantities} of {product_details} for {total_price}
 2. Confirms you've sent a PayPal invoice to {email}
 3. Provides the direct {payment_url}
-4. Informs about 2-week delivery timeframe after payment
+4. Informs them they will receive the order by their {received_by_date} (as long as they pay the invoice within the next 24 hours)
 5. Ends the conversation warmly
 
 Keep it concise but professional."""

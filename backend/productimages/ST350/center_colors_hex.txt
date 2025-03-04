@@ -1,0 +1,54 @@
+ST350_Atomic Blue_Flat_Back.jpg: #1FB0CD
+ST350_Atomic Blue_Flat_Front.jpg: #11A2BF
+ST350_Black_flat_Back.jpg: #2E302F
+ST350_Black_flat_Front.jpg: #282A29
+ST350_Carolina Blue_Flat_Back.jpg: #83B4DF
+ST350_Carolina Blue_Flat_Front.jpg: #77A8D3
+ST350_DEEP RED_Flat_Back.jpg: #A63245
+ST350_DEEP RED_Flat_Front.jpg: #972336
+ST350_Deep Orange_Flat_Back.jpg: #E56B46
+ST350_Deep Orange_Flat_Front.jpg: #D75D38
+ST350_Forest Green_Flat_Back.jpg: #405B48
+ST350_Forest Green_Flat_Front.jpg: #284330
+ST350_Grey Concrete Heather_Flat_Back.jpg: #65706C
+ST350_Grey Concrete Heather_Flat_Front.jpg: #949F9B
+ST350_Grey Concrete_Flat_Back.jpg: #969B9E
+ST350_Grey Concrete_Flat_Front.jpg: #7F8487
+ST350_Iron Grey Heather_Flat_Back.jpg: #55595C
+ST350_Iron Grey Heather_Flat_Front.jpg: #75797C
+ST350_Iron Grey_Flat_Back.jpg: #5C5D5F
+ST350_Iron Grey_Flat_Front.jpg: #535456
+ST350_Kelly Green_Flat_Back.jpg: #239466
+ST350_Kelly Green_Flat_Front.jpg: #0E7F51
+ST350_Lime Shock_Flat_Back.jpg: #BDDF55
+ST350_Lime Shock_Flat_Front.jpg: #BADC52
+ST350_Neon Orange_Flat_Back.jpg: #FF772E
+ST350_Neon Orange_Flat_Front.jpg: #FA7228
+ST350_Neon Pink_Flat_Back.jpg: #FF5B9D
+ST350_Neon Pink_Flat_Front.jpg: #FD589A
+ST350_Neon Yellow_Flat_Back.jpg: #EDFE00
+ST350_Neon Yellow_Flat_Front.jpg: #E9FA00
+ST350_Royal_Flat_Back.jpg: #396296
+ST350_Royal_Flat_Front.jpg: #244D81
+ST350_Texas Orange_Flat_Back.jpg: #BF6A41
+ST350_Texas Orange_Flat_Front.jpg: #AC572E
+ST350_Tropic Blue_Flat_Back.jpg: #22AAB8
+ST350_Tropic Blue_Flat_Front.jpg: #0C96A3
+ST350_True Navy_Flat_Back.jpg: #2E3547
+ST350_True Navy_Flat_Front.jpg: #31384A
+ST350_True Red_Flat_Back.jpg: #C62A3F
+ST350_True Red_Form_Front.jpg: #BC1830
+ST350_True Royal Heather_Flat_Back.jpg: #355A84
+ST350_True Royal Heather_Flat_Front.jpg: #5B80AA
+ST350_cardinal_flat_Back.jpg: #693036
+ST350_cardinal_flat_Front.jpg: #62292F
+ST350_gold_flat_Back.jpg: #FFC459
+ST350_gold_flat_Front.jpg: #FEC144
+ST350_maroon_flat_Back.jpg: #693F4B
+ST350_maroon_flat_Front.jpg: #502632
+ST350_purple_flat_Back.jpg: #604D8F
+ST350_purple_flat_Front.jpg: #513E80
+ST350_silver_flat_Back.jpg: #BEC0BB
+ST350_silver_flat_Front.jpg: #B5B7B2
+ST350_white_flat_Back.jpg: #EFF3FC
+ST350_white_flat_Front.jpg: #E9EDF6

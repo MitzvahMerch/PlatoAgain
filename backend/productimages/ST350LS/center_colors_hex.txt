@@ -1,0 +1,42 @@
+ST350LS_Atomic Blue_Flat_Back.jpg: #129CC0
+ST350LS_Atomic Blue_Flat_Front.jpg: #1EA8CC
+ST350LS_Carolina Blue_Flat_Back.jpg: #73B3DF
+ST350LS_Carolina Blue_Flat_Front.jpg: #80C0EC
+ST350LS_DEEP RED_Flat_Back.jpg: #810D20
+ST350LS_DEEP RED_Flat_Front.jpg: #921E31
+ST350LS_Forest Green_Flat_Back.jpg: #253B2E
+ST350LS_Forest Green_Flat_Front.jpg: #394F42
+ST350LS_GREY CONCRETE HEATHER_Flat_Back.jpg: #8C8F88
+ST350LS_GREY CONCRETE HEATHER_Flat_Front.jpg: #979A93
+ST350LS_GREY CONCRETE_Flat_Back.jpg: #959891
+ST350LS_GREY CONCRETE_Flat_Front.jpg: #9B9E97
+ST350LS_IRON GREY HEATHER_Flat_Back.jpg: #727675
+ST350LS_IRON GREY HEATHER_Flat_Front.jpg: #7A7E7D
+ST350LS_Iron Grey_Flat_Back.jpg: #4E4E4C
+ST350LS_Iron Grey_Flat_Front.jpg: #575755
+ST350LS_Lime Shock_Flat_Back.jpg: #90C106
+ST350LS_Lime Shock_Flat_Front.jpg: #9FD015
+ST350LS_Neon Orange_Flat_Back.jpg: #EB5031
+ST350LS_Neon Orange_Flat_Front.jpg: #F96446
+ST350LS_Neon Pink_Flat_Back.jpg: #F1418C
+ST350LS_Neon Pink_Flat_Front.jpg: #F9529A
+ST350LS_Royal_Flat_Back.jpg: #1C4678
+ST350LS_Royal_Flat_Front.jpg: #254E82
+ST350LS_TRUE ROYAL_Flat_Back.jpg: #0A468C
+ST350LS_TRUE ROYAL_Flat_Front.jpg: #124E94
+ST350LS_True Navy_Flat_Back.jpg: #272E41
+ST350LS_True Navy_Flat_Front.jpg: #2B3245
+ST350LS_True Red_Flat_Back.jpg: #B12234
+ST350LS_True Red_Flat_Front.jpg: #BF2A3D
+ST350LS_black_flat_Back.jpg: #252525
+ST350LS_black_flat_Front.jpg: #333333
+ST350LS_gold_flat_Back.jpg: #E89E25
+ST350LS_gold_flat_Front.jpg: #FCB132
+ST350LS_maroon_flat_Back.jpg: #62232C
+ST350LS_maroon_flat_Front.jpg: #712F39
+ST350LS_purple_flat_Back.jpg: #4A3489
+ST350LS_purple_flat_Front.jpg: #523C91
+ST350LS_silver_flat_Back.jpg: #BDC3C3
+ST350LS_silver_flat_Front.jpg: #D5DBDB
+ST350LS_white_flat_Back.jpg: #E7E7E7
+ST350LS_white_flat_Front.jpg: #E8E8E8

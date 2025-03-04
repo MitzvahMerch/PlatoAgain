@@ -402,11 +402,13 @@ class PlatoBot:
                     customer_name=order_state.customer_name or "Unknown Name",
                     shipping_address=order_state.shipping_address or "Unknown Address",
                     email=order_state.email or "Unknown Email",
+                    received_by_date=order_state.received_by_date or "Not specified",
                     payment_url=order_state.payment_url or "Unknown Payment URL"
                 )
                 
                 # Log formatted prompt values
                 logger.info(f"Form submission: Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
+                logger.info(f"Form submission: Prompt received by date value: {order_state.received_by_date or 'Not specified'}")
                 
                 response = self.claude.call_api([
                     {"role": "system", "content": formatted_prompt},
@@ -436,7 +438,8 @@ class PlatoBot:
             formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
                 customer_name=order_state.customer_name or "None",
                 shipping_address=order_state.shipping_address or "None",
-                email=order_state.email or "None"
+                email=order_state.email or "None",
+                received_by_date=order_state.received_by_date or "None"
             )
             
             response = self.claude.call_api([
@@ -508,11 +511,13 @@ class PlatoBot:
                         customer_name=order_state.customer_name or "Unknown Name",
                         shipping_address=order_state.shipping_address or "Unknown Address",
                         email=order_state.email or "Unknown Email",
+                        received_by_date=order_state.received_by_date or "Not specified",
                         payment_url=order_state.payment_url or "Unknown Payment URL"
                     )
                     
                     # Log formatted prompt values
                     logger.info(f"Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
+                    logger.info(f"Prompt received by date value: {order_state.received_by_date or 'Not specified'}")
                     
                     response = self.claude.call_api([
                         {"role": "system", "content": formatted_prompt},
@@ -540,7 +545,8 @@ class PlatoBot:
                 formatted_prompt = prompts.INCOMPLETE_INFO_PROMPT.format(
                     customer_name=order_state.customer_name or "None",
                     shipping_address=order_state.shipping_address or "None",
-                    email=order_state.email or "None"
+                    email=order_state.email or "None",
+                    received_by_date=order_state.received_by_date or "None"
                 )
                 
                 response = self.claude.call_api([
@@ -577,6 +583,7 @@ class PlatoBot:
         "customer_name": order_state.customer_name,
         "shipping_address": order_state.shipping_address,
         "email": order_state.email,
+        "received_by_date": order_state.received_by_date,  # Add the received_by_date field
         "status": order_state.status if hasattr(order_state, 'status') else None,
         "product_name": order_state.product_details.get('product_name', 'Product') if order_state.product_details else 'Product',
         "youth_sizes": order_state.youth_sizes or "XS-XL",
