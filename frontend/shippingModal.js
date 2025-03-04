@@ -78,7 +78,10 @@ const createShippingModal = () => {
 
         <div class="form-group">
             <label for="received-by-date">Receive By Date</label>
-            <input type="text" id="received-by-date" placeholder="Select a date" readonly required>
+            <div class="date-input-container">
+                <input type="text" id="received-by-date" readonly required>
+                <span class="calendar-icon">📅</span>
+            </div>
             <div id="date-picker-container" class="date-picker-container"></div>
         </div>
     `;
@@ -116,6 +119,21 @@ const createShippingModal = () => {
         .shipping-form input[readonly] {
             background-color: #f9f9f9;
             cursor: pointer;
+        }
+        
+        .date-input-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .calendar-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #666;
+            font-size: 16px;
         }
         
         .address-suggestions {
@@ -207,14 +225,17 @@ const createShippingModal = () => {
         }
         
         .date-picker-day {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 35px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 40px; /* Increased height to accommodate cost indicators */
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    position: relative;
+    padding: 2px 0;
+}
         
         .date-picker-day:hover {
             background-color: #f0f0f0;
@@ -297,6 +318,7 @@ const createShippingModal = () => {
         console.log('Setting up date picker...');
         const dateInput = document.getElementById('received-by-date');
         const datePickerContainer = document.getElementById('date-picker-container');
+        const calendarIcon = document.querySelector('.calendar-icon');
         
         if (!dateInput) {
             console.error('Date input element not found!');
@@ -312,26 +334,36 @@ const createShippingModal = () => {
 
         // Create date picker elements
         datePickerContainer.innerHTML = `
-    <div class="date-picker-header">
-        <button type="button" class="date-picker-nav prev">&lt;</button>
-        <div class="date-picker-month">Month Year</div>
-        <button type="button" class="date-picker-nav next">&gt;</button>
-    </div>
-    <div class="date-picker-weekdays">
-        <div class="date-picker-weekday">Sun</div>
-        <div class="date-picker-weekday">Mon</div>
-        <div class="date-picker-weekday">Tue</div>
-        <div class="date-picker-weekday">Wed</div>
-        <div class="date-picker-weekday">Thu</div>
-        <div class="date-picker-weekday">Fri</div>
-        <div class="date-picker-weekday">Sat</div>
-    </div>
-    <div class="date-picker-days"></div>
-`;
+            <div class="date-picker-header">
+                <button type="button" class="date-picker-nav prev">&lt;</button>
+                <div class="date-picker-month">Month Year</div>
+                <button type="button" class="date-picker-nav next">&gt;</button>
+            </div>
+            <div class="date-picker-weekdays">
+                <div class="date-picker-weekday">Sun</div>
+                <div class="date-picker-weekday">Mon</div>
+                <div class="date-picker-weekday">Tue</div>
+                <div class="date-picker-weekday">Wed</div>
+                <div class="date-picker-weekday">Thu</div>
+                <div class="date-picker-weekday">Fri</div>
+                <div class="date-picker-weekday">Sat</div>
+            </div>
+            <div class="date-picker-days"></div>
+        `;
 
         // Initialize variables
         let currentDate = new Date();
-        let selectedDate = null;
+        
+        // Get today's date for comparison
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Calculate standard free shipping date (today + 17 days)
+        const freeShippingDate = new Date(today);
+        freeShippingDate.setDate(today.getDate() + 17);
+        
+        // Set selected date to free shipping date by default
+        let selectedDate = freeShippingDate;
         
         // Function to format date as MM/DD/YYYY
         const formatDate = (date) => {
@@ -341,200 +373,319 @@ const createShippingModal = () => {
             return `${month}/${day}/${year}`;
         };
         
-        // Function to render calendar
-        // Function to render calendar
-const renderCalendar = () => {
-    console.log('Rendering calendar...');
-    const daysContainer = datePickerContainer.querySelector('.date-picker-days');
-    const monthDisplay = datePickerContainer.querySelector('.date-picker-month');
-    
-    if (!daysContainer) {
-        console.error('Days container element not found in date picker!');
-        return;
-    }
-    
-    if (!monthDisplay) {
-        console.error('Month display element not found in date picker!');
-        return;
-    }
-    
-    // Format month display
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                        'July', 'August', 'September', 'October', 'November', 'December'];
-    monthDisplay.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-    
-    // Get first day of month and last day of month
-    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    
-    // Get day of week for first day (0 = Sunday, 6 = Saturday)
-    const firstDayOfWeek = firstDay.getDay();
-    
-    // Get total days in month
-    const totalDays = lastDay.getDate();
-    
-    // Clear container
-    daysContainer.innerHTML = '';
-    
-    // Get today's date for comparison
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Calculate minimum shipping date (today + 10 days)
-    const minShippingDate = new Date(today);
-    minShippingDate.setDate(today.getDate() + 10);
-    
-    // Calculate standard free shipping date (today + 17 days)
-    const freeShippingDate = new Date(today);
-    freeShippingDate.setDate(today.getDate() + 17);
-    
-    // Add days from previous month to fill first row
-    const prevMonthLastDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
-    for (let i = 0; i < firstDayOfWeek; i++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.className = 'date-picker-day other-month';
-        dayDiv.textContent = prevMonthLastDay - firstDayOfWeek + i + 1;
-        daysContainer.appendChild(dayDiv);
-    }
-    
-    // Add days for current month
-    for (let i = 1; i <= totalDays; i++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.className = 'date-picker-day';
-        dayDiv.textContent = i;
+        // Set default value to free shipping date
+        dateInput.value = formatDate(selectedDate);
+        console.log(`Default date set to: ${dateInput.value} (free shipping date)`);
         
-        // Check if day is before minimum shipping date
-        const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-        
-        if (dayDate < today || dayDate < minShippingDate) {
-            dayDiv.className += ' disabled';
-            dayDiv.title = 'Delivery not available for this date';
-        } else {
-            // Check if this is the free shipping date
-            const dayTime = dayDate.getTime();
-            const freeShippingTime = freeShippingDate.getTime();
+        // Function to render calendar
+        const renderCalendar = () => {
+            console.log('Rendering calendar...');
+            const daysContainer = datePickerContainer.querySelector('.date-picker-days');
+            const monthDisplay = datePickerContainer.querySelector('.date-picker-month');
             
-            // Use a date comparison that checks for the same day
-            const isSameDay = 
-                dayDate.getDate() === freeShippingDate.getDate() && 
-                dayDate.getMonth() === freeShippingDate.getMonth() &&
-                dayDate.getFullYear() === freeShippingDate.getFullYear();
-            
-            if (isSameDay) {
-                dayDiv.style.border = '2px solid green';
-                dayDiv.style.backgroundColor = '#e6f7e6';
-                dayDiv.title = 'Free standard shipping!';
+            if (!daysContainer) {
+                console.error('Days container element not found in date picker!');
+                return;
             }
             
-            // Check if this is the selected date
-            if (selectedDate && 
-                selectedDate.getDate() === i && 
-                selectedDate.getMonth() === currentDate.getMonth() && 
-                selectedDate.getFullYear() === currentDate.getFullYear()) {
-                dayDiv.className += ' active';
+            if (!monthDisplay) {
+                console.error('Month display element not found in date picker!');
+                return;
             }
             
-            // Add click event to selectable days
-            dayDiv.addEventListener('click', () => {
-                console.log(`Day ${i} clicked`);
-                // Update selected date
-                selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-                
-                // Update input value
-                dateInput.value = formatDate(selectedDate);
-                console.log(`Date input updated to: ${dateInput.value}`);
-                
-                // Hide date picker
-                datePickerContainer.style.display = 'none';
-                
-                // Re-render to update active state
-                renderCalendar();
-            });
-        }
+            // Format month display
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            monthDisplay.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+            
+            // Get first day of month and last day of month
+            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            
+            // Get day of week for first day (0 = Sunday, 6 = Saturday)
+            const firstDayOfWeek = firstDay.getDay();
+            
+            // Get total days in month
+            const totalDays = lastDay.getDate();
+            
+            // Clear container
+            daysContainer.innerHTML = '';
+            
+            // Get today's date for comparison
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Calculate minimum shipping date (today + 15 days)
+            const minShippingDate = new Date(today);
+            minShippingDate.setDate(today.getDate() + 11);
         
-        daysContainer.appendChild(dayDiv);
-    }
-    
-    // Fill remaining cells with next month's days
-    const totalCellsUsed = firstDayOfWeek + totalDays;
-    const cellsToFill = Math.ceil(totalCellsUsed / 7) * 7 - totalCellsUsed;
-    
-    for (let i = 1; i <= cellsToFill; i++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.className = 'date-picker-day other-month';
-        dayDiv.textContent = i;
-        daysContainer.appendChild(dayDiv);
-    }
-    
-    console.log('Calendar rendering complete');
-};
+            // Calculate pricing tiers - FLIPPED ORDER AS REQUESTED
+            // $$$: today + 16-17 days (closest to today, highest cost)
+            const tier3StartDate = new Date(today);
+            tier3StartDate.setDate(today.getDate() + 11);
+            const tier3EndDate = new Date(today);
+            tier3EndDate.setDate(today.getDate() + 12);
+        
+            // $$: today + 18-19 days
+            const tier2StartDate = new Date(today);
+            tier2StartDate.setDate(today.getDate() + 13);
+            const tier2EndDate = new Date(today);
+            tier2EndDate.setDate(today.getDate() + 14);
+        
+            // $: today + 20-21 days (closest to free shipping, lowest cost)
+            const tier1StartDate = new Date(today);
+            tier1StartDate.setDate(today.getDate() + 15);
+            const tier1EndDate = new Date(today);
+            tier1EndDate.setDate(today.getDate() + 16);
+        
+            // Calculate standard free shipping date (today + 22 days)
+            const freeShippingDate = new Date(today);
+            freeShippingDate.setDate(today.getDate() + 17);
+            
+            // Add days from previous month to fill first row
+            const prevMonthLastDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'date-picker-day other-month';
+                dayDiv.textContent = prevMonthLastDay - firstDayOfWeek + i + 1;
+                daysContainer.appendChild(dayDiv);
+            }
+            
+            // Add days for current month
+            for (let i = 1; i <= totalDays; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'date-picker-day';
+                dayDiv.textContent = i;
+                
+                // Check if day is before minimum shipping date
+                const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+                
+                if (dayDate < today || dayDate < minShippingDate) {
+                    dayDiv.className += ' disabled';
+                    dayDiv.title = 'Delivery not available for this date';
+                } else {
+                    // Helper function to check if a date is between two dates (inclusive)
+                    const isDateBetween = (date, startDate, endDate) => {
+                        return date >= startDate && date <= endDate;
+                    };
+                    
+                    // Helper function to check if two dates are the same day
+                    const isSameDay = (date1, date2) => {
+                        return date1.getDate() === date2.getDate() && 
+                              date1.getMonth() === date2.getMonth() &&
+                              date1.getFullYear() === date2.getFullYear();
+                    };
+        
+                    // Check which shipping tier this date falls into
+                    let costIndicator = '';
+                    let shippingTitle = '';
+                    
+                    // Normalize dates to midnight for comparison
+                    const normalizedDayDate = new Date(dayDate);
+                    normalizedDayDate.setHours(0, 0, 0, 0);
+                    
+                    // Check if this is the free shipping date (22+ days)
+                    if (normalizedDayDate >= freeShippingDate) {
+                        dayDiv.style.border = '2px solid green';
+                        dayDiv.style.backgroundColor = '#e6f7e6';
+                        shippingTitle = 'Free standard shipping!';
+                    }
+                    // Check for tier 1 ($) - 20-21 days (lowest cost)
+                    else if (isDateBetween(normalizedDayDate, tier1StartDate, tier1EndDate)) {
+                        costIndicator = '$';
+                        shippingTitle = 'Express shipping: Low cost';
+                        dayDiv.style.border = '1px solid #ffd700';
+                        dayDiv.style.backgroundColor = '#fffcf0';
+                    }
+                    // Check for tier 2 ($$) - 18-19 days (medium cost)
+                    else if (isDateBetween(normalizedDayDate, tier2StartDate, tier2EndDate)) {
+                        costIndicator = '$$';
+                        shippingTitle = 'Express shipping: Medium cost';
+                        dayDiv.style.border = '1px solid #ffa500';
+                        dayDiv.style.backgroundColor = '#fff8e6';
+                    }
+                    // Check for tier 3 ($$$) - 16-17 days (highest cost)
+                    else if (isDateBetween(normalizedDayDate, tier3StartDate, tier3EndDate)) {
+                        costIndicator = '$$$';
+                        shippingTitle = 'Express shipping: Premium cost';
+                        dayDiv.style.border = '1px solid #ff4500';
+                        dayDiv.style.backgroundColor = '#fff0e6';
+                    }
+                    
+                    // Add cost indicator
+                    if (costIndicator) {
+                        const costSpan = document.createElement('div');
+                        costSpan.style.fontSize = '10px';
+                        costSpan.style.color = '#666';
+                        costSpan.style.marginTop = '2px';
+                        costSpan.style.fontWeight = 'bold';
+                        costSpan.textContent = costIndicator;
+                        dayDiv.appendChild(costSpan);
+                        dayDiv.title = shippingTitle;
+                        
+                        // Adjust styling to make room for the cost indicator
+                        dayDiv.style.display = 'flex';
+                        dayDiv.style.flexDirection = 'column';
+                        dayDiv.style.justifyContent = 'center';
+                        dayDiv.style.alignItems = 'center';
+                        dayDiv.style.height = '40px'; // Slightly taller to accommodate the cost indicator
+                    }
+                    
+                    // Check if this is the selected date
+                    if (selectedDate && 
+                        selectedDate.getDate() === i && 
+                        selectedDate.getMonth() === currentDate.getMonth() && 
+                        selectedDate.getFullYear() === currentDate.getFullYear()) {
+                        dayDiv.className += ' active';
+                    }
+                    
+                    // Add click event to selectable days
+                    dayDiv.addEventListener('click', () => {
+                        console.log(`Day ${i} clicked`);
+                        // Update selected date
+                        selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+                        
+                        // Update input value
+                        dateInput.value = formatDate(selectedDate);
+                        console.log(`Date input updated to: ${dateInput.value}`);
+                        
+                        // Hide date picker
+                        datePickerContainer.style.display = 'none';
+                        
+                        // Re-render to update active state
+                        renderCalendar();
+                    });
+                }
+                
+                daysContainer.appendChild(dayDiv);
+            }
+            
+            // Fill remaining cells with next month's days
+            const totalCellsUsed = firstDayOfWeek + totalDays;
+            const cellsToFill = Math.ceil(totalCellsUsed / 7) * 7 - totalCellsUsed;
+            
+            for (let i = 1; i <= cellsToFill; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'date-picker-day other-month';
+                dayDiv.textContent = i;
+                daysContainer.appendChild(dayDiv);
+            }
+            
+            console.log('Calendar rendering complete');
+        };
         
         // Navigate to previous month
-const prevMonthBtn = datePickerContainer.querySelector('.date-picker-nav.prev');
-if (prevMonthBtn) {
-    prevMonthBtn.addEventListener('click', (e) => {
-        console.log('Previous month button clicked');
-        e.stopPropagation(); // Prevent event from reaching document
-        e.preventDefault(); // Prevent form submission
-        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-        renderCalendar();
-    });
-} else {
-    console.error('Previous month button not found!');
-}
-
-// Navigate to next month
-const nextMonthBtn = datePickerContainer.querySelector('.date-picker-nav.next');
-if (nextMonthBtn) {
-    nextMonthBtn.addEventListener('click', (e) => {
-        console.log('Next month button clicked');
-        e.stopPropagation(); // Prevent event from reaching document
-        e.preventDefault(); // Prevent form submission
-        currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-        renderCalendar();
-    });
-} else {
-    console.error('Next month button not found!');
-}
-        
-        // Show/hide date picker when clicking on the input
-dateInput.addEventListener('click', (e) => {
-    console.log('Date input clicked');
-    e.stopPropagation(); // Prevent click from propagating to document
-    
-    const currentDisplay = window.getComputedStyle(datePickerContainer).display;
-    console.log(`Current date picker display: ${currentDisplay}`);
-    
-    if (currentDisplay === 'block') {
-        console.log('Hiding date picker');
-        datePickerContainer.style.display = 'none';
-    } else {
-        console.log('Showing date picker');
-        
-        // Make the date picker highly visible and centered in the modal
-        datePickerContainer.style.position = 'absolute';
-        datePickerContainer.style.top = '50%';
-        datePickerContainer.style.left = '50%';
-        datePickerContainer.style.transform = 'translate(-50%, -50%)';
-        datePickerContainer.style.zIndex = '9999';
-        datePickerContainer.style.backgroundColor = 'white';
-        datePickerContainer.style.border = '2px solid var(--primary-color)';
-        datePickerContainer.style.display = 'block';
-        
-        // If no date is selected, set to current date
-        if (!selectedDate) {
-            const today = new Date();
-            currentDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        const prevMonthBtn = datePickerContainer.querySelector('.date-picker-nav.prev');
+        if (prevMonthBtn) {
+            prevMonthBtn.addEventListener('click', (e) => {
+                console.log('Previous month button clicked');
+                e.stopPropagation(); // Prevent event from reaching document
+                e.preventDefault(); // Prevent form submission
+                currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+                renderCalendar();
+            });
+        } else {
+            console.error('Previous month button not found!');
         }
         
-        renderCalendar();
-    }
-});
+        // Navigate to next month
+        const nextMonthBtn = datePickerContainer.querySelector('.date-picker-nav.next');
+        if (nextMonthBtn) {
+            nextMonthBtn.addEventListener('click', (e) => {
+                console.log('Next month button clicked');
+                e.stopPropagation(); // Prevent event from reaching document
+                e.preventDefault(); // Prevent form submission
+                currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+                renderCalendar();
+            });
+        } else {
+            console.error('Next month button not found!');
+        }
+        
+        // Show/hide date picker when clicking on the input
+        dateInput.addEventListener('click', (e) => {
+            console.log('Date input clicked');
+            e.stopPropagation(); // Prevent click from propagating to document
+            
+            const currentDisplay = window.getComputedStyle(datePickerContainer).display;
+            console.log(`Current date picker display: ${currentDisplay}`);
+            
+            if (currentDisplay === 'block') {
+                console.log('Hiding date picker');
+                datePickerContainer.style.display = 'none';
+            } else {
+                console.log('Showing date picker');
+                
+                // Make the date picker highly visible and centered in the modal
+                datePickerContainer.style.position = 'absolute';
+                datePickerContainer.style.top = '50%';
+                datePickerContainer.style.left = '50%';
+                datePickerContainer.style.transform = 'translate(-50%, -50%)';
+                datePickerContainer.style.zIndex = '9999';
+                datePickerContainer.style.backgroundColor = 'white';
+                datePickerContainer.style.border = '2px solid var(--primary-color)';
+                datePickerContainer.style.display = 'block';
+                
+                // If no date is selected, set to current date
+                if (!selectedDate) {
+                    const today = new Date();
+                    currentDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                } else {
+                    // Ensure we're showing the month of the selected date
+                    currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                }
+                
+                renderCalendar();
+            }
+        });
+        
+        // Add click handler for calendar icon
+        if (calendarIcon) {
+            calendarIcon.addEventListener('click', (e) => {
+                console.log('Calendar icon clicked');
+                e.stopPropagation(); // Prevent click from propagating to document
+                
+                const currentDisplay = window.getComputedStyle(datePickerContainer).display;
+                console.log(`Current date picker display: ${currentDisplay}`);
+                
+                if (currentDisplay === 'block') {
+                    console.log('Hiding date picker');
+                    datePickerContainer.style.display = 'none';
+                } else {
+                    console.log('Showing date picker');
+                    
+                    // Make the date picker highly visible and centered in the modal
+                    datePickerContainer.style.position = 'absolute';
+                    datePickerContainer.style.top = '50%';
+                    datePickerContainer.style.left = '50%';
+                    datePickerContainer.style.transform = 'translate(-50%, -50%)';
+                    datePickerContainer.style.zIndex = '9999';
+                    datePickerContainer.style.backgroundColor = 'white';
+                    datePickerContainer.style.border = '2px solid var(--primary-color)';
+                    datePickerContainer.style.display = 'block';
+                    
+                    // If no date is selected, set to current date
+                    if (!selectedDate) {
+                        const today = new Date();
+                        currentDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    } else {
+                        // Ensure we're showing the month of the selected date
+                        currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                    }
+                    
+                    renderCalendar();
+                }
+            });
+        } else {
+            console.error('Calendar icon not found!');
+        }
         
         // Close date picker when clicking outside
         document.addEventListener('click', (e) => {
             if (datePickerContainer.style.display === 'block') {
-                if (!e.target.closest('#received-by-date') && !e.target.closest('#date-picker-container')) {
+                if (!e.target.closest('#received-by-date') && 
+                    !e.target.closest('#date-picker-container') && 
+                    !e.target.closest('.calendar-icon')) {
                     console.log('Clicked outside date picker, hiding it');
                     datePickerContainer.style.display = 'none';
                 }

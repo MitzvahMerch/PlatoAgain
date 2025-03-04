@@ -28,7 +28,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         const health = await response.json();
         
         if (health.status === 'healthy') {
-            addMessage("Hey! I'm Plato. I specialize in making custom printing as simple as it should be. Just talk to me like a friend and I'll finalize your order in seconds. Let's start off with finding a product, what type of clothing, and in what color, are you looking to customize today?", 'bot');
+            addMessage("Hey! I'm Plato. I specialize in making bulk custom printing as simple as it should be. Just talk to me like a friend and I'll finalize your order in seconds. Let's start off with finding a product, what type of clothing, and in what color, are you looking to customize today?", 'bot');
         } else {
             addMessage("Warning: System is currently unavailable. Please try again later.", 'system');
         }
@@ -70,6 +70,9 @@ imageUploadButton.addEventListener('change', async (e) => {
         if (!uploadResult.success) {
             throw new Error(uploadResult.error || 'Failed to upload image');
         }
+        
+        // Store the upload result globally
+        window.currentUploadResult = uploadResult;
 
         // Show placement modal with DesignPlacer
         const root = ReactDOM.createRoot(window.placementModal.content);
@@ -78,123 +81,7 @@ imageUploadButton.addEventListener('change', async (e) => {
                 frontImage: currentProductImageUrl,
                 backImage: currentProductBackImageUrl,
                 designUrl: uploadResult.url,
-// In the imageUploadButton event listener, replace the onSave handler with this:
-// In script.js, update the onSave handler
-// Update the onSave handler with a simpler approach:
-
-// Update the onSave handler with a dynamic multiplier:
-
-onSave: async (placement) => {
-    try {
-        // Access the elements directly
-        const designElement = placement.designElement;
-        const productImg = placement.productImg;
-        
-        if (!designElement || !productImg) {
-            console.error('Element references not found in placement data');
-            throw new Error('Missing element references needed for visual capture');
-        }
-        
-        // Create a canvas
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Load the original product and design images
-        const [originalProductImg, designImg] = await Promise.all([
-            loadImage(placement.showBackImage ? currentProductBackImageUrl : currentProductImageUrl),
-            loadImage(uploadResult.url)
-        ]);
-        
-        // Set canvas to match the actual product image size
-        canvas.width = originalProductImg.width;
-        canvas.height = originalProductImg.height;
-        
-        // Draw the product
-        ctx.drawImage(originalProductImg, 0, 0);
-        
-        // Get the design and product dimensions
-        const designRect = designElement.getBoundingClientRect();
-        const productRect = productImg.getBoundingClientRect();
-        
-        // Find the center of the design relative to the product in percentages
-        const centerXPercent = (designRect.left + designRect.width/2 - productRect.left) / productRect.width;
-        const centerYPercent = (designRect.top + designRect.height/2 - productRect.top) / productRect.height;
-        
-        // Calculate corresponding center position in the actual product image
-        const actualCenterX = originalProductImg.width * centerXPercent;
-        const actualCenterY = originalProductImg.height * centerYPercent;
-        
-        // Calculate aspect ratios for both display and actual product images
-        const displayAspectRatio = productRect.width / productRect.height;
-        const actualAspectRatio = originalProductImg.width / originalProductImg.height;
-        
-        // Calculate the adaptive multiplier based on the aspect ratio difference
-        // This compensates for how differently the browser displays the image vs. the actual dimensions
-        const adaptiveMultiplier = actualAspectRatio / displayAspectRatio;
-        
-        // Further adjustment factor based on testing (fine-tune as needed)
-        const sizeAdjustment = 2.0;
-        
-        // Determine what percentage of the product's width the design should be
-        const designWidthPercent = designRect.width / productRect.width;
-        
-        // Apply the adaptive multiplier and adjustment
-        const designWidthInPixels = originalProductImg.width * designWidthPercent * sizeAdjustment;
-        
-        // Calculate the final design dimensions and position
-        const finalDesignWidth = designWidthInPixels;
-        const finalDesignHeight = finalDesignWidth; // Maintain 1:1 aspect ratio
-        
-        // Calculate top-left position for drawing (centered at the desired point)
-        const drawX = actualCenterX - (finalDesignWidth / 2);
-        const drawY = actualCenterY - (finalDesignHeight / 2);
-        
-        console.log('Drawing with adaptive multiplier:', {
-            center: {
-                percentages: { x: centerXPercent, y: centerYPercent },
-                actual: { x: actualCenterX, y: actualCenterY }
-            },
-            aspectRatios: {
-                display: displayAspectRatio,
-                actual: actualAspectRatio,
-                adaptiveMultiplier: adaptiveMultiplier
-            },
-            design: {
-                widthPercent: designWidthPercent,
-                finalWidth: finalDesignWidth,
-                finalHeight: finalDesignHeight,
-                drawPosition: { x: drawX, y: drawY },
-                sizeAdjustment: sizeAdjustment
-            }
-        });
-        
-        // Draw the design
-        ctx.drawImage(designImg, drawX, drawY, finalDesignWidth, finalDesignHeight);
-        
-        // Create and upload composite
-        const blob = await new Promise(resolve => 
-            canvas.toBlob(resolve, 'image/png')
-        );
-        
-        const originalPath = uploadResult.path;
-        const folderPath = originalPath.substring(0, originalPath.lastIndexOf('/'));
-        const originalFileName = originalPath.split('/').pop();
-        const compositeFileName = `composite_${Date.now()}_${originalFileName}`;
-        const compositePath = `${folderPath}/${compositeFileName}`;
-        
-        const compositeRef = window.storage.ref(compositePath);
-        await compositeRef.put(blob);
-        const compositeUrl = await compositeRef.getDownloadURL();
-        
-        window.placementModal.hide();
-        addProductImage(compositeUrl, 'Design placement preview');
-        await sendMessage();
-        
-    } catch (error) {
-        console.error('Error saving placement:', error);
-        addMessage('Sorry, there was an error saving your design placement. Please try again.', 'system');
-    }
-}
+                onSave: svgBasedCompositeRenderer
             })
         );
         
@@ -362,4 +249,127 @@ function addTypingIndicator() {
     chatMessages.appendChild(indicator);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return indicator;
+}
+
+// SVG-based composite renderer function
+Copy// SVG-based composite renderer function
+async function svgBasedCompositeRenderer(placement) {
+    try {
+        // Extract SVG coordinates from the placement data
+        const { svgCoordinates, showBackImage, designUrl } = placement;
+        
+        if (!svgCoordinates) {
+            console.error('SVG coordinates not found in placement data');
+            throw new Error('Missing SVG coordinate data needed for visual capture');
+        }
+        
+        // Create a canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Load the original product and design images
+        const [originalProductImg, designImg] = await Promise.all([
+            loadImage(showBackImage ? currentProductBackImageUrl : currentProductImageUrl),
+            loadImage(designUrl)
+        ]);
+        
+        // Set canvas to match the actual product image size
+        canvas.width = originalProductImg.width;
+        canvas.height = originalProductImg.height;
+        
+        // Draw the product
+        ctx.drawImage(originalProductImg, 0, 0);
+        
+        // Extract SVG positioning information
+        const { 
+            x, y, width, height,  // Position and size in SVG coordinates
+            centerX, centerY,     // Center point in SVG coordinates
+            viewBoxWidth, viewBoxHeight  // SVG viewBox dimensions
+        } = svgCoordinates;
+        
+        // Calculate scaling factors from SVG to actual product image
+        // Calculate scaling factors from SVG to actual product image
+// These should now be nearly identical since we matched aspect ratios
+const scaleX = originalProductImg.width / viewBoxWidth;
+const scaleY = originalProductImg.height / viewBoxHeight;
+
+console.log('Aspect ratio check:', {
+    svg: viewBoxHeight / viewBoxWidth,
+    product: originalProductImg.height / originalProductImg.width,
+    scaleFactors: { scaleX, scaleY }
+});
+
+// Convert SVG coordinates to actual image pixels using X scale for both dimensions
+// to maintain the aspect ratio as seen in the preview
+const actualWidth = width * scaleX;
+const actualHeight = height * scaleX;
+
+// Calculate the center position in actual pixels
+const actualCenterX = centerX * scaleX;
+const actualCenterY = centerY * scaleY;
+
+// Calculate the top-left position from the center
+const actualX = actualCenterX - (actualWidth / 2);
+const actualY = actualCenterY - (actualHeight / 2);
+        
+        // Log the conversion details
+        console.log('SVG to Canvas conversion (preserving aspect ratio):', {
+            svgCoordinates,
+            actualCoordinates: {
+                x: actualX,
+                y: actualY,
+                width: actualWidth,
+                height: actualHeight,
+                center: { x: actualCenterX, y: actualCenterY }
+            },
+            scaling: {
+                scaleX,
+                scaleY
+            },
+            images: {
+                product: {
+                    width: originalProductImg.width,
+                    height: originalProductImg.height
+                },
+                design: {
+                    width: designImg.width,
+                    height: designImg.height
+                }
+            }
+        });
+        
+        // Draw the design at the calculated position and size
+        ctx.drawImage(designImg, actualX, actualY, actualWidth, actualHeight);
+        
+        // Create and upload composite
+        const blob = await new Promise(resolve => 
+            canvas.toBlob(resolve, 'image/png')
+        );
+        
+        // Use the globally stored upload result
+        if (!window.currentUploadResult || !window.currentUploadResult.path) {
+            throw new Error('Upload information not available');
+        }
+        
+        // Generate path for the composite image
+        const originalPath = window.currentUploadResult.path;
+        const folderPath = originalPath.substring(0, originalPath.lastIndexOf('/'));
+        const originalFileName = originalPath.split('/').pop();
+        const compositeFileName = `composite_${Date.now()}_${originalFileName}`;
+        const compositePath = `${folderPath}/${compositeFileName}`;
+        
+        // Upload to Firebase Storage
+        const compositeRef = window.storage.ref(compositePath);
+        await compositeRef.put(blob);
+        const compositeUrl = await compositeRef.getDownloadURL();
+        
+        // Close modal and show result
+        window.placementModal.hide();
+        addProductImage(compositeUrl, 'Design placement preview');
+        await sendMessage();
+        
+    } catch (error) {
+        console.error('Error saving placement:', error);
+        addMessage('Sorry, there was an error saving your design placement. Please try again.', 'system');
+    }
 }
