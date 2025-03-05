@@ -1,4 +1,4 @@
-// designPlacer.js (SVG-based implementation with improved resize handles)
+// designPlacer.js (SVG-based implementation with improved resize handles and centering guides)
 const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     console.log('DesignPlacer props:', { frontImage, backImage, designUrl });
     
@@ -8,6 +8,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     const [isResizing, setIsResizing] = React.useState(false);
     const [loadComplete, setLoadComplete] = React.useState(false);
     const [designPosition, setDesignPosition] = React.useState({ x: 0, y: 0, width: 0, height: 0 });
+    const [showCenterGuide, setShowCenterGuide] = React.useState({ vertical: false, horizontal: false });
     
     // SVG viewBox dimensions
     const SVG_WIDTH = 1000;
@@ -176,6 +177,42 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         });
     }, [screenToSVGPoint]);
     
+    // Check if design is close to center and show guides
+    const checkCenterAlignment = React.useCallback((x, y, width, height) => {
+        // Calculate center points
+        const designCenterX = x + (width / 2);
+        const designCenterY = y + (height / 2);
+        const canvasCenterX = SVG_WIDTH / 2;
+        const canvasCenterY = SVG_HEIGHT / 2;
+        
+        // Snap threshold - how close the design needs to be to snap to center (in SVG units)
+        const snapThreshold = SVG_WIDTH * 0.02; // 2% of canvas width
+        
+        let newX = x;
+        let newY = y;
+        let verticalGuide = false;
+        let horizontalGuide = false;
+        
+        // Check vertical centering
+        if (Math.abs(designCenterX - canvasCenterX) < snapThreshold) {
+            // Snap to center
+            newX = canvasCenterX - (width / 2);
+            verticalGuide = true;
+        }
+        
+        // Check horizontal centering
+        if (Math.abs(designCenterY - canvasCenterY) < snapThreshold) {
+            // Snap to center
+            newY = canvasCenterY - (height / 2);
+            horizontalGuide = true;
+        }
+        
+        // Update guides state
+        setShowCenterGuide({ vertical: verticalGuide, horizontal: horizontalGuide });
+        
+        return { newX, newY, isAligned: verticalGuide || horizontalGuide };
+    }, [SVG_WIDTH, SVG_HEIGHT]);
+    
     // Handle mouse/touch move for drag and resize
     const handleMouseMove = React.useCallback((e) => {
         if (!isDragging && !isResizing) return;
@@ -198,9 +235,12 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             const boundedX = Math.max(0, Math.min(SVG_WIDTH - width, newX));
             const boundedY = Math.max(0, Math.min(SVG_HEIGHT - height, newY));
             
+            // Check for center alignment and potentially snap
+            const { newX: alignedX, newY: alignedY } = checkCenterAlignment(boundedX, boundedY, width, height);
+            
             // Update position
-            designRef.current.setAttribute("x", boundedX);
-            designRef.current.setAttribute("y", boundedY);
+            designRef.current.setAttribute("x", alignedX);
+            designRef.current.setAttribute("y", alignedY);
             
             // Update state to trigger re-render for handles
             updateDesignPosition();
@@ -282,22 +322,30 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
                 }
             }
             
+            // Check for center alignment during resize
+            const { newX: alignedX, newY: alignedY } = checkCenterAlignment(newX, newY, newWidth, newHeight);
+            
             // Update size and position
-            designRef.current.setAttribute("x", newX);
-            designRef.current.setAttribute("y", newY);
+            designRef.current.setAttribute("x", alignedX);
+            designRef.current.setAttribute("y", alignedY);
             designRef.current.setAttribute("width", newWidth);
             designRef.current.setAttribute("height", newHeight);
             
             // Update state to trigger re-render for handles
             updateDesignPosition();
         }
-    }, [isDragging, isResizing, screenToSVGPoint, updateDesignPosition]);
+    }, [isDragging, isResizing, screenToSVGPoint, updateDesignPosition, checkCenterAlignment]);
     
     // Handle mouse/touch up
     const handleMouseUp = React.useCallback(() => {
         setIsDragging(false);
         setIsResizing(false);
         currentHandleRef.current = null;
+        
+        // Clear guides after a brief delay to not have them disappear instantly
+        setTimeout(() => {
+            setShowCenterGuide({ vertical: false, horizontal: false });
+        }, 500);
     }, []);
     
     // Add/remove event listeners
@@ -422,6 +470,43 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             preserveAspectRatio: "xMidYMid meet"
         });
         
+        // Create center alignment guides
+        const centerGuides = [];
+        
+        // Vertical center guide
+        if (showCenterGuide.vertical) {
+            centerGuides.push(
+                React.createElement('line', {
+                    key: 'vertical-guide',
+                    x1: SVG_WIDTH / 2,
+                    y1: 0,
+                    x2: SVG_WIDTH / 2,
+                    y2: SVG_HEIGHT,
+                    stroke: '#ff3366',
+                    strokeWidth: 2,
+                    strokeDasharray: '10,5',
+                    opacity: 0.8
+                })
+            );
+        }
+        
+        // Horizontal center guide
+        if (showCenterGuide.horizontal) {
+            centerGuides.push(
+                React.createElement('line', {
+                    key: 'horizontal-guide',
+                    x1: 0,
+                    y1: SVG_HEIGHT / 2,
+                    x2: SVG_WIDTH,
+                    y2: SVG_HEIGHT / 2,
+                    stroke: '#ff3366',
+                    strokeWidth: 2,
+                    strokeDasharray: '10,5',
+                    opacity: 0.8
+                })
+            );
+        }
+        
         // Create design container group for drag operations
         const designGroup = loadComplete ? React.createElement('g', {
             key: 'design-group',
@@ -441,7 +526,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             ...createResizeHandles()
         ]) : null;
         
-        return [productImage, designGroup].filter(Boolean);
+        return [productImage, ...centerGuides, designGroup].filter(Boolean);
     };
     
     // Main SVG container
