@@ -168,51 +168,72 @@ async function sendMessage() {
 
 // Handle form submission
 window.shippingModal.form.onsubmit = async function(e) {
+    // Always prevent default first thing to stop page reload
     e.preventDefault();
     
-    // Get form data
-    const formData = window.shippingModal.getFormData();
-    
-    // Hide the modal
-    window.shippingModal.hide();
-    
-    // Show a loading indicator
-    const typingIndicator = addTypingIndicator();
-    
     try {
-        // Send data to backend
-        const response = await fetch(`${API_BASE_URL}/api/submit-order`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        console.log("Submit handler triggered, preventing form submission");
+        
+        // Get form data
+        const formData = window.shippingModal.getFormData();
+        console.log("Form data collected:", formData);
+        
+        // Hide the modal
+        window.shippingModal.hide();
+        
+        // Show a loading indicator
+        const typingIndicator = addTypingIndicator();
+        
+        try {
+            console.log("Sending data to backend:", {
                 user_id: userId,
-                name: formData.name,
-                address: formData.address,
-                email: formData.email,
-                receivedByDate: formData.receivedByDate
-            }),
-        });
-        
-        typingIndicator.remove();
-        
-        if (!response.ok) {
-            throw new Error(`Server responded with ${response.status}`);
+                ...formData
+            });
+            
+            // Send data to backend
+            const response = await fetch(`${API_BASE_URL}/api/submit-order`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    name: formData.name,
+                    address: formData.address,
+                    email: formData.email,
+                    receivedByDate: formData.receivedByDate
+                }),
+            });
+            
+            typingIndicator.remove();
+            
+            console.log("Response status:", response.status);
+            
+            if (!response.ok) {
+                throw new Error(`Server responded with ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log("Response data:", data);
+            
+            // Display the response (order confirmation)
+            if (data.text) {
+                addMessage(data.text, 'bot');
+            }
+            
+        } catch (error) {
+            console.error('Error submitting order:', error);
+            typingIndicator.remove();
+            addMessage('Sorry, I encountered an error processing your order. Please try again.', 'bot');
         }
-        
-        const data = await response.json();
-        
-        // Display the response (order confirmation)
-        if (data.text) {
-            addMessage(data.text, 'bot');
-        }
-        
-    } catch (error) {
-        console.error('Error submitting order:', error);
-        typingIndicator.remove();
-        addMessage('Sorry, I encountered an error processing your order. Please try again.', 'bot');
+    } catch (outerError) {
+        // This outer try-catch will catch any errors in the initial form submission process
+        console.error("Critical error in form submission handler:", outerError);
+        alert("An error occurred while submitting the form. Please check console logs.");
+        return false; // Prevent form submission
     }
+    
+    return false; // Always prevent form submission
 };
         }
 
@@ -228,6 +249,24 @@ function addMessage(content, sender) {
     messageDiv.textContent = content;
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Check if this is a bot message about quantity selection
+    if (sender === 'bot') {
+        const messageText = content.toLowerCase();
+        
+        // Check for messages asking about quantities with size information
+        if (messageText.includes('how many of each size would you like to order') && 
+            (messageText.includes('youth sizes') || messageText.includes('adult sizes'))) {
+            
+            console.log('Quantity prompt detected, injecting selector...');
+            
+            // Inject the quantity selector into this message
+            if (window.quantitySelector && typeof window.quantitySelector.injectIntoMessage === 'function') {
+                window.quantitySelector.injectIntoMessage(messageDiv);
+            }
+        }
+    }
+    
     return messageDiv;
 }
 

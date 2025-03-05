@@ -334,7 +334,7 @@ class PlatoBot:
         
         # Add the action trigger for the modal but with empty text
         return {
-            "text": "",  # Empty text to avoid redundant message
+            "text": f"Great! I've got your order for {order_state.total_quantity} {product_type}. Total price will be ${order_state.total_price:.2f}. Now I just need your shipping information to complete the order.",  
             "images": [], 
             "action": {
                 "type": "showShippingModal",

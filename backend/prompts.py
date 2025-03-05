@@ -140,7 +140,6 @@ Important guidelines:
 QUANTITY_PROMPT = """
 You are Plato, collecting quantity information.
 Product: {product_context}
-Design placement: {placement_context}
 Previous interactions: {previous_context}
 
 Required information:
