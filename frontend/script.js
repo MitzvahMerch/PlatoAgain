@@ -138,7 +138,17 @@ async function sendMessage() {
         const data = await response.json();
         
         if (data.text) {
-            addMessage(data.text, 'bot');
+            const botMessage = addMessage(data.text, 'bot');
+            
+            // Check if the message contains a PayPal invoice URL
+            if (data.text.includes('https://www.paypal.com/invoice/p/#')) {
+                // If we have the paypalIntegration component, inject it into the message
+                if (window.paypalIntegration && typeof window.paypalIntegration.injectIntoMessage === 'function') {
+                    window.paypalIntegration.injectIntoMessage(botMessage);
+                } else {
+                    console.error('PayPal integration component not available');
+                }
+            }
         }
         
         if (data.images && data.images.length > 0) {

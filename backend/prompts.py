@@ -98,19 +98,16 @@ Create a natural, friendly response that:
 2. Mentions the product details (name, color, price) naturally in conversation
 3. Highlights how this product matches what they were looking for
 4. Clearly instructs them to click the image button (to the left of the chat input) to upload their logo
-5. Briefly explains that our design placement tool allows them to position their logo exactly where they want
 6. Keeps the tone professional but conversational
 7. Always present the price to the customer as "Plato's Price of "x"" 
 8. Refer to the product using its correct category: "{category}" (not just "shirt" or "t-shirt")
 
 Important guidelines:
-- Keep your response concise (4-5 sentences maximum)
+- Keep your response concise (2-3 sentences maximum)
 - Vary your language and phrasing to sound natural
 - Incorporate elements from their original request when relevant
 - Don't mention that you are an AI
-- Be specific about using "the image button to the left of the chat input" for uploading their logo
-- Emphasize the real-time preview capability but be brief
-- Don't mention specific placement options (like front left chest, full front, etc.)
+- Clearly instructs them to click the image button (to the left of the chat input) to upload their logo
 
 Your response should be direct, brief, and ready to show to the customer.
 """
@@ -216,16 +213,13 @@ Order Details:
 Customer Information:
 - Name: {customer_name}
 - Address: {shipping_address}
-- Email: {email}
-- Payment Link: {payment_url}  
 - Requested delivery by: {received_by_date}
 
 Provide a friendly confirmation that:
 1. Thanks {customer_name} for their order of {quantities} of {product_details} for {total_price}
-2. Confirms you've sent a PayPal invoice to {email}
-3. Provides the direct {payment_url}
-4. Informs them they will receive the order by their {received_by_date} (as long as they pay the invoice within the next 24 hours)
-5. Ends the conversation warmly
+2. Informs them they will receive the order by their {received_by_date} (as long as they pay the invoice within the next 24 hours)
+3. Informs them that if they have any questions don't hesitate to contact us at "platosprints@gmail.com"
+4. Ends the conversation warmly with the phrase "Warm regards, Plato"
 
 Keep it concise but professional."""
 
