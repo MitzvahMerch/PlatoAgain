@@ -155,86 +155,23 @@ async function sendMessage() {
 
         // Check for action directives from the backend
         if (data.action && data.action.type === 'showShippingModal') {
-            // Show the shipping modal with order details
-            window.shippingModal.show(data.action.orderDetails);
-            
-            // NOTE: Address autocomplete is now handled directly in the shippingModal.js
-            
-            // Handle form submission
-            // Update the form submission handler in script.js to include the receivedByDate field
-// This code is intended to replace the relevant section in script.js
-
-// Inside the sendMessage function where the shipping modal form submission is handled:
-
-// Handle form submission
-window.shippingModal.form.onsubmit = async function(e) {
-    // Always prevent default first thing to stop page reload
-    e.preventDefault();
-    
-    try {
-        console.log("Submit handler triggered, preventing form submission");
-        
-        // Get form data
-        const formData = window.shippingModal.getFormData();
-        console.log("Form data collected:", formData);
-        
-        // Hide the modal
-        window.shippingModal.hide();
-        
-        // Show a loading indicator
-        const typingIndicator = addTypingIndicator();
-        
-        try {
-            console.log("Sending data to backend:", {
-                user_id: userId,
-                ...formData
-            });
-            
-            // Send data to backend
-            const response = await fetch(`${API_BASE_URL}/api/submit-order`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    user_id: userId,
-                    name: formData.name,
-                    address: formData.address,
-                    email: formData.email,
-                    receivedByDate: formData.receivedByDate
-                }),
-            });
-            
-            typingIndicator.remove();
-            
-            console.log("Response status:", response.status);
-            
-            if (!response.ok) {
-                throw new Error(`Server responded with ${response.status}`);
+            // Get the last bot message to inject the shipping form
+            const lastMessage = document.querySelector('#chat-messages .message.bot:last-child');
+            if (lastMessage) {
+                // Store the action data in the message element's dataset for potential future use
+                lastMessage.dataset.action = JSON.stringify(data.action);
+                
+                // Inject the shipping form directly into the message
+                if (window.shippingForm && typeof window.shippingForm.injectIntoMessage === 'function') {
+                    window.shippingForm.injectIntoMessage(lastMessage, data.action.orderDetails);
+                } else {
+                    console.error('Shipping form component not available');
+                    addMessage('Sorry, I encountered an error with the shipping form. Please refresh the page and try again.', 'system');
+                }
+            } else {
+                console.error('No bot message found to inject shipping form');
+                addMessage('Sorry, I couldn\'t display the shipping form. Please try again.', 'system');
             }
-            
-            const data = await response.json();
-            console.log("Response data:", data);
-            
-            // Display the response (order confirmation)
-            if (data.text) {
-                addMessage(data.text, 'bot');
-            }
-            
-        } catch (error) {
-            console.error('Error submitting order:', error);
-            typingIndicator.remove();
-            addMessage('Sorry, I encountered an error processing your order. Please try again.', 'bot');
-        }
-    } catch (outerError) {
-        // This outer try-catch will catch any errors in the initial form submission process
-        console.error("Critical error in form submission handler:", outerError);
-        alert("An error occurred while submitting the form. Please check console logs.");
-        return false; // Prevent form submission
-    }
-    
-    return false; // Always prevent form submission
-};
         }
 
     } catch (error) {
