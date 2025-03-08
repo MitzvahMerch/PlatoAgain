@@ -153,17 +153,290 @@ class PlatoBot:
     logger.info(f"Handling product selection for: {message}")
     
     try:
-        # STEP 1: Get structured analysis from Claude
+        # Check if this is a product reselection request with the special marker
+        is_special_reselection = "[FIND_DIFFERENT_PRODUCT]" in message
+        
+        # Normal detection for other types of reselection requests
+        is_new_product_request = (
+            "different product" in message.lower() or 
+            "another option" in message.lower() or 
+            "find different product" in message.lower() or
+            is_special_reselection
+        )
+        
+        # Store original preferences when we initially query a product
+        if not is_new_product_request and order_state.product_details is None:
+            # This is a fresh product request - store original preferences
+            if not hasattr(order_state, 'original_preferences'):
+                order_state.original_preferences = {}
+                
+            # Extract key preferences from the message
+            if "red" in message.lower():
+                order_state.original_preferences['color'] = "Red"
+            elif "blue" in message.lower():
+                order_state.original_preferences['color'] = "Blue"
+            elif "black" in message.lower():
+                order_state.original_preferences['color'] = "Black"
+            # Add more colors as needed
+                
+            logger.info(f"Stored original preferences: {order_state.original_preferences}")
+            self.conversation_manager.update_order_state(user_id, order_state)
+        
+        # Handle the special reselection request
+        if is_special_reselection and order_state.product_details:
+            # Extract product details for better messaging
+            previous_product = order_state.product_details
+            product_name = previous_product.get('product_name', 'Unknown')
+            product_color = previous_product.get('color', 'Unknown')
+            product_category = previous_product.get('category', 'Unknown')
+            product_price = previous_product.get('price', 'Unknown')
+            
+            logger.info(f"Processing special reselection request for {product_color} {product_name}")
+            
+            # Track the product as rejected
+            if hasattr(order_state, 'rejected_products'):
+                if previous_product not in order_state.rejected_products:
+                    order_state.rejected_products.append(previous_product)
+            else:
+                order_state.rejected_products = [previous_product]
+            
+            # Ask for specific preferences
+            preference_prompt = prompts.get_product_preference_inquiry_prompt(previous_product)
+            response = self.claude.call_api([
+                {"role": "system", "content": preference_prompt},
+                {"role": "user", "content": "What would make a better product recommendation?"}
+            ], temperature=0.7)
+            
+            response_text = utils.clean_response(response)
+            logger.info(f"Generated preference inquiry: {response_text[:100]}...")
+            
+            # Return the preference inquiry - THIS SHOULD DISPLAY IN THE CHAT
+            return {
+                "text": response_text,
+                "images": []
+            }
+        
+        # Check for specific requests like "cheaper option"
+        is_cheaper_request = "cheaper" in message.lower() or "less expensive" in message.lower() or "lower price" in message.lower()
+        
+        # Process preference-informed selection following a reselection request
+        if is_new_product_request and not is_special_reselection or is_cheaper_request:
+            # This is a response to our preference inquiry or a regular new product request
+            if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
+                previous_product = order_state.rejected_products[-1]
+                
+                # Get key attributes from previous product
+                previous_category = previous_product.get('category')
+                previous_color = previous_product.get('color')
+                previous_price = previous_product.get('price').replace('$', '') if previous_product.get('price') else None
+                if previous_price:
+                    try:
+                        previous_price = float(previous_price)
+                    except ValueError:
+                        previous_price = None
+                
+                # Handle special case for "cheaper option" request
+                if is_cheaper_request and previous_category and previous_color and previous_price:
+                    logger.info(f"Processing cheaper option request for {previous_category} in {previous_color}")
+                    
+                    # Check if there are any cheaper options in this category and color
+                    cheaper_product = self._find_cheaper_product(
+                        previous_category, 
+                        previous_color, 
+                        previous_price,
+                        previous_product.get('product_name')
+                    )
+                    
+                    if cheaper_product:
+                        logger.info(f"Found cheaper product: {cheaper_product.get('product_name')} at {cheaper_product.get('price')}")
+                        
+                        # Format price for display
+                        formatted_price = cheaper_product.get('price')
+                        
+                        # Update OrderState with the cheaper product
+                        order_state.update_product(cheaper_product)
+                        self.conversation_manager.update_order_state(user_id, order_state)
+                        
+                        # Generate response
+                        response_prompt = prompts.get_product_response_prompt(
+                            message=message,
+                            product_name=cheaper_product.get('product_name'),
+                            color=cheaper_product.get('color'),
+                            formatted_price=formatted_price,
+                            category=cheaper_product.get('category')
+                        )
+                        
+                        # Add specific context about this being a cheaper option
+                        response_prompt += f"\n\nImportant: Mention that this is a less expensive option than the {previous_product.get('product_name')} at {previous_product.get('price')}."
+                        
+                        # Get response from Claude
+                        response = self.claude.call_api([
+                            {"role": "system", "content": response_prompt},
+                            {"role": "user", "content": "Generate the response."}
+                        ], temperature=0.7)
+                        
+                        response_text = utils.clean_response(response)
+                        
+                        # Create product info for the action
+                        product_info = {
+                            "name": cheaper_product.get('product_name'),
+                            "color": cheaper_product.get('color'),
+                            "price": formatted_price,
+                            "category": cheaper_product.get('category'),
+                            "style_number": cheaper_product.get('style_number'),
+                            "material": cheaper_product.get('material', '')
+                        }
+                        
+                        # Return the cheaper product
+                        return {
+                            "text": response_text,
+                            "images": [
+                                {
+                                    "url": cheaper_product.get('images', {}).get('front', ''),
+                                    "alt": f"{cheaper_product.get('product_name')} in {cheaper_product.get('color')} - Front View",
+                                    "type": "product_front"
+                                },
+                                {
+                                    "url": cheaper_product.get('images', {}).get('back', ''),
+                                    "alt": f"{cheaper_product.get('product_name')} in {cheaper_product.get('color')} - Back View",
+                                    "type": "product_back"
+                                }
+                            ],
+                            "action": {
+                                "type": "showProductOptions",
+                                "productInfo": product_info
+                            }
+                        }
+                    else:
+                        # No cheaper options available
+                        logger.info(f"No cheaper {previous_category} available in {previous_color}")
+                        
+                        return {
+                            "text": f"I apologize, but the {previous_product.get('product_name')} in {previous_color} at {previous_product.get('price')} is already our lowest-priced option in this category and color. Would you like me to show you a different style or color instead?",
+                            "images": []
+                        }
+                
+                # For non-cheaper requests or if cheaper product handling didn't return
+                # Reset the product selection state but preserve the category
+                category = previous_category or order_state.product_category
+                
+                # Reset product details
+                order_state.product_selected = False
+                order_state.product_details = None
+                order_state.product_category = category
+                self.conversation_manager.update_order_state(user_id, order_state)
+                
+                # Enhance the context with preference information
+                context_message = message
+                if previous_color:
+                    # Add color context if the user didn't mention color in this message
+                    if "red" not in message.lower() and "blue" not in message.lower() and "black" not in message.lower():
+                        color_words = previous_color.split()
+                        color_term = color_words[-1] if len(color_words) > 1 else previous_color
+                        context_message = f"{message} in {color_term}"
+                    
+                # Add category context if the user didn't specify a category
+                if "t-shirt" not in message.lower() and "shirt" not in message.lower() and "hoodie" not in message.lower():
+                    context_message = f"{context_message} {category}"
+                
+                logger.info(f"Enhanced context for selection after inquiry: {context_message}")
+            else:
+                context_message = message
+        else:
+            # For the first message or non-reselection requests
+            context_message = message
+            
+        # Get structured analysis from Claude
         analysis_prompt = [
             {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
-            {"role": "user", "content": message}
+            {"role": "user", "content": context_message}
         ]
         
+        # Skip product selection if this was just an inquiry
+        if is_special_reselection:
+            # We've already returned the preference inquiry response
+            return
+            
         enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
         logger.info(f"Enhanced query: {enhanced_query}")
         
-        # STEP 2: Use product decision tree to select the best product based on Claude's analysis
-        product_match = self.product_tree.select_product(message, enhanced_query)
+        # Check if color is missing but we have an original preference
+        color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
+        
+        if not color_specified and hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
+            # Add the original color preference to the query
+            original_color = order_state.original_preferences['color']
+            logger.info(f"Adding original color preference: {original_color}")
+            
+            # Insert the color into the enhanced query
+            query_lines = enhanced_query.split('\n')
+            for i, line in enumerate(query_lines):
+                if line.lower().startswith('color:'):
+                    query_lines[i] = f"Color: {original_color}"
+                    break
+            
+            enhanced_query = '\n'.join(query_lines)
+            logger.info(f"Modified query with original color: {enhanced_query}")
+        
+        # Check if category is missing or None, but we have a previous category
+        category_specified = "category:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("category:")[1].split("\n")[0].lower()
+        
+        if not category_specified and order_state.product_category:
+            # Add the original category to the query
+            logger.info(f"Adding original category: {order_state.product_category}")
+            
+            # Insert the category into the enhanced query
+            query_lines = enhanced_query.split('\n')
+            for i, line in enumerate(query_lines):
+                if line.lower().startswith('category:'):
+                    query_lines[i] = f"Category: {order_state.product_category}"
+                    break
+            
+            enhanced_query = '\n'.join(query_lines)
+            logger.info(f"Modified query with original category: {enhanced_query}")
+            
+        # If the user asked for a specific material but didn't mention color or category,
+        # make sure we're using the original preferences
+        if "100% cotton" in message.lower() or "cotton" in message.lower() or "polyester" in message.lower():
+            if "red" not in message.lower() and "blue" not in message.lower() and "black" not in message.lower():
+                # Get rejected product color or original preference
+                preserved_color = None
+                if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
+                    preserved_color = order_state.rejected_products[-1].get('color')
+                elif hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
+                    preserved_color = order_state.original_preferences['color']
+                
+                if preserved_color:
+                    # Modify the query to include the color
+                    query_lines = enhanced_query.split('\n')
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('color:'):
+                            query_lines[i] = f"Color: {preserved_color}"
+                            break
+                    
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Modified material request with preserved color: {enhanced_query}")
+        
+        # Use product decision tree to select the best product
+        product_match = self.product_tree.select_product(context_message, enhanced_query)
+        
+        # Avoid recommending previously rejected products
+        if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
+            for rejected in order_state.rejected_products:
+                if (product_match and 
+                    product_match.get('product_name') == rejected.get('product_name') and
+                    product_match.get('color') == rejected.get('color')):
+                    
+                    logger.warning(f"Selected product matches previously rejected product, retrying with explicit instructions")
+                    
+                    # Add explicit instructions to avoid this specific product
+                    explicit_message = f"{context_message} Do not recommend {rejected.get('product_name')} in {rejected.get('color')}."
+                    
+                    # Try again with more explicit instructions
+                    analysis_prompt[1]["content"] = explicit_message
+                    enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
+                    product_match = self.product_tree.select_product(explicit_message, enhanced_query)
+                    break
         
         if not product_match:
             return {
@@ -173,12 +446,13 @@ class PlatoBot:
             
         # Extract product details
         details = {
-    "style_number": product_match.get("style_number"),
-    "product_name": product_match.get("product_name"),
-    "color": product_match.get("color"),
-    "category": product_match.get("category"),
-    "youth_sizes": product_match.get("youth_sizes"),
-    "adult_sizes": product_match.get("adult_sizes")
+            "style_number": product_match.get("style_number"),
+            "product_name": product_match.get("product_name"),
+            "color": product_match.get("color"),
+            "category": product_match.get("category"),
+            "youth_sizes": product_match.get("youth_sizes"),
+            "adult_sizes": product_match.get("adult_sizes"),
+            "material": product_match.get("material", "")
         }
         
         # Get images
@@ -204,9 +478,6 @@ class PlatoBot:
         self.conversation_manager.update_order_state(user_id, order_state)
 
         # Generate response using Claude
-        # Include Claude's explanation if available
-        match_explanation = product_match.get('match_explanation', '')
-        
         response_prompt = prompts.get_product_response_prompt(
             message=message,
             product_name=details["product_name"],
@@ -223,7 +494,17 @@ class PlatoBot:
 
         response = utils.clean_response(response)
 
-        # Return the response
+        # Create product info for the action
+        product_info = {
+            "name": details["product_name"],
+            "color": details["color"],
+            "price": formatted_price,
+            "category": details["category"],
+            "style_number": details["style_number"],
+            "material": details.get("material", "")
+        }
+
+        # Return the response with product selection action
         return {
             "text": response,
             "images": [
@@ -237,16 +518,68 @@ class PlatoBot:
                     "alt": f"{details['product_name']} in {details['color']} - Back View",
                     "type": "product_back"
                 }
-            ]
+            ],
+            "action": {
+                "type": "showProductOptions",
+                "productInfo": product_info
+            }
         }
         
     except Exception as e:
-        logger.error(f"Error in product selection: {e}")
+        logger.error(f"Error in product selection: {e}", exc_info=True)
         return {
             "text": "I encountered an error while trying to find the right product for you. Could you please try again with more specific details?",
             "images": []
         }
+    
+    
 
+   def _find_cheaper_product(self, category, color, current_price, current_product_name):
+    """Find a cheaper product in the same category and color."""
+    
+    logger.info(f"Looking for a cheaper product than ${current_price} in category {category} and color {color}")
+    
+    # Map Claude's category to internal category
+    internal_category = self.product_tree.map_category_to_internal(category)
+    
+    # Get all products in the category
+    if internal_category not in self.product_tree.categories:
+        logger.warning(f"Category {internal_category} not found in product tree")
+        return None
+    
+    category_products = self.product_tree.categories[internal_category].products
+    
+    # Filter for matching color and cheaper price
+    cheaper_options = []
+    for product in category_products:
+        # Skip the current product
+        if product.get('product_name') == current_product_name:
+            continue
+            
+        # Check if color matches (allow partial matches)
+        product_color = product.get('color', '').lower()
+        if color.lower() not in product_color and product_color not in color.lower():
+            continue
+            
+        # Check price - strip $ and convert to float
+        product_price_str = product.get('price', '').replace('$', '')
+        try:
+            product_price = float(product_price_str)
+            
+            # Check if cheaper
+            if product_price < current_price:
+                logger.info(f"Found cheaper option: {product.get('product_name')} at ${product_price} (vs ${current_price})")
+                cheaper_options.append((product_price, product))
+        except ValueError:
+            logger.warning(f"Could not parse price for {product.get('product_name')}: {product.get('price')}")
+    
+    # Sort by price (ascending) and return the cheapest option
+    if cheaper_options:
+        cheaper_options.sort(key=lambda x: x[0])  # Sort by price
+        return cheaper_options[0][1]  # Return the product object
+    
+    return None
+    
    def _handle_design_placement(self, user_id: str, message: str, order_state) -> dict:
     """Handle design placement conversation flow."""
     logger.info(f"Handling design placement for user {user_id}: {message}")

@@ -151,6 +151,35 @@ async function sendMessage() {
                 }
             }
         }
+        if (data.action) {
+            // Get the last bot message for injecting UI elements
+            const lastMessage = document.querySelector('#chat-messages .message.bot:last-child');
+            if (lastMessage) {
+                // Store the action data in the message element's dataset for potential future use
+                lastMessage.dataset.action = JSON.stringify(data.action);
+                
+                // Handle different action types
+                if (data.action.type === 'showShippingModal') {
+                    // Inject the shipping form directly into the message
+                    if (window.shippingForm && typeof window.shippingForm.injectIntoMessage === 'function') {
+                        window.shippingForm.injectIntoMessage(lastMessage, data.action.orderDetails);
+                    } else {
+                        console.error('Shipping form component not available');
+                        addMessage('Sorry, I encountered an error with the shipping form. Please refresh the page and try again.', 'system');
+                    }
+                } else if (data.action.type === 'showProductOptions') {
+                    // Inject product selection buttons into the message
+                    if (window.productButtons && typeof window.productButtons.injectIntoMessage === 'function') {
+                        window.productButtons.injectIntoMessage(lastMessage, data.action.productInfo);
+                    } else {
+                        console.error('Product buttons component not available');
+                    }
+                }
+            } else {
+                console.error('No bot message found to inject UI elements');
+                addMessage('Sorry, I couldn\'t display the interactive elements. Please try again.', 'bot');
+            }
+        }
         
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {

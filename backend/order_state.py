@@ -48,6 +48,7 @@ class OrderState:
     placement_selected: bool = False
     placement: Optional[str] = None
     preview_url: Optional[str] = None  # URL to preview image
+    rejected_products: List[Dict] = field(default_factory=list)
     
     # Quantities
     quantities_collected: bool = False
@@ -161,6 +162,14 @@ class OrderState:
         
         logger.info(f"Customer info updated successfully, customer_info_collected={self.customer_info_collected}")
         logger.info(f"Updated values: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}', received_by_date='{self.received_by_date}'")
+
+    def add_rejected_product(self, product_info: Dict):
+        """Add a product to the rejected products list"""
+        if self.product_details:
+            self.rejected_products.append(self.product_details)
+        # Update the current product
+        self.product_selected = False
+        self.product_details = None
     
     def update_payment_info(self, invoice_data: Dict):
         """Update payment information from PayPal response"""

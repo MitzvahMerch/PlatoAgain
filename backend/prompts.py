@@ -97,7 +97,6 @@ Create a natural, friendly response that:
 1. Shows enthusiasm about finding a good match for their specific request
 2. Mentions the product details (name, color, price) naturally in conversation
 3. Highlights how this product matches what they were looking for
-4. Clearly instructs them to click the image button (to the left of the chat input) to upload their logo
 6. Keeps the tone professional but conversational
 7. Always present the price to the customer as "Plato's Price of "x"" 
 8. Refer to the product using its correct category: "{category}" (not just "shirt" or "t-shirt")
@@ -107,7 +106,6 @@ Important guidelines:
 - Vary your language and phrasing to sound natural
 - Incorporate elements from their original request when relevant
 - Don't mention that you are an AI
-- Clearly instructs them to click the image button (to the left of the chat input) to upload their logo
 
 Your response should be direct, brief, and ready to show to the customer.
 """
@@ -223,6 +221,57 @@ Provide a friendly confirmation that:
 
 Keep it concise but professional."""
 
+PRODUCT_RESELECTION_PROMPT = """
+You are Plato, a print shop AI assistant being asked to find an ALTERNATIVE product option. 
+The customer has already been shown a product (specified below) and was not satisfied with it.
+
+Previous product shown:
+- Product: {previous_product_name}
+- Color: {previous_product_color}
+- Category: {previous_product_category}
+
+Original request: {original_message}
+
+IMPORTANT RULES:
+1. You MUST NOT recommend the same product again
+2. Keep the same color preference if possible
+3. Try a different brand, material, or style
+4. Stick to the same general category unless the customer specifically mentioned wanting something different
+5. If uncertain, choose a product that's significantly different in style or features
+
+Analyze the customer's message and recommend a DIFFERENT product that better meets their needs.
+Be thoughtful about why this previous product didn't meet their expectations.
+"""
+
+PRODUCT_PREFERENCE_INQUIRY_PROMPT = """
+You are Plato, a custom print shop assistant. The customer wants a different product than the {previous_product_name} in {previous_product_color}.
+
+Previous product:
+- Price: {previous_product_price}
+- Material: {previous_product_material}
+
+Create a brief response (2-3 sentences) asking what specific change they want:
+1. Different material (the current is {previous_product_material})
+2. Different Price (the current is {previous_product_price})
+3. Different brand
+
+Keep your response consice. Focus on the main factors: material, style, color, and quality.
+"""
+
+
+# Add this function to prompts.py
+
+def get_product_reselection_prompt(previous_product_details: dict, original_message: str) -> str:
+    """
+    Create a prompt for selecting an alternative product.
+    """
+    return PRODUCT_RESELECTION_PROMPT.format(
+        previous_product_name=previous_product_details.get('product_name', 'Unknown'),
+        previous_product_color=previous_product_details.get('color', 'Unknown'),
+        previous_product_category=previous_product_details.get('category', 'product'),
+        original_message=original_message
+    )
+
 # Add new helper functions
 def create_context_aware_prompt(base_prompt: str, context: dict) -> str:
     """
@@ -235,3 +284,18 @@ def get_intent_prompt(message: str, context: dict) -> str:
     Create a prompt for intent/goal understanding.
     """
     return create_context_aware_prompt(INTENT_UNDERSTANDING_PROMPT, context)  
+
+def get_product_preference_inquiry_prompt(previous_product_details: dict) -> str:
+    """
+    Create a prompt for asking about product preferences after rejection.
+    """
+    # Extract material info
+    material = previous_product_details.get('material', 'cotton/poly blend')
+    
+    return PRODUCT_PREFERENCE_INQUIRY_PROMPT.format(
+        previous_product_name=previous_product_details.get('product_name', 'Unknown'),
+        previous_product_color=previous_product_details.get('color', 'Unknown'),
+        previous_product_category=previous_product_details.get('category', 'product'),
+        previous_product_price=previous_product_details.get('price', 'Unknown'),
+        previous_product_material=material
+    )
