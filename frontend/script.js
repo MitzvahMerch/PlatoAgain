@@ -14,6 +14,7 @@ const userId = 'user_' + Math.random().toString(36).substr(2, 9);
 const API_BASE_URL = 'http://localhost:5001';
 let currentProductImageUrl = null;  // Add this variable to store front product image
 let currentProductBackImageUrl = null;
+let designsAdded = 0; // Track how many designs have been added
 
 // DOM Elements
 const chatMessages = document.getElementById('chat-messages');
@@ -237,8 +238,113 @@ function addTypingIndicator() {
     return indicator;
 }
 
+// New function to show design options dialog
+function showDesignOptionsDialog(compositeUrl, wasBackImage) {
+    // Create dialog container
+    const dialogOverlay = document.createElement('div');
+    dialogOverlay.className = 'design-options-overlay';
+    dialogOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+    `;
+    
+    const dialogContent = document.createElement('div');
+    dialogContent.className = 'design-options-content';
+    dialogContent.style.cssText = `
+        width: 400px;
+        padding: 20px;
+        background: #222;
+        border-radius: 8px;
+        text-align: center;
+        color: white;
+    `;
+    
+    const dialogHeader = document.createElement('h3');
+    dialogHeader.textContent = 'Design Added Successfully!';
+    dialogHeader.style.cssText = `
+        margin-top: 0;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    `;
+    
+    const dialogText = document.createElement('p');
+    dialogText.textContent = 'What would you like to do next?';
+    
+    // Add another design button
+    const addMoreBtn = document.createElement('button');
+    addMoreBtn.textContent = 'Add Another Design';
+    addMoreBtn.style.cssText = `
+        padding: 12px 20px;
+        margin: 10px;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+    `;
+    
+    // Finalize button
+    const finalizeBtn = document.createElement('button');
+    finalizeBtn.textContent = 'Finalize Customization';
+    finalizeBtn.style.cssText = `
+        padding: 12px 20px;
+        margin: 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+    `;
+    
+    // Assemble dialog
+    dialogContent.appendChild(dialogHeader);
+    dialogContent.appendChild(dialogText);
+    dialogContent.appendChild(addMoreBtn);
+    dialogContent.appendChild(finalizeBtn);
+    dialogOverlay.appendChild(dialogContent);
+    document.body.appendChild(dialogOverlay);
+    
+    // Button event handlers
+    addMoreBtn.addEventListener('click', () => {
+        dialogOverlay.remove();
+        // Trigger design upload for next design
+        initiateNextDesignUpload(compositeUrl, wasBackImage);
+    });
+    
+    finalizeBtn.addEventListener('click', () => {
+        dialogOverlay.remove();
+        // Continue with original flow - send message to proceed to size selection
+        sendMessage();
+    });
+}
+
+// New function to initiate next design upload
+function initiateNextDesignUpload(previousDesignUrl, wasBackImage) {
+    // Update the appropriate product image with the composite
+    if (wasBackImage) {
+        currentProductBackImageUrl = previousDesignUrl;
+    } else {
+        currentProductImageUrl = previousDesignUrl;
+    }
+    
+    // Increment designs added counter
+    designsAdded++;
+    
+    // Trigger the image upload input
+    imageUploadButton.click();
+}
+
 // SVG-based composite renderer function
-Copy// SVG-based composite renderer function
 async function svgBasedCompositeRenderer(placement) {
     try {
         // Extract SVG coordinates from the placement data
@@ -274,29 +380,27 @@ async function svgBasedCompositeRenderer(placement) {
         } = svgCoordinates;
         
         // Calculate scaling factors from SVG to actual product image
-        // Calculate scaling factors from SVG to actual product image
-// These should now be nearly identical since we matched aspect ratios
-const scaleX = originalProductImg.width / viewBoxWidth;
-const scaleY = originalProductImg.height / viewBoxHeight;
+        const scaleX = originalProductImg.width / viewBoxWidth;
+        const scaleY = originalProductImg.height / viewBoxHeight;
 
-console.log('Aspect ratio check:', {
-    svg: viewBoxHeight / viewBoxWidth,
-    product: originalProductImg.height / originalProductImg.width,
-    scaleFactors: { scaleX, scaleY }
-});
+        console.log('Aspect ratio check:', {
+            svg: viewBoxHeight / viewBoxWidth,
+            product: originalProductImg.height / originalProductImg.width,
+            scaleFactors: { scaleX, scaleY }
+        });
 
-// Convert SVG coordinates to actual image pixels using X scale for both dimensions
-// to maintain the aspect ratio as seen in the preview
-const actualWidth = width * scaleX;
-const actualHeight = height * scaleX;
+        // Convert SVG coordinates to actual image pixels using X scale for both dimensions
+        // to maintain the aspect ratio as seen in the preview
+        const actualWidth = width * scaleX;
+        const actualHeight = height * scaleX;
 
-// Calculate the center position in actual pixels
-const actualCenterX = centerX * scaleX;
-const actualCenterY = centerY * scaleY;
+        // Calculate the center position in actual pixels
+        const actualCenterX = centerX * scaleX;
+        const actualCenterY = centerY * scaleY;
 
-// Calculate the top-left position from the center
-const actualX = actualCenterX - (actualWidth / 2);
-const actualY = actualCenterY - (actualHeight / 2);
+        // Calculate the top-left position from the center
+        const actualX = actualCenterX - (actualWidth / 2);
+        const actualY = actualCenterY - (actualHeight / 2);
         
         // Log the conversion details
         console.log('SVG to Canvas conversion (preserving aspect ratio):', {
@@ -352,7 +456,12 @@ const actualY = actualCenterY - (actualHeight / 2);
         // Close modal and show result
         window.placementModal.hide();
         addProductImage(compositeUrl, 'Design placement preview');
-        await sendMessage();
+        
+        // Store the compositeUrl for potential next design placement
+        window.latestCompositeUrl = compositeUrl;
+        
+        // Show intermediate dialog instead of immediately sending message
+        showDesignOptionsDialog(compositeUrl, showBackImage);
         
     } catch (error) {
         console.error('Error saving placement:', error);

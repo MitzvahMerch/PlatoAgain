@@ -6,6 +6,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 @dataclass
+class DesignInfo:
+    """Stores information about a single design in an order"""
+    
+    design_path: Optional[str] = None  # Full Firebase Storage URL
+    design_filename: Optional[str] = None
+    design_file_type: Optional[str] = None
+    design_file_size: Optional[int] = None
+    upload_date: Optional[datetime] = None
+    placement: Optional[str] = None
+    preview_url: Optional[str] = None  # URL to preview image
+    side: Optional[str] = None  # 'front' or 'back'
+
+@dataclass
 class OrderState:
     """Tracks the state of an order through the sales process"""
     
@@ -21,9 +34,11 @@ class OrderState:
     adult_sizes: Optional[str] = None
     price_per_item: float = 0
     
-    # Design Info
+    # Design Info (supports multiple designs)
     design_uploaded: bool = False
-    design_path: Optional[str] = None  # Full Firebase Storage URL
+    designs: List[DesignInfo] = field(default_factory=list)
+    # Legacy fields for backward compatibility
+    design_path: Optional[str] = None
     design_filename: Optional[str] = None
     design_file_type: Optional[str] = None
     design_file_size: Optional[int] = None
@@ -72,21 +87,53 @@ class OrderState:
         if 'price' in details:
             self.price_per_item = float(details['price'].replace('$', ''))
     
-    def update_design(self, design_path: str, filename: str = None, file_type: str = None, file_size: int = None):
-        """Update design information"""
+    def update_design(self, design_path: str, filename: str = None, file_type: str = None, file_size: int = None, side: str = 'front'):
+        """Update design information - now supports multiple designs"""
+        logger.info(f"Adding design: {design_path}, side: {side}")
+        
+        # Create a new design entry
+        design = DesignInfo(
+            design_path=design_path,
+            design_filename=filename,
+            design_file_type=file_type,
+            design_file_size=file_size,
+            upload_date=datetime.now(),
+            side=side
+        )
+        
+        # Add to the designs list
+        self.designs.append(design)
+        
+        # Update legacy fields for backward compatibility
         self.design_uploaded = True
         self.design_path = design_path
         self.design_filename = filename
         self.design_file_type = file_type
         self.design_file_size = file_size
         self.upload_date = datetime.now()
+        
+        logger.info(f"Design added successfully. Total designs: {len(self.designs)}")
     
-    def update_placement(self, placement: str, preview_url: Optional[str] = None):
-        """Update design placement and preview"""
-        logger.info(f"Updating placement for order: placement={placement}, preview_url={preview_url}")
+    def update_placement(self, placement: str, preview_url: Optional[str] = None, design_index: int = -1):
+        """Update design placement and preview for a specific design"""
+        logger.info(f"Updating placement for design index {design_index}: placement={placement}, preview_url={preview_url}")
+        
+        # Set the placement_selected flag
         self.placement_selected = True
+        
+        # Update the legacy fields for backward compatibility
         self.placement = "Custom"
         self.preview_url = preview_url
+        
+        # Update the placement for the specific design
+        if self.designs and design_index < len(self.designs) and design_index >= -len(self.designs):
+            design = self.designs[design_index]
+            design.placement = placement
+            design.preview_url = preview_url
+            logger.info(f"Placement updated for design {design_index}")
+        else:
+            logger.warning(f"Could not update placement: design index {design_index} out of range (total designs: {len(self.designs)})")
+        
         logger.info(f"Placement updated successfully, placement_selected={self.placement_selected}, placement={self.placement}")
     
     def update_quantities(self, sizes: Dict[str, int]):
@@ -208,16 +255,34 @@ class OrderState:
     def to_firestore_dict(self) -> Dict:
         """Convert the order state to a dictionary for Firestore storage"""
         logger.debug("Converting order state to Firestore dictionary")
+        
+        # Convert the designs list to a list of dictionaries
+        designs_list = []
+        for idx, design in enumerate(self.designs):
+            designs_list.append({
+                'designPath': design.design_path,
+                'filename': design.design_filename,
+                'fileType': design.design_file_type,
+                'fileSize': design.design_file_size,
+                'uploadDate': design.upload_date,
+                'placement': design.placement,
+                'previewUrl': design.preview_url,
+                'side': design.side,
+                'index': idx
+            })
+        
         result = {
             'userId': self.user_id,
             'productInfo': {
                 'selected': self.product_selected,
                 'details': self.product_details,
-                'category': self.product_category,  # Include the product category
+                'category': self.product_category,
                 'pricePerItem': self.price_per_item
             },
             'designInfo': {
                 'uploaded': self.design_uploaded,
+                'designs': designs_list,
+                # Include the legacy fields for backward compatibility
                 'url': self.design_path,
                 'filename': self.design_filename,
                 'fileType': self.design_file_type,
@@ -240,7 +305,7 @@ class OrderState:
                 'name': self.customer_name,
                 'address': self.shipping_address,
                 'email': self.email,
-                'receivedByDate': self.received_by_date  # Add the received by date to the Firestore dict
+                'receivedByDate': self.received_by_date
             },
             'paymentInfo': {
                 'collected': self.payment_info_collected,
@@ -260,13 +325,30 @@ class OrderState:
     
     def to_dict(self) -> Dict:
         """Convert the order state to a flat dictionary for internal use"""
+        # Convert the designs list to a list of dictionaries
+        designs_list = []
+        for idx, design in enumerate(self.designs):
+            designs_list.append({
+                'design_path': design.design_path,
+                'design_filename': design.design_filename,
+                'design_file_type': design.design_file_type,
+                'design_file_size': design.design_file_size,
+                'upload_date': design.upload_date,
+                'placement': design.placement,
+                'preview_url': design.preview_url,
+                'side': design.side,
+                'index': idx
+            })
+            
         return {
             "user_id": self.user_id,
             "product_selected": self.product_selected,
             "product_details": self.product_details,
-            "product_category": self.product_category,  # Include product category
+            "product_category": self.product_category,
             "price_per_item": self.price_per_item,
             "design_uploaded": self.design_uploaded,
+            "designs": designs_list,
+            # Include legacy fields for backward compatibility
             "design_path": self.design_path,
             "design_filename": self.design_filename,
             "design_file_type": self.design_file_type,
@@ -283,7 +365,7 @@ class OrderState:
             "customer_name": self.customer_name,
             "shipping_address": self.shipping_address,
             "email": self.email,
-            "received_by_date": self.received_by_date,  # Add the received by date to the dict
+            "received_by_date": self.received_by_date,
             "payment_info_collected": self.payment_info_collected,
             "payment_url": self.payment_url,
             "invoice_id": self.invoice_id,
@@ -297,7 +379,26 @@ class OrderState:
     def from_dict(cls, data: Dict) -> 'OrderState':
         """Create an OrderState instance from a dictionary"""
         order = cls()
+        
+        # Handle the designs list separately if it exists
+        if 'designs' in data:
+            designs_data = data.pop('designs')
+            for design_data in designs_data:
+                design = DesignInfo(
+                    design_path=design_data.get('design_path'),
+                    design_filename=design_data.get('design_filename'),
+                    design_file_type=design_data.get('design_file_type'),
+                    design_file_size=design_data.get('design_file_size'),
+                    upload_date=design_data.get('upload_date'),
+                    placement=design_data.get('placement'),
+                    preview_url=design_data.get('preview_url'),
+                    side=design_data.get('side')
+                )
+                order.designs.append(design)
+        
+        # Set all the other fields
         for key, value in data.items():
             if hasattr(order, key):
                 setattr(order, key, value)
+                
         return order

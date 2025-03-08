@@ -57,10 +57,17 @@ class PlatoBot:
             logger.info(f"Setting design for user {user_id}: {design_url}")
             # Extract filename from design URL
             filename = design_url.split('/')[-1].split('?')[0]
+            
+            # Determine side based on current designs (front by default)
+            side = "front"
+            
+            # Update the design in the OrderState
             order_state.update_design(
                 design_path=design_url,
-                filename=filename
+                filename=filename,
+                side=side
             )
+            
             # Also set placement as selected since we're removing that check
             if not order_state.placement_selected:
                 logger.info(f"Automatically setting placement_selected=True for user {user_id}")
@@ -69,7 +76,8 @@ class PlatoBot:
             self.conversation_manager.update_order_state(user_id, order_state)
             
             # Log updated order state
-            logger.info(f"Updated order state after design upload - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
+            design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
+            logger.info(f"Updated order state after design upload - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}, design_count: {design_count}")
 
         # Check for "I'd like to share this design with you" message which indicates design upload
         if "I'd like to share this design with you" in message:
@@ -85,7 +93,8 @@ class PlatoBot:
                     order_state.update_placement(placement="Custom", preview_url=order_state.design_path)
                 
                 self.conversation_manager.update_order_state(user_id, order_state)
-                logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
+                design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
+                logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}, design_count: {design_count}")
 
         # STEP 1: Intent Classification - Use a structured prompt to get ONLY the category
         intent_messages = [
@@ -256,6 +265,11 @@ class PlatoBot:
         # Update placement if a design path exists
         if order_state.design_path:
             logger.info(f"Updating placement with design_path: {order_state.design_path}")
+            
+            # Determine which design this is (initial or additional)
+            design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
+            
+            # Update placement for the design
             order_state.update_placement(placement="Custom", preview_url=order_state.design_path)
             self.conversation_manager.update_order_state(user_id, order_state)
             
@@ -269,8 +283,11 @@ class PlatoBot:
             youth_sizes = order_state.youth_sizes or "XS-XL"
             adult_sizes = order_state.adult_sizes or "S-5XL"
             
-            # Create a better response using the product category
-            response_text = f"Great! Your design looks amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
+            # Customize response based on number of designs
+            if design_count > 1:
+                response_text = f"Great! Your {design_count} designs look amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
+            else:
+                response_text = f"Great! Your design looks amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
             
             return {
                 "text": response_text,
@@ -291,7 +308,14 @@ class PlatoBot:
     if order_state.design_path and order_state.product_details:
         # Use correct category in the additional text
         category = order_state.product_category or "T-Shirt"
-        response_text += f"\n\nYou can adjust your design's position and size on the {category} using the placement tool. Once you're happy with the placement, save it and let me know."
+        
+        # Determine if this is a first or additional design
+        design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
+        
+        if design_count > 0:
+            response_text += f"\n\nYou can adjust your design's position and size on the {category} using the placement tool. Once you're happy with the placement, save it and let me know."
+        else:
+            response_text += f"\n\nYou can adjust your design's position and size on the {category} using the placement tool. Once you're happy with the placement, save it and let me know."
     
     return {
         "text": response_text,
@@ -567,12 +591,28 @@ class PlatoBot:
 
    def _prepare_context(self, order_state) -> dict:
     """Prepare context based on the order state."""
+    # Get design count and compile design information
+    design_count = len(order_state.designs) if hasattr(order_state, 'designs') and order_state.designs else 0
+    
+    designs_info = []
+    if hasattr(order_state, 'designs') and order_state.designs:
+        for idx, design in enumerate(order_state.designs):
+            designs_info.append({
+                'index': idx + 1,
+                'url': design.design_path,
+                'placement': design.placement,
+                'preview_url': design.preview_url,
+                'side': design.side
+            })
+    
     context = {
         "order_state_summary": "New order" if not order_state.product_selected else "Order in progress",
         "min_quantity": 24,
         "price_per_item": f"${order_state.price_per_item:.2f}" if order_state.price_per_item and order_state.price_per_item > 0 else "TBD",
         "product_context": order_state.product_details,
         "design_context": {'url': order_state.design_path} if order_state.design_path else None,
+        "designs_info": designs_info,
+        "design_count": design_count,
         "conversation_history": "",  # Required by prompts
         "previous_context": "",      # Required by prompts
         "placement": order_state.placement,
@@ -583,7 +623,7 @@ class PlatoBot:
         "customer_name": order_state.customer_name,
         "shipping_address": order_state.shipping_address,
         "email": order_state.email,
-        "received_by_date": order_state.received_by_date,  # Add the received_by_date field
+        "received_by_date": order_state.received_by_date,
         "status": order_state.status if hasattr(order_state, 'status') else None,
         "product_name": order_state.product_details.get('product_name', 'Product') if order_state.product_details else 'Product',
         "youth_sizes": order_state.youth_sizes or "XS-XL",
