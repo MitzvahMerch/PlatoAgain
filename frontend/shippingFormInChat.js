@@ -22,21 +22,7 @@ const createShippingForm = () => {
                 font-weight: 500;
                 text-align: center;
             }
-            
-            .order-summary {
-                margin-bottom: 20px;
-                padding: 15px;
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
-                color: white;
-            }
-            
-            .order-summary h3 {
-                margin-top: 0;
-                margin-bottom: 10px;
-                font-size: 14px;
-                color: var(--secondary-color);
-            }
+        
             
             .shipping-form-group {
                 margin-bottom: 15px;
@@ -272,17 +258,6 @@ const createShippingForm = () => {
         header.className = 'shipping-form-header';
         header.textContent = 'Complete Your Order';
         container.appendChild(header);
-        
-        // Order summary
-        const orderSummary = document.createElement('div');
-        orderSummary.className = 'order-summary';
-        orderSummary.innerHTML = `
-            <h3>Order Summary</h3>
-            <p id="form-product-name">${orderDetails.product || ''}</p>
-            <p id="form-quantity">${orderDetails.quantity || ''}</p>
-            <p id="form-total">Total: $${orderDetails.total || '0.00'}</p>
-        `;
-        container.appendChild(orderSummary);
         
         // Form
         const form = document.createElement('form');

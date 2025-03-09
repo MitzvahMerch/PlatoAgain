@@ -315,6 +315,19 @@ const createQuantitySelector = () => {
         
         console.log('Selected quantities:', quantities);
         
+        // Calculate total quantity
+        let totalQuantity = 0;
+        for (const quantity of Object.values(quantities)) {
+            totalQuantity += parseInt(quantity);
+        }
+        
+        // Check if total quantity is less than 24
+        if (totalQuantity < 24) {
+            // Show error message
+            showMinimumQuantityError();
+            return;
+        }
+        
         // Format the quantities as a message that matches the expected patterns
         let message = '';
         for (const [sizeKey, quantity] of Object.entries(quantities)) {
@@ -340,6 +353,44 @@ const createQuantitySelector = () => {
         document.getElementById('send-button').click();
     }
     
+    // Show error for minimum quantity
+function showMinimumQuantityError() {
+    const container = document.querySelector('.quantity-selector-container');
+    
+    // Remove any existing error message
+    const existingError = container.querySelector('.quantity-error-message');
+    if (existingError) {
+        existingError.remove();
+    }
+    
+    // Create error message
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'quantity-error-message';
+    errorMessage.textContent = 'Minimum quantity: 24';
+    errorMessage.style.color = '#ff3333';
+    errorMessage.style.fontSize = '14px';
+    errorMessage.style.marginTop = '10px';
+    errorMessage.style.textAlign = 'right';
+    errorMessage.style.fontWeight = 'bold';
+    
+    // Add error to the footer
+    const footer = container.querySelector('.quantity-footer');
+    footer.appendChild(errorMessage);
+    
+    // Add animation effect to highlight the error
+    errorMessage.style.animation = 'shake 0.5s';
+    
+    // Also shake the total display for emphasis
+    const totalDisplay = container.querySelector('.quantity-total');
+    totalDisplay.style.color = '#ff3333';
+    totalDisplay.style.animation = 'shake 0.5s';
+    
+    // Reset color after animation
+    setTimeout(() => {
+        totalDisplay.style.color = 'white';
+    }, 1500);
+}
+
     // Add the CSS styles for the quantity selector
     const addStyles = () => {
         const styleElement = document.createElement('style');
@@ -478,6 +529,12 @@ const createQuantitySelector = () => {
                 opacity: 0.7;
                 transition: opacity 0.2s;
             }
+
+            @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
             
             
             .quantity-submit-btn:disabled {

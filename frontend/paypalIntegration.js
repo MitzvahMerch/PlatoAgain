@@ -156,20 +156,26 @@ const createPayPalIntegration = () => {
         const customerName = nameMatch ? nameMatch[1].trim() : 'Customer';
         
         // Extract quantity and product info (simplified)
-        const quantityRegex = /order\s+(?:of|for)\s+(.+?)(?=\s+of\s+|\s+for\s+|\s+\$)/i;
-        const quantityMatch = messageText.match(quantityRegex);
-        const quantityInfo = quantityMatch ? quantityMatch[1].trim() : 'items';
+        const itemsRegex = /order\s+of\s+(.+?)(?=\s+totaling)/i;
+    const itemsMatch = messageText.match(itemsRegex);
+    const items = itemsMatch ? itemsMatch[1].trim() : 'items';
+    
         
         // Extract product info
         const productRegex = /of\s+(.+?)(?=\.\s+Total|\s+for\s+\$)/i;
         const productMatch = messageText.match(productRegex);
         const productInfo = productMatch ? productMatch[1].trim() : 'Custom Product';
+
+        const dateRegex = /by\s+([A-Za-z]+\s+\d+,\s+\d{4})/i;
+        const dateMatch = messageText.match(dateRegex);
+        const receivedByDate = dateMatch ? dateMatch[1].trim() : 'Standard delivery';
         
         return {
             totalPrice,
             customerName,
-            quantityInfo,
-            productInfo
+            items,
+            productInfo,
+            receivedByDate
         };
     };
 
@@ -320,14 +326,13 @@ const createPayPalIntegration = () => {
         
         // Order summary
         const orderSummary = document.createElement('div');
-        orderSummary.className = 'order-summary';
-        orderSummary.innerHTML = `
-            <h3>Order Summary</h3>
-            <p><strong>Customer:</strong> ${orderDetails.customerName}</p>
-            <p><strong>Items:</strong> ${orderDetails.quantityInfo}</p>
-            <p><strong>Product:</strong> ${orderDetails.productInfo}</p>
-            <p><strong>Total:</strong> $${orderDetails.totalPrice}</p>
-        `;
+orderSummary.className = 'order-summary';
+orderSummary.innerHTML = `
+    <h3>Order Summary</h3>
+    <p><strong>Items:</strong> ${orderDetails.quantityInfo} in ${orderDetails.productInfo.split(', totaling')[0]}</p>
+    <p><strong>Receive By:</strong> ${orderDetails.receivedByDate || 'Standard delivery timeframe'}</p>
+    <p><strong>Total:</strong> $${orderDetails.totalPrice}</p>
+`;
         container.appendChild(orderSummary);
         
         // Initialize the PayPal button
