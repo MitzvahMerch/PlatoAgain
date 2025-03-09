@@ -87,6 +87,56 @@ def init_routes(app, plato_bot: PlatoBot):
             logger.exception("Error getting product context")
             return jsonify({'error': str(e)}), 500
         
+    @app.route('/api/update-design', methods=['POST'])
+    def update_design():
+        """Update design information including explicit logo tracking"""
+        try:
+            data = request.json
+            user_id = data.get('user_id')
+            design_url = data.get('design_url')
+            filename = data.get('filename')
+            has_logo = data.get('has_logo', False)  # Default to False if not provided
+        
+            if not user_id or not design_url:
+                return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
+            logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
+        
+            # Get the current order state
+            order_state = plato_bot.conversation_manager.get_order_state(user_id)
+        
+            # Update the design in the order state
+            file_type = None
+            if filename:
+                file_type = filename.split('.')[-1] if '.' in filename else None
+        
+            # Call update_design with the logo information
+            order_state.update_design(
+                design_path=design_url,
+                filename=filename,
+                file_type=file_type,
+                side="front"  # Default to front
+            )
+        
+            # If has_logo is True, explicitly increment logo count (as a safety measure)
+            if has_logo and hasattr(order_state, 'logo_count'):
+            # We already increment in update_design, but we're making sure it happened
+                # If logo_count is still 0, set it to 1
+                if order_state.logo_count == 0:
+                    order_state.logo_count = 1
+                    logger.info(f"Explicitly set logo count to 1 for user {user_id}")
+        
+            # Update the order state in the conversation manager
+            plato_bot.conversation_manager.update_order_state(user_id, order_state)
+        
+            logger.info(f"Updated design and logo information for user {user_id}, logo_count={getattr(order_state, 'logo_count', 0)}")
+        
+            return jsonify({'success': True})
+    
+        except Exception as e:
+            logger.error(f"Error updating design: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+        
     # Updated submit_order route
     @app.route('/api/submit-order', methods=['POST'])
     def submit_order():

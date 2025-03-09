@@ -883,11 +883,23 @@ class PlatoBot:
         if not product_type.endswith('s'):
             product_type += "s"  # Make plural
         
-        # Create response text as before - we'll store it but not return it
-        # This is needed to maintain all context variables
+        # Calculate price components
+        base_price = order_state.total_quantity * order_state.price_per_item
+        logo_charge_per_item = getattr(order_state, 'logo_charge_per_item', 1.50)  # Default to $1.50 if not set
+        logo_charges = order_state.total_quantity * order_state.logo_count * logo_charge_per_item
+        
+        # Prepare price breakdown text
+        price_breakdown = ""
+        if order_state.logo_count > 0:
+            price_breakdown = f"\n\n- Base price: ${base_price:.2f}\n- Logo charge{'' if order_state.logo_count == 1 else 's'} (${logo_charge_per_item:.2f} × {order_state.logo_count} logo{'' if order_state.logo_count == 1 else 's'} × {order_state.total_quantity} items): ${logo_charges:.2f}"
+        
+        # Create response text
         response_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}:\n"
         for size, qty in sizes.items():
             response_text += f"- {qty} {size.upper()}\n"
+        
+        # Add price breakdown and total
+        response_text += price_breakdown
         response_text += f"\nTotal price will be ${order_state.total_price:.2f}. "
         response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
         
@@ -895,16 +907,23 @@ class PlatoBot:
         product_name = f"{order_state.product_details.get('product_name', 'Product')} in {order_state.product_details.get('color', 'Color')}"
         quantities = ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items())
         
-        # Add the action trigger for the modal but with empty text
+        # Modified text for chat display - shorter but with price breakdown
+        chat_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}.{price_breakdown}\n\nTotal price will be ${order_state.total_price:.2f}. Now I just need your shipping information to complete the order."
+        
+        # Add the action trigger for the modal
         return {
-            "text": f"Great! I've got your order for {order_state.total_quantity} {product_type}. Total price will be ${order_state.total_price:.2f}. Now I just need your shipping information to complete the order.",  
+            "text": chat_text,
             "images": [], 
             "action": {
                 "type": "showShippingModal",
                 "orderDetails": {
                     "product": product_name,
                     "quantity": quantities,
-                    "total": f"{order_state.total_price:.2f}"
+                    "total": f"{order_state.total_price:.2f}",
+                    "basePrice": f"{base_price:.2f}",
+                    "logoCount": order_state.logo_count,
+                    "totalItems": order_state.total_quantity,
+                    "logoCharges": f"{logo_charges:.2f}"
                 }
             }
         }

@@ -17,6 +17,7 @@ class DesignInfo:
     placement: Optional[str] = None
     preview_url: Optional[str] = None  # URL to preview image
     side: Optional[str] = None  # 'front' or 'back'
+    has_logo: bool = True  # Default to True - every design has a logo charge
 
 @dataclass
 class OrderState:
@@ -60,6 +61,10 @@ class OrderState:
     total_quantity: int = 0
     total_price: float = 0
 
+    # Logo tracking for price calculations
+    logo_count: int = 0  # Track number of logos uploaded
+    logo_charge_per_item: float = 1.50  # $1.50 charge per logo per item
+    
     color_options_style: Optional[str] = None
     color_options_product_name: Optional[str] = None
     
@@ -114,9 +119,9 @@ class OrderState:
         self.original_intent["requested_changes"].append(change_request)
         logger.info(f"Requested changes updated: {self.original_intent['requested_changes']}")
     
-    def update_design(self, design_path: str, filename: str = None, file_type: str = None, file_size: int = None, side: str = 'front'):
+    def update_design(self, design_path: str, filename: str = None, file_type: str = None, file_size: int = None, side: str = 'front', has_logo: bool = True):
         """Update design information - now supports multiple designs"""
-        logger.info(f"Adding design: {design_path}, side: {side}")
+        logger.info(f"Adding design: {design_path}, side: {side}, has_logo: {has_logo}")
         
         # Create a new design entry
         design = DesignInfo(
@@ -125,7 +130,8 @@ class OrderState:
             design_file_type=file_type,
             design_file_size=file_size,
             upload_date=datetime.now(),
-            side=side
+            side=side,
+            has_logo=has_logo
         )
         
         # Add to the designs list
@@ -139,7 +145,31 @@ class OrderState:
         self.design_file_size = file_size
         self.upload_date = datetime.now()
         
-        logger.info(f"Design added successfully. Total designs: {len(self.designs)}")
+        # Only increment logo count if this design has a logo charge
+        if has_logo:
+            self.logo_count += 1
+            logger.info(f"Incremented logo count to {self.logo_count}, charging ${self.logo_charge_per_item} per logo per item")
+        
+        # If quantities already collected, update total price to include logo charge
+        if self.quantities_collected and self.total_quantity > 0:
+            self.update_total_price()
+        
+        logger.info(f"Design added successfully. Total designs: {len(self.designs)}, Logo count: {self.logo_count}")
+    
+    def update_total_price(self):
+        """Calculate total price including base price and logo charges"""
+        # Verify logo count matches the number of designs with has_logo=True
+        logo_designs = sum(1 for design in self.designs if getattr(design, 'has_logo', True))
+        
+        if self.logo_count != logo_designs:
+            logger.warning(f"Logo count mismatch: tracked={self.logo_count}, actual={logo_designs}. Correcting...")
+            self.logo_count = logo_designs
+        
+        base_price = self.total_quantity * self.price_per_item
+        # Calculate logo charges: $1.50 per logo PER ITEM
+        logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
+        self.total_price = base_price + logo_charges
+        logger.info(f"Updated total price: ${self.total_price:.2f} (base: ${base_price:.2f}, logo charges: ${logo_charges:.2f})")
     
     def update_placement(self, placement: str, preview_url: Optional[str] = None, design_index: int = -1):
         """Update design placement and preview for a specific design"""
@@ -161,6 +191,17 @@ class OrderState:
         else:
             logger.warning(f"Could not update placement: design index {design_index} out of range (total designs: {len(self.designs)})")
         
+        # Check and update logo count based on actual designs
+        if self.designs:
+            logo_designs = sum(1 for design in self.designs if getattr(design, 'has_logo', True))
+            if self.logo_count != logo_designs:
+                logger.warning(f"Logo count mismatch during placement: tracked={self.logo_count}, actual={logo_designs}. Correcting...")
+                self.logo_count = logo_designs
+                
+                # Update total price if quantities are already collected
+                if self.quantities_collected and self.total_quantity > 0:
+                    self.update_total_price()
+        
         logger.info(f"Placement updated successfully, placement_selected={self.placement_selected}, placement={self.placement}")
     
     def update_quantities(self, sizes: Dict[str, int]):
@@ -168,8 +209,17 @@ class OrderState:
         self.quantities_collected = True
         self.sizes = sizes
         self.total_quantity = sum(sizes.values())
+        
+        # Ensure we have the correct logo count based on designs
+        if self.designs:
+            logo_designs = sum(1 for design in self.designs if getattr(design, 'has_logo', True))
+            if self.logo_count != logo_designs:
+                logger.warning(f"Logo count mismatch during quantity update: tracked={self.logo_count}, actual={logo_designs}. Correcting...")
+                self.logo_count = logo_designs
+        
         if self.price_per_item > 0:
-            self.total_price = self.total_quantity * self.price_per_item
+            # Use update_total_price to calculate with logo charges
+            self.update_total_price()
     
     def update_customer_info(self, name: str, address: str, email: str, received_by_date: str = None):
         """Update customer information"""
@@ -291,6 +341,9 @@ class OrderState:
         """Convert the order state to a dictionary for Firestore storage"""
         logger.debug("Converting order state to Firestore dictionary")
         
+        # Calculate total logo charges
+        logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
+        
         # Convert the designs list to a list of dictionaries
         designs_list = []
         for idx, design in enumerate(self.designs):
@@ -303,6 +356,7 @@ class OrderState:
                 'placement': design.placement,
                 'previewUrl': design.preview_url,
                 'side': design.side,
+                'hasLogo': getattr(design, 'has_logo', True),
                 'index': idx
             })
         
@@ -323,6 +377,7 @@ class OrderState:
             'designInfo': {
                 'uploaded': self.design_uploaded,
                 'designs': designs_list,
+                'logoCount': self.logo_count,
                 # Include the legacy fields for backward compatibility
                 'url': self.design_path,
                 'filename': self.design_filename,
@@ -339,7 +394,9 @@ class OrderState:
                 'collected': self.quantities_collected,
                 'sizes': self.sizes,
                 'totalQuantity': self.total_quantity,
-                'totalPrice': self.total_price
+                'totalPrice': self.total_price,
+                'logoCharges': logo_charges,
+                'logoChargePerItem': self.logo_charge_per_item
             },
             'customerInfo': {
                 'collected': self.customer_info_collected,
@@ -370,6 +427,9 @@ class OrderState:
     
     def to_dict(self) -> Dict:
         """Convert the order state to a flat dictionary for internal use"""
+        # Calculate total logo charges
+        logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
+        
         # Convert the designs list to a list of dictionaries
         designs_list = []
         for idx, design in enumerate(self.designs):
@@ -382,6 +442,7 @@ class OrderState:
                 'placement': design.placement,
                 'preview_url': design.preview_url,
                 'side': design.side,
+                'has_logo': getattr(design, 'has_logo', True),
                 'index': idx
             })
             
@@ -393,6 +454,7 @@ class OrderState:
             "price_per_item": self.price_per_item,
             "design_uploaded": self.design_uploaded,
             "designs": designs_list,
+            "logo_count": self.logo_count,
             # Include legacy fields for backward compatibility
             "design_path": self.design_path,
             "design_filename": self.design_filename,
@@ -408,6 +470,8 @@ class OrderState:
             "sizes": self.sizes,
             "total_quantity": self.total_quantity,
             "total_price": self.total_price,
+            "logo_charges": logo_charges,
+            "logo_charge_per_item": self.logo_charge_per_item,
             "customer_info_collected": self.customer_info_collected,
             "last_style_number": self.last_style_number,
             "customer_name": self.customer_name,
@@ -443,7 +507,8 @@ class OrderState:
                     upload_date=design_data.get('upload_date'),
                     placement=design_data.get('placement'),
                     preview_url=design_data.get('preview_url'),
-                    side=design_data.get('side')
+                    side=design_data.get('side'),
+                    has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
                 )
                 order.designs.append(design)
         
@@ -463,5 +528,11 @@ class OrderState:
             order.in_product_modification_flow = data['in_product_modification_flow']
         else:
             order.in_product_modification_flow = False
+        
+        # Ensure logo_count is always set correctly based on designs
+        if order.designs:
+            logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
+            if order.logo_count != logo_designs:
+                order.logo_count = logo_designs
                 
         return order

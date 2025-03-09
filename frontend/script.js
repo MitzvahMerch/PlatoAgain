@@ -304,6 +304,15 @@ function showDesignOptionsDialog(compositeUrl, wasBackImage) {
         color: var(--primary-color);
     `;
     
+    // Add logo charge notification - updated to clarify per-item charge
+    const chargeNotice = document.createElement('p');
+    chargeNotice.textContent = 'A $1.50 charge per item has been added for this logo.';
+    chargeNotice.style.cssText = `
+        font-size: 14px;
+        color: #ffcc00;
+        margin-bottom: 15px;
+    `;
+    
     const dialogText = document.createElement('p');
     dialogText.textContent = 'What would you like to do next?';
     
@@ -337,6 +346,7 @@ function showDesignOptionsDialog(compositeUrl, wasBackImage) {
     
     // Assemble dialog
     dialogContent.appendChild(dialogHeader);
+    dialogContent.appendChild(chargeNotice); // Add the charge notice
     dialogContent.appendChild(dialogText);
     dialogContent.appendChild(addMoreBtn);
     dialogContent.appendChild(finalizeBtn);
@@ -485,6 +495,35 @@ async function svgBasedCompositeRenderer(placement) {
         // Close modal and show result
         window.placementModal.hide();
         addProductImage(compositeUrl, 'Design placement preview');
+        
+        // NEW CODE: Explicitly tell the backend about the logo upload
+        try {
+            console.log('Updating backend with logo information...');
+            const response = await fetch(`${API_BASE_URL}/api/update-design`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    design_url: compositeUrl,
+                    filename: compositeFileName,
+                    has_logo: true  // This is the key - explicitly telling backend this has a logo
+                }),
+            });
+            
+            if (!response.ok) {
+                console.warn('Warning: Failed to update design with logo information', await response.text());
+            } else {
+                console.log('Successfully updated backend with logo information');
+                
+                // Add message about the logo charge
+                addMessage("A $1.50 charge per item has been added for this logo.", 'system');
+            }
+        } catch (error) {
+            console.warn('Error updating logo information:', error);
+            // Continue despite this error - we'll just show the design
+        }
         
         // Store the compositeUrl for potential next design placement
         window.latestCompositeUrl = compositeUrl;

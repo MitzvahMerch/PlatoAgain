@@ -215,7 +215,7 @@ Customer Information:
 
 Provide a friendly confirmation that:
 1. Thanks {customer_name} for their order of {quantities} of {product_details} for {total_price}
-2. Informs them they will receive the order by their {received_by_date} (as long as they pay the invoice within the next 24 hours)
+2. Informs them they will receive the order by their {received_by_date} 
 3. Informs them that if they have any questions don't hesitate to contact us at "platosprints@gmail.com"
 4. Ends the conversation warmly with the phrase "Warm regards, Plato"
 
