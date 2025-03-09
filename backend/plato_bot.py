@@ -151,8 +151,108 @@ class PlatoBot:
    def _handle_product_selection(self, user_id: str, message: str, order_state) -> dict:
     """Handle product selection with decision tree approach."""
     logger.info(f"Handling product selection for: {message}")
+    logger.info(f"Order state for user {user_id}: color_options_shown={getattr(order_state, 'color_options_shown', False)}, product_details={'Present' if order_state.product_details else 'None'}")
     
     try:
+        # Check if this is a show color options request with the special marker
+        is_color_options_request = "[SHOW_COLOR_OPTIONS]" in message
+        
+        # If this is a color options request, handle it first
+        if is_color_options_request and order_state.product_details:
+            # Extract product style number from order state
+            style_number = order_state.product_details.get('style_number')
+            product_name = order_state.product_details.get('product_name', 'Unknown')
+            
+            if style_number:
+                # Get all colors available for this product style
+                all_colors = self._get_product_colors(style_number)
+                
+                # Generate a response with color options
+                response_text = f"Here are all the available colors for the {product_name}:\n\n"
+                response_text += "\n".join([f"• {color}" for color in all_colors])
+                response_text += "\n\nWhich color would you prefer? Just let me know and I'll find that option for you."
+
+                # Store these values directly in OrderState 
+                order_state.color_options_shown = True
+                order_state.color_options_style = style_number
+                order_state.color_options_product_name = product_name
+                order_state.last_style_number = style_number
+                self.conversation_manager.update_order_state(user_id, order_state)
+                
+                return {
+                    "text": response_text,
+                    "images": []
+                }
+            else:
+                return {
+                    "text": f"I'm sorry, I couldn't find color options for the {product_name}. Would you like to see a different product instead?",
+                    "images": []
+                }
+        
+        # Check if this is a color selection after showing options
+        if hasattr(order_state, 'color_options_shown') and order_state.color_options_shown and hasattr(order_state, 'last_style_number') and order_state.last_style_number:
+            logger.info(f"Processing color selection for style {order_state.last_style_number}: {message}")
+            
+            # Get all colors for this style
+            all_colors = self._get_product_colors(order_state.last_style_number)
+            logger.info(f"Available colors: {all_colors}")
+            
+            # Check if message matches any color
+            selected_color = None
+            for color in all_colors:
+                if color.lower() in message.lower() or message.lower() in color.lower():
+                    selected_color = color
+                    break
+            
+            if selected_color:
+                logger.info(f"Matched color: {selected_color}")
+                
+                # Find the same product in the selected color
+                for category in self.product_tree.categories.values():
+                    for product in category.products:
+                        if (product.get('style_number') == order_state.last_style_number and 
+                            product.get('color') == selected_color):
+                            
+                            # We found the exact same product in the requested color!
+                            logger.info(f"Found product: {product.get('product_name')} in {selected_color}")
+                            
+                            # Update order state with this product
+                            order_state.update_product(product)
+                            order_state.color_options_shown = False  # Reset flag
+                            order_state.last_style_number = None
+                            order_state.color_options_style = None
+                            order_state.color_options_product_name = None
+                            self.conversation_manager.update_order_state(user_id, order_state)
+                            
+                            # Return a response with this product
+                            return {
+                                "text": f"Great choice! I've selected the {product.get('product_name')} in {selected_color} at {product.get('price')}. Would you like to upload your logo now?",
+                                "images": [
+                                    {
+                                        "url": product.get('images', {}).get('front', ''),
+                                        "alt": f"{product.get('product_name')} in {selected_color} - Front View",
+                                        "type": "product_front" 
+                                    },
+                                    {
+                                        "url": product.get('images', {}).get('back', ''),
+                                        "alt": f"{product.get('product_name')} in {selected_color} - Back View",
+                                        "type": "product_back"
+                                    }
+                                ],
+                                "action": {
+                                    "type": "showProductOptions",
+                                    "productInfo": {
+                                        "name": product.get('product_name'),
+                                        "color": selected_color,
+                                        "price": product.get('price'),
+                                        "category": product.get('category'),
+                                        "style_number": product.get('style_number'),
+                                        "material": product.get('material', ''),
+                                        "colorSpecified": True
+                                    }
+                                }
+                            }
+        
         # Check if this is a product reselection request with the special marker
         is_special_reselection = "[FIND_DIFFERENT_PRODUCT]" in message
         
@@ -494,14 +594,15 @@ class PlatoBot:
 
         response = utils.clean_response(response)
 
-        # Create product info for the action
+        # Create product info for the action, including color specification flag
         product_info = {
             "name": details["product_name"],
             "color": details["color"],
             "price": formatted_price,
             "category": details["category"],
             "style_number": details["style_number"],
-            "material": details.get("material", "")
+            "material": details.get("material", ""),
+            "colorSpecified": color_specified  # Add flag to indicate if color was specified
         }
 
         # Return the response with product selection action
@@ -532,7 +633,32 @@ class PlatoBot:
             "images": []
         }
     
+   def _get_product_colors(self, style_number):
+    """Get all available colors for a given product style number"""
+    colors = []
     
+    # Loop through all categories to find matching products
+    for category in self.product_tree.categories.values():
+        for product in category.products:
+            if product.get('style_number') == style_number and product.get('color'):
+                colors.append(product.get('color'))
+    
+    return sorted(colors)  # Return sorted list of colors
+   
+   def _get_product_by_style_and_color(self, style_number, color_name):
+    """Find a specific product by style number and color name"""
+    logger.info(f"Looking for product with style {style_number} in color {color_name}")
+    
+    for category in self.product_tree.categories.values():
+        for product in category.products:
+            if product.get('style_number') == style_number:
+                product_color = product.get('color', '').lower()
+                if color_name.lower() in product_color or product_color in color_name.lower():
+                    logger.info(f"Found match: {product.get('product_name')} in {product.get('color')}")
+                    return product
+    
+    logger.warning(f"No product found with style {style_number} in color {color_name}")
+    return None
 
    def _find_cheaper_product(self, category, color, current_price, current_product_name):
     """Find a cheaper product in the same category and color."""

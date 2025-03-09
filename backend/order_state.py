@@ -55,6 +55,9 @@ class OrderState:
     sizes: Optional[Dict[str, int]] = None
     total_quantity: int = 0
     total_price: float = 0
+
+    color_options_style: Optional[str] = None
+    color_options_product_name: Optional[str] = None
     
     # Customer Information
     customer_info_collected: bool = False
@@ -72,6 +75,8 @@ class OrderState:
     
     # Order Status
     status: str = 'in_progress'  # in_progress, pending_review, approved, completed
+    color_options_shown: bool = False  # Add this line here
+    last_style_number: Optional[str] = None
     
     def update_product(self, details: Dict):
         """Update product selection details"""
@@ -324,7 +329,11 @@ class OrderState:
                 'status': self.payment_status
             },
             'status': self.status,
-            'lastActive': self.last_active
+            'lastActive': self.last_active,
+            'colorOptionsShown': self.color_options_shown, # Add this line
+            'colorOptionsStyle': self.color_options_style,
+            'colorOptionsProductName': self.color_options_product_name,
+            'lastStyleNumber': self.last_style_number
         }
         
         # Log payment URL specifically since it's causing issues
@@ -371,17 +380,21 @@ class OrderState:
             "total_quantity": self.total_quantity,
             "total_price": self.total_price,
             "customer_info_collected": self.customer_info_collected,
+            "last_style_number": self.last_style_number,
             "customer_name": self.customer_name,
             "shipping_address": self.shipping_address,
             "email": self.email,
             "received_by_date": self.received_by_date,
             "payment_info_collected": self.payment_info_collected,
+            "color_options_style": self.color_options_style,
+            "color_options_product_name": self.color_options_product_name,
             "payment_url": self.payment_url,
             "invoice_id": self.invoice_id,
             "invoice_number": self.invoice_number,
             "payment_status": self.payment_status,
             "status": self.status,
-            "last_active": self.last_active
+            "last_active": self.last_active,
+            "color_options_shown": self.color_options_shown
         }
     
     @classmethod

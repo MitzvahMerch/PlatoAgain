@@ -49,6 +49,11 @@ const createProductButtons = () => {
                 color: white;
             }
             
+            .color-options-button {
+            background-color: #4a90e2;
+            color: white;
+            }
+            
             .product-button svg {
                 margin-right: 8px;
                 width: 18px;
@@ -97,6 +102,17 @@ const createProductButtons = () => {
             Find Different Product
         `;
         
+        // Same Product, Different Color button
+        const colorOptionsButton = document.createElement('button');
+        colorOptionsButton.className = 'product-button color-options-button';
+        colorOptionsButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            Same Product, Different Color
+        `;
+        
         // Add event listeners
         uploadButton.addEventListener('click', () => {
             // Trigger the same action as the upload button in the chat
@@ -135,12 +151,55 @@ const createProductButtons = () => {
             container.style.opacity = '0.5';
             uploadButton.disabled = true;
             findProductButton.disabled = true;
+            if (colorOptionsButton.parentNode === container) {
+                colorOptionsButton.disabled = true;
+            }
         });
         
+        colorOptionsButton.addEventListener('click', () => {
+            // Get product info for the color options request
+            let productName = 'current product';
+            
+            if (productInfo) {
+                productName = productInfo.name || 'product';
+            }
+            
+            // Clear any existing text in the chat input
+            const chatInput = document.getElementById('chat-input');
+            chatInput.value = '';
+            
+            // Create a message that requests color options
+            let message = `Show me color options for this ${productName}. [SHOW_COLOR_OPTIONS]`;
+            
+            chatInput.value = message;
+            
+            // Send the message
+            document.getElementById('send-button').click();
+            
+            // Add a visual indication that the buttons have been used
+            container.style.opacity = '0.5';
+            uploadButton.disabled = true;
+            findProductButton.disabled = true;
+            colorOptionsButton.disabled = true;
+        });
         
         // Assemble and append
+        const colorWasSpecified = productInfo && (
+            productInfo.colorSpecified === true || 
+            (productInfo.color && productInfo.colorSpecified !== false)
+        );
+        
+        // Assemble and append in the desired order
         container.appendChild(uploadButton);
+        
+        // Add color options button in the middle (if it's needed)
+        if (!colorWasSpecified) {
+            container.appendChild(colorOptionsButton);
+        }
+        
+        // Add find product button last
         container.appendChild(findProductButton);
+        
         messageElement.appendChild(container);
     };
 
@@ -217,9 +276,14 @@ const createProductButtons = () => {
             // Try to extract color
             const colorMatch = text.match(/in a ([a-z]+) color/) || 
                               text.match(/in ([a-z]+) color/) ||
-                              text.match(/in ([a-z]+) red/);
+                              text.match(/in ([a-z]+)(?= \w)/i);
             if (colorMatch) {
                 productInfo.color = colorMatch[1];
+                // If we found a color in the message, set colorSpecified to true
+                productInfo.colorSpecified = true;
+            } else {
+                // No color found in the message
+                productInfo.colorSpecified = false;
             }
             
             return productInfo;
