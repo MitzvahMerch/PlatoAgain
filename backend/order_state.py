@@ -50,6 +50,10 @@ class OrderState:
     preview_url: Optional[str] = None  # URL to preview image
     rejected_products: List[Dict] = field(default_factory=list)
     
+    # New fields for product selection intent
+    original_intent: Dict = field(default_factory=lambda: {"category": None, "general_color": None, "requested_changes": []})
+    in_product_modification_flow: bool = False
+    
     # Quantities
     quantities_collected: bool = False
     sizes: Optional[Dict[str, int]] = None
@@ -75,7 +79,7 @@ class OrderState:
     
     # Order Status
     status: str = 'in_progress'  # in_progress, pending_review, approved, completed
-    color_options_shown: bool = False  # Add this line here
+    color_options_shown: bool = False
     last_style_number: Optional[str] = None
     
     def update_product(self, details: Dict):
@@ -92,6 +96,23 @@ class OrderState:
             self.adult_sizes = details['adult_sizes']
         if 'price' in details:
             self.price_per_item = float(details['price'].replace('$', ''))
+    
+    def update_original_intent(self, category: Optional[str] = None, general_color: Optional[str] = None):
+        """Store or update the original user intent for product selection"""
+        logger.info(f"Updating original intent: category='{category}', general_color='{general_color}'")
+        
+        if category:
+            self.original_intent["category"] = category
+        if general_color:
+            self.original_intent["general_color"] = general_color
+        
+        logger.info(f"Original intent updated: {self.original_intent}")
+    
+    def add_requested_change(self, change_request: str):
+        """Add a new requested change to the original intent"""
+        logger.info(f"Adding requested change: '{change_request}'")
+        self.original_intent["requested_changes"].append(change_request)
+        logger.info(f"Requested changes updated: {self.original_intent['requested_changes']}")
     
     def update_design(self, design_path: str, filename: str = None, file_type: str = None, file_size: int = None, side: str = 'front'):
         """Update design information - now supports multiple designs"""
@@ -293,6 +314,12 @@ class OrderState:
                 'category': self.product_category,
                 'pricePerItem': self.price_per_item
             },
+            'originalIntent': {
+                'category': self.original_intent.get('category'),
+                'generalColor': self.original_intent.get('general_color'),
+                'requestedChanges': self.original_intent.get('requested_changes', [])
+            },
+            'inProductModificationFlow': self.in_product_modification_flow,
             'designInfo': {
                 'uploaded': self.design_uploaded,
                 'designs': designs_list,
@@ -330,7 +357,7 @@ class OrderState:
             },
             'status': self.status,
             'lastActive': self.last_active,
-            'colorOptionsShown': self.color_options_shown, # Add this line
+            'colorOptionsShown': self.color_options_shown,
             'colorOptionsStyle': self.color_options_style,
             'colorOptionsProductName': self.color_options_product_name,
             'lastStyleNumber': self.last_style_number
@@ -376,6 +403,8 @@ class OrderState:
             "placement": self.placement,
             "preview_url": self.preview_url,
             "quantities_collected": self.quantities_collected,
+            "original_intent": self.original_intent,
+            "in_product_modification_flow": self.in_product_modification_flow,
             "sizes": self.sizes,
             "total_quantity": self.total_quantity,
             "total_price": self.total_price,
@@ -422,5 +451,17 @@ class OrderState:
         for key, value in data.items():
             if hasattr(order, key):
                 setattr(order, key, value)
+        
+        # Handle original_intent if it exists
+        if 'original_intent' in data:
+            order.original_intent = data['original_intent']
+        else:
+            order.original_intent = {"category": None, "general_color": None, "requested_changes": []}
+
+        # Handle in_product_modification_flow if it exists
+        if 'in_product_modification_flow' in data:
+            order.in_product_modification_flow = data['in_product_modification_flow']
+        else:
+            order.in_product_modification_flow = False
                 
         return order

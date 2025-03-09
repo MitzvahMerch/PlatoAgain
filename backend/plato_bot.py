@@ -264,24 +264,6 @@ class PlatoBot:
             is_special_reselection
         )
         
-        # Store original preferences when we initially query a product
-        if not is_new_product_request and order_state.product_details is None:
-            # This is a fresh product request - store original preferences
-            if not hasattr(order_state, 'original_preferences'):
-                order_state.original_preferences = {}
-                
-            # Extract key preferences from the message
-            if "red" in message.lower():
-                order_state.original_preferences['color'] = "Red"
-            elif "blue" in message.lower():
-                order_state.original_preferences['color'] = "Blue"
-            elif "black" in message.lower():
-                order_state.original_preferences['color'] = "Black"
-            # Add more colors as needed
-                
-            logger.info(f"Stored original preferences: {order_state.original_preferences}")
-            self.conversation_manager.update_order_state(user_id, order_state)
-        
         # Handle the special reselection request
         if is_special_reselection and order_state.product_details:
             # Extract product details for better messaging
@@ -299,6 +281,10 @@ class PlatoBot:
                     order_state.rejected_products.append(previous_product)
             else:
                 order_state.rejected_products = [previous_product]
+            
+            # Track that we're in a product modification flow
+            order_state.in_product_modification_flow = True
+            self.conversation_manager.update_order_state(user_id, order_state)
             
             # Ask for specific preferences
             preference_prompt = prompts.get_product_preference_inquiry_prompt(previous_product)
@@ -321,6 +307,11 @@ class PlatoBot:
         
         # Process preference-informed selection following a reselection request
         if is_new_product_request and not is_special_reselection or is_cheaper_request:
+            # When handling response to preference inquiry
+            if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
+                # Add the current request to requested_changes
+                order_state.add_requested_change(message)
+            
             # This is a response to our preference inquiry or a regular new product request
             if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
                 previous_product = order_state.rejected_products[-1]
@@ -387,6 +378,14 @@ class PlatoBot:
                             "material": cheaper_product.get('material', '')
                         }
                         
+                        # Add a UI control flag to hide the color button when appropriate
+                        show_color_button = False
+                        if not hasattr(order_state, 'original_intent') or not order_state.original_intent['general_color']:
+                            show_color_button = True
+                        
+                        # Add this flag to the productInfo
+                        product_info["showColorButton"] = show_color_button
+                        
                         # Return the cheaper product
                         return {
                             "text": response_text,
@@ -452,15 +451,83 @@ class PlatoBot:
             {"role": "user", "content": context_message}
         ]
         
+        # Preserve original intent when processing material change
+        if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
+            # Before calling Claude for analysis, create a modified prompt that
+            # enforces keeping the original category
+            if hasattr(order_state, 'original_intent') and order_state.original_intent['category']:
+                original_category = order_state.original_intent['category']
+                
+                # Force original category in the analysis prompt
+                system_content = analysis_prompt[0]["content"]
+                system_content += f"\n\nIMPORTANT: The user originally requested a {original_category}, so make sure to maintain this product category in your analysis unless they explicitly ask for a different category."
+                analysis_prompt[0]["content"] = system_content
+        
         # Skip product selection if this was just an inquiry
         if is_special_reselection:
             # We've already returned the preference inquiry response
             return
-            
+        
         enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
         logger.info(f"Enhanced query: {enhanced_query}")
         
-        # Check if color is missing but we have an original preference
+        # Now override the category in the enhanced query if needed for product modification flow
+        if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
+            if hasattr(order_state, 'original_intent') and order_state.original_intent['category']:
+                original_category = order_state.original_intent['category']
+                
+                # Extract category line and replace it
+                query_lines = enhanced_query.split('\n')
+                for i, line in enumerate(query_lines):
+                    if line.lower().startswith('category:'):
+                        query_lines[i] = f"Category: {original_category}"
+                        break
+                
+                enhanced_query = '\n'.join(query_lines)
+                logger.info(f"Modified query to maintain original category: {enhanced_query}")
+                
+            # Also try to maintain original color if available
+            if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
+                original_color = order_state.original_intent['general_color']
+                
+                # Check if color is specified in the enhanced query
+                color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
+                
+                if not color_specified:
+                    # If no color specified, add the original color
+                    query_lines = enhanced_query.split('\n')
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('color:'):
+                            query_lines[i] = f"Color: {original_color}"
+                            break
+                    
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Modified query to maintain original color: {enhanced_query}")
+        
+        # Store original intent for future reference (first request only)
+        if not is_new_product_request and order_state.product_details is None:
+            # Extract category from Claude's analysis
+            category = None
+            if "category:" in enhanced_query.lower():
+                category_line = [line for line in enhanced_query.split('\n') if line.lower().startswith('category:')]
+                if category_line:
+                    category = category_line[0].split(':', 1)[1].strip()
+            
+            # Extract general color term
+            general_color = None
+            if "color:" in enhanced_query.lower():
+                color_line = [line for line in enhanced_query.split('\n') if line.lower().startswith('color:')]
+                if color_line:
+                    general_color = color_line[0].split(':', 1)[1].strip()
+                    if general_color.lower() == 'none':
+                        general_color = None
+            
+            # Update original intent
+            order_state.update_original_intent(category=category, general_color=general_color)
+            logger.info(f"Stored original intent: category='{category}', general_color='{general_color}'")
+            self.conversation_manager.update_order_state(user_id, order_state)
+        
+        # Check if color is missing but we have an original preference from legacy code
         color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
         
         if not color_specified and hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
@@ -499,9 +566,12 @@ class PlatoBot:
         # make sure we're using the original preferences
         if "100% cotton" in message.lower() or "cotton" in message.lower() or "polyester" in message.lower():
             if "red" not in message.lower() and "blue" not in message.lower() and "black" not in message.lower():
-                # Get rejected product color or original preference
+                # First check for original intent
                 preserved_color = None
-                if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
+                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
+                    preserved_color = order_state.original_intent['general_color']
+                # Fallback to rejected product color or legacy original preference
+                elif hasattr(order_state, 'rejected_products') and order_state.rejected_products:
                     preserved_color = order_state.rejected_products[-1].get('color')
                 elif hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
                     preserved_color = order_state.original_preferences['color']
@@ -575,6 +645,10 @@ class PlatoBot:
         
         # Update OrderState
         order_state.update_product(product_data)
+        
+        # Reset product modification flow flag if we've successfully selected a new product
+        order_state.in_product_modification_flow = False
+        
         self.conversation_manager.update_order_state(user_id, order_state)
 
         # Generate response using Claude
@@ -594,6 +668,11 @@ class PlatoBot:
 
         response = utils.clean_response(response)
 
+        # Add a UI control flag to hide the color button when appropriate
+        show_color_button = False
+        if not hasattr(order_state, 'original_intent') or not order_state.original_intent.get('general_color'):
+            show_color_button = True
+
         # Create product info for the action, including color specification flag
         product_info = {
             "name": details["product_name"],
@@ -602,7 +681,8 @@ class PlatoBot:
             "category": details["category"],
             "style_number": details["style_number"],
             "material": details.get("material", ""),
-            "colorSpecified": color_specified  # Add flag to indicate if color was specified
+            "colorSpecified": color_specified,  # Add flag to indicate if color was specified
+            "showColorButton": show_color_button  # Add flag to control color button visibility
         }
 
         # Return the response with product selection action
