@@ -504,28 +504,28 @@ const createShippingForm = () => {
             const minShippingDate = new Date(today);
             minShippingDate.setDate(today.getDate() + 11);
             
-            // Calculate pricing tiers - FLIPPED ORDER AS REQUESTED
-            // $$$: today + 11-12 days (closest to today, highest cost)
-            const tier3StartDate = new Date(today);
-            tier3StartDate.setDate(today.getDate() + 11);
-            const tier3EndDate = new Date(today);
-            tier3EndDate.setDate(today.getDate() + 12);
+            // Calculate standard free shipping date (today + 17 days)
+            const freeShippingDate = new Date(today);
+            freeShippingDate.setDate(today.getDate() + 17);
             
-            // $$: today + 13-14 days
-            const tier2StartDate = new Date(today);
-            tier2StartDate.setDate(today.getDate() + 13);
-            const tier2EndDate = new Date(today);
-            tier2EndDate.setDate(today.getDate() + 14);
-            
-            // $: today + 15-16 days (closest to free shipping, lowest cost)
+            // Calculate pricing tiers
+            // Tier 1 (+10%): today + 15-16 days (closest to free shipping, lowest cost)
             const tier1StartDate = new Date(today);
             tier1StartDate.setDate(today.getDate() + 15);
             const tier1EndDate = new Date(today);
             tier1EndDate.setDate(today.getDate() + 16);
             
-            // Calculate standard free shipping date (today + 17 days)
-            const freeShippingDate = new Date(today);
-            freeShippingDate.setDate(today.getDate() + 17);
+            // Tier 2 (+20%): today + 13-14 days (medium cost)
+            const tier2StartDate = new Date(today);
+            tier2StartDate.setDate(today.getDate() + 13);
+            const tier2EndDate = new Date(today);
+            tier2EndDate.setDate(today.getDate() + 14);
+            
+            // Tier 3 (+30%): today + 11-12 days (closest to today, highest cost)
+            const tier3StartDate = new Date(today);
+            tier3StartDate.setDate(today.getDate() + 11);
+            const tier3EndDate = new Date(today);
+            tier3EndDate.setDate(today.getDate() + 12);
             
             // Helper functions for date comparisons
             const isDateBetween = (date, startDate, endDate) => {
@@ -566,26 +566,26 @@ const createShippingForm = () => {
                     if (normalizedDayDate >= freeShippingDate) {
                         dayDiv.style.border = '2px solid #4CAF50'; // Green border for free shipping
                         dayDiv.style.backgroundColor = 'rgba(76, 175, 80, 0.2)'; // Light green background
-                        shippingTitle = 'Free standard shipping!';
+                        shippingTitle = 'Standard shipping (no additional cost)';
                     }
-                    // Check for tier 1 ($) - 15-16 days (lowest cost)
+                    // Check for tier 1 (+10%) - 15-16 days (lowest additional cost)
                     else if (isDateBetween(normalizedDayDate, tier1StartDate, tier1EndDate)) {
-                        costIndicator = '$';
-                        shippingTitle = 'Express shipping: Low cost';
+                        costIndicator = '+10% Fee';
+                        shippingTitle = 'Express shipping: +10% total order cost';
                         dayDiv.style.border = '1px solid #FFD700'; // Gold border
                         dayDiv.style.backgroundColor = 'rgba(255, 215, 0, 0.1)'; // Light gold background
                     }
-                    // Check for tier 2 ($$) - 13-14 days (medium cost)
+                    // Check for tier 2 (+20%) - 13-14 days (medium additional cost)
                     else if (isDateBetween(normalizedDayDate, tier2StartDate, tier2EndDate)) {
-                        costIndicator = '$$';
-                        shippingTitle = 'Express shipping: Medium cost';
+                        costIndicator = '+20% Fee';
+                        shippingTitle = 'Express shipping: +20% total order cost';
                         dayDiv.style.border = '1px solid #FFA500'; // Orange border
                         dayDiv.style.backgroundColor = 'rgba(255, 165, 0, 0.1)'; // Light orange background
                     }
-                    // Check for tier 3 ($$$) - 11-12 days (highest cost)
+                    // Check for tier 3 (+30%) - 11-12 days (highest additional cost)
                     else if (isDateBetween(normalizedDayDate, tier3StartDate, tier3EndDate)) {
-                        costIndicator = '$$$';
-                        shippingTitle = 'Express shipping: Premium cost';
+                        costIndicator = '+30% Fee';
+                        shippingTitle = 'Express shipping: +30% total order cost';
                         dayDiv.style.border = '1px solid #FF4500'; // Red-orange border
                         dayDiv.style.backgroundColor = 'rgba(255, 69, 0, 0.1)'; // Light red-orange background
                     }
@@ -621,6 +621,17 @@ const createShippingForm = () => {
                         // Hide date picker
                         datePickerContainer.style.display = 'none';
                         
+                        // Show express shipping alert if applicable
+                        if (costIndicator) {
+                            showExpressShippingAlert(costIndicator, shippingTitle);
+                        } else {
+                            // Remove any existing alert
+                            const existingAlert = form.querySelector('.express-shipping-alert');
+                            if (existingAlert) {
+                                existingAlert.remove();
+                            }
+                        }
+                        
                         // Re-render to update active state
                         renderCalendar();
                     });
@@ -638,6 +649,53 @@ const createShippingForm = () => {
                 dayDiv.className = 'date-picker-day other-month';
                 dayDiv.textContent = i;
                 daysContainer.appendChild(dayDiv);
+            }
+        };
+        
+        // Helper function to show express shipping alert when date is selected
+        const showExpressShippingAlert = (costIndicator, shippingTitle) => {
+            // Remove any existing alert
+            const existingAlert = form.querySelector('.express-shipping-alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+            
+            // Create the alert element
+            const alertElement = document.createElement('div');
+            alertElement.className = 'express-shipping-alert';
+            alertElement.style.cssText = `
+                margin-top: 10px;
+                padding: 10px;
+                background-color: rgba(255, 152, 0, 0.2);
+                border: 1px solid #FF9800;
+                border-radius: 4px;
+                font-size: 14px;
+                color: white;
+                text-align: center;
+            `;
+            
+            // Extract percentage from the cost indicator
+            const percentage = costIndicator.match(/\d+/)[0]; // Extract the number
+            
+            // Calculate the actual cost if we have order details
+            let costMessage = '';
+            if (orderDetails && orderDetails.total) {
+                const orderTotal = parseFloat(orderDetails.total);
+                const expressCharge = orderTotal * (parseInt(percentage) / 100);
+                const newTotal = orderTotal + expressCharge;
+                costMessage = ` (approximately $${expressCharge.toFixed(2)}, making the new total $${newTotal.toFixed(2)})`;
+            }
+            
+            alertElement.innerHTML = `
+                <strong>Express Shipping Selected</strong><br>
+                This delivery date adds ${costIndicator} to your order total${costMessage}.<br>
+                <span style="font-size: 12px;">The additional charge covers expedited manufacturing and shipping.</span>
+            `;
+            
+            // Insert after the date picker field
+            const dateGroup = form.querySelector('.shipping-form-group:nth-child(4)');
+            if (dateGroup) {
+                dateGroup.appendChild(alertElement);
             }
         };
         

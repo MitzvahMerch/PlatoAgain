@@ -974,6 +974,11 @@ class PlatoBot:
                 )
                 logger.info(f"Form submission: Saved complete order to Firestore for user {user_id}")
 
+                # Prepare express shipping info for the response
+                express_info = ""
+                if hasattr(order_state, 'express_shipping_percentage') and order_state.express_shipping_percentage > 0:
+                    express_info = f"\n\nYour order includes a {order_state.express_shipping_percentage}% express shipping charge (${order_state.express_shipping_charge:.2f}) for your requested delivery date."
+                
                 # Format the ORDER_COMPLETION_PROMPT with actual values for form submission
                 logger.info("Form submission: Formatting order completion prompt")
                 formatted_prompt = prompts.ORDER_COMPLETION_PROMPT.format(
@@ -988,9 +993,14 @@ class PlatoBot:
                     payment_url=order_state.payment_url or "Unknown Payment URL"
                 )
                 
+                # Add express shipping information to the prompt
+                if express_info:
+                    formatted_prompt += f"\n\nThe order includes an express shipping charge of {order_state.express_shipping_percentage}% (${order_state.express_shipping_charge:.2f}) for the requested early delivery date. Make sure to mention this in your response."
+                
                 # Log formatted prompt values
                 logger.info(f"Form submission: Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
                 logger.info(f"Form submission: Prompt received by date value: {order_state.received_by_date or 'Not specified'}")
+                logger.info(f"Form submission: Express shipping charge: {getattr(order_state, 'express_shipping_charge', 0)}")
                 
                 response = self.claude.call_api([
                     {"role": "system", "content": formatted_prompt},
@@ -998,6 +1008,13 @@ class PlatoBot:
                 ], temperature=0.7)
                 
                 response_text = utils.clean_response(response)
+                
+                # If response doesn't mention express shipping but it was applied, add it
+                if (hasattr(order_state, 'express_shipping_percentage') and 
+                    order_state.express_shipping_percentage > 0 and 
+                    "express shipping" not in response_text.lower()):
+                    response_text += f"\n\nNote: Your order includes a {order_state.express_shipping_percentage}% express shipping charge (${order_state.express_shipping_charge:.2f}) for your requested early delivery date."
+                
                 return {"text": response_text, "images": []}
             except Exception as e:
                 logger.error(f"Form submission: Failed to process completed order: {str(e)}", exc_info=True)
@@ -1048,11 +1065,18 @@ class PlatoBot:
             name = extracted_info.get('name') if extracted_info.get('name') != 'none' else order_state.customer_name
             address = extracted_info.get('address') if extracted_info.get('address') != 'none' else order_state.shipping_address
             email = extracted_info.get('email') if extracted_info.get('email') != 'none' else order_state.email
+            received_by_date = extracted_info.get('received_by_date') if extracted_info.get('received_by_date') != 'none' else order_state.received_by_date
             
-            if any([name, address, email]):
-                logger.info(f"Updating order state with: name={name}, address={address}, email={email}")
-                order_state.update_customer_info(name, address, email)
+            if any([name, address, email, received_by_date]):
+                logger.info(f"Updating order state with: name={name}, address={address}, email={email}, received_by_date={received_by_date}")
+                order_state.update_customer_info(name, address, email, received_by_date)
                 self.conversation_manager.update_order_state(user_id, order_state)
+
+            # Check for express shipping charges to include in the response
+            express_info = ""
+            if hasattr(order_state, 'express_shipping_percentage') and order_state.express_shipping_percentage > 0:
+                express_info = f"\n\nYour order includes a {order_state.express_shipping_percentage}% express shipping charge (${order_state.express_shipping_charge:.2f}) for your requested delivery date."
+                logger.info(f"Express shipping charge applied: {order_state.express_shipping_percentage}% (${order_state.express_shipping_charge:.2f})")
 
             # Log order state completeness
             logger.info(f"Order state complete check: {order_state.is_complete()}")
@@ -1097,6 +1121,10 @@ class PlatoBot:
                         payment_url=order_state.payment_url or "Unknown Payment URL"
                     )
                     
+                    # Add express shipping information to the prompt
+                    if express_info:
+                        formatted_prompt += f"\n\nThe order includes an express shipping charge of {order_state.express_shipping_percentage}% (${order_state.express_shipping_charge:.2f}) for the requested early delivery date. Make sure to mention this in your response."
+                    
                     # Log formatted prompt values
                     logger.info(f"Prompt payment URL value: {order_state.payment_url or 'Unknown Payment URL'}")
                     logger.info(f"Prompt received by date value: {order_state.received_by_date or 'Not specified'}")
@@ -1137,6 +1165,13 @@ class PlatoBot:
                 ], temperature=0.7)
 
             response_text = utils.clean_response(response)
+            
+            # If response doesn't mention express shipping but it was applied, add it
+            if (hasattr(order_state, 'express_shipping_percentage') and 
+                order_state.express_shipping_percentage > 0 and 
+                "express shipping" not in response_text.lower()):
+                response_text += f"\n\nNote: Your order includes a {order_state.express_shipping_percentage}% express shipping charge (${order_state.express_shipping_charge:.2f}) for your requested early delivery date."
+            
             return {"text": response_text, "images": []}
         else:
             # No valid information extracted

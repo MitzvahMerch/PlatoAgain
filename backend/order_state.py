@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,11 @@ class OrderState:
     customer_name: Optional[str] = None
     shipping_address: Optional[str] = None
     email: Optional[str] = None
-    received_by_date: Optional[str] = None  # New field for target delivery date
+    received_by_date: Optional[str] = None  # Field for target delivery date
+    
+    # Express shipping charge tracking
+    express_shipping_charge: float = 0  # Additional charge for express shipping
+    express_shipping_percentage: float = 0  # Percentage applied for express shipping
     
     # Payment Information
     payment_info_collected: bool = False
@@ -157,7 +161,7 @@ class OrderState:
         logger.info(f"Design added successfully. Total designs: {len(self.designs)}, Logo count: {self.logo_count}")
     
     def update_total_price(self):
-        """Calculate total price including base price and logo charges"""
+        """Calculate total price including base price, logo charges, and express shipping charges"""
         # Verify logo count matches the number of designs with has_logo=True
         logo_designs = sum(1 for design in self.designs if getattr(design, 'has_logo', True))
         
@@ -165,11 +169,26 @@ class OrderState:
             logger.warning(f"Logo count mismatch: tracked={self.logo_count}, actual={logo_designs}. Correcting...")
             self.logo_count = logo_designs
         
+        # Calculate base product price
         base_price = self.total_quantity * self.price_per_item
+        
         # Calculate logo charges: $1.50 per logo PER ITEM
         logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
-        self.total_price = base_price + logo_charges
-        logger.info(f"Updated total price: ${self.total_price:.2f} (base: ${base_price:.2f}, logo charges: ${logo_charges:.2f})")
+        
+        # Calculate subtotal (before express shipping)
+        subtotal = base_price + logo_charges
+        
+        # Apply express shipping percentage if applicable
+        if self.express_shipping_percentage > 0:
+            self.express_shipping_charge = subtotal * (self.express_shipping_percentage / 100)
+            logger.info(f"Applied {self.express_shipping_percentage}% express shipping charge: ${self.express_shipping_charge:.2f}")
+        else:
+            self.express_shipping_charge = 0
+            
+        # Calculate final total price
+        self.total_price = subtotal + self.express_shipping_charge
+        
+        logger.info(f"Updated total price: ${self.total_price:.2f} (base: ${base_price:.2f}, logo charges: ${logo_charges:.2f}, express shipping: ${self.express_shipping_charge:.2f})")
     
     def update_placement(self, placement: str, preview_url: Optional[str] = None, design_index: int = -1):
         """Update design placement and preview for a specific design"""
@@ -221,6 +240,43 @@ class OrderState:
             # Use update_total_price to calculate with logo charges
             self.update_total_price()
     
+    def _calculate_express_shipping_percentage(self, received_by_date: str) -> float:
+        """Calculate the express shipping percentage based on received_by_date"""
+        try:
+            # Parse the received_by_date (MM/DD/YYYY format)
+            if not received_by_date:
+                return 0
+                
+            received_date = datetime.strptime(received_by_date, "%m/%d/%Y")
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # Calculate free standard shipping date (today + 17 days)
+            free_shipping_date = today + timedelta(days=17)
+            
+            # Calculate days before free shipping date
+            days_before_free = (free_shipping_date - received_date).days
+            
+            # Apply appropriate shipping charge based on days before free shipping date
+            if days_before_free <= 0:
+                # Standard or later shipping - no additional charge
+                return 0
+            elif days_before_free <= 2:
+                # 1-2 days before suggested - 10% charge
+                return 10
+            elif days_before_free <= 4:
+                # 3-4 days before suggested - 20% charge
+                return 20
+            elif days_before_free <= 6:
+                # 5-6 days before suggested - 30% charge
+                return 30
+            else:
+                # More than 6 days before free shipping - not allowed
+                logger.warning(f"Requested delivery date {received_by_date} is too early (more than 6 days before free shipping)")
+                return 0
+        except Exception as e:
+            logger.error(f"Error calculating express shipping percentage: {e}")
+            return 0
+    
     def update_customer_info(self, name: str, address: str, email: str, received_by_date: str = None):
         """Update customer information"""
         logger.info(f"Updating customer info: name='{name}', address='{address}', email='{email}', received_by_date='{received_by_date}'")
@@ -229,15 +285,27 @@ class OrderState:
         if self.customer_name or self.shipping_address or self.email or self.received_by_date:
             logger.info(f"Previous customer info: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}', received_by_date='{self.received_by_date}'")
         
-        # Update the values
+        # Update the customer information values
         self.customer_info_collected = True
         self.customer_name = name
         self.shipping_address = address
         self.email = email
         self.received_by_date = received_by_date
         
+        # Calculate and apply express shipping percentage based on received_by_date
+        if received_by_date:
+            old_percentage = self.express_shipping_percentage
+            self.express_shipping_percentage = self._calculate_express_shipping_percentage(received_by_date)
+            
+            # If the percentage changed and quantities are collected, update the total price
+            if old_percentage != self.express_shipping_percentage and self.quantities_collected:
+                logger.info(f"Express shipping percentage changed from {old_percentage}% to {self.express_shipping_percentage}%")
+                self.update_total_price()
+        
         logger.info(f"Customer info updated successfully, customer_info_collected={self.customer_info_collected}")
         logger.info(f"Updated values: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}', received_by_date='{self.received_by_date}'")
+        if self.express_shipping_percentage > 0:
+            logger.info(f"Express shipping fee applied: {self.express_shipping_percentage}% (${self.express_shipping_charge:.2f})")
 
     def add_rejected_product(self, product_info: Dict):
         """Add a product to the rejected products list"""
@@ -398,6 +466,10 @@ class OrderState:
                 'logoCharges': logo_charges,
                 'logoChargePerItem': self.logo_charge_per_item
             },
+            'expressShippingInfo': {
+                'percentage': self.express_shipping_percentage,
+                'charge': self.express_shipping_charge
+            },
             'customerInfo': {
                 'collected': self.customer_info_collected,
                 'name': self.customer_name,
@@ -472,6 +544,8 @@ class OrderState:
             "total_price": self.total_price,
             "logo_charges": logo_charges,
             "logo_charge_per_item": self.logo_charge_per_item,
+            "express_shipping_percentage": self.express_shipping_percentage,
+            "express_shipping_charge": self.express_shipping_charge,
             "customer_info_collected": self.customer_info_collected,
             "last_style_number": self.last_style_number,
             "customer_name": self.customer_name,
@@ -529,10 +603,16 @@ class OrderState:
         else:
             order.in_product_modification_flow = False
         
+        # Ensure express shipping fields are present
+        if not hasattr(order, 'express_shipping_percentage') or order.express_shipping_percentage is None:
+            order.express_shipping_percentage = 0
+        if not hasattr(order, 'express_shipping_charge') or order.express_shipping_charge is None:
+            order.express_shipping_charge = 0
+        
         # Ensure logo_count is always set correctly based on designs
         if order.designs:
             logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
             if order.logo_count != logo_designs:
                 order.logo_count = logo_designs
                 
-        return order
+        return order 
