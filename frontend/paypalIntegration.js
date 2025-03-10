@@ -146,34 +146,31 @@ const createPayPalIntegration = () => {
     // Extract order details from the message
     const extractOrderDetails = (messageText) => {
         // Extract total price
-        const priceRegex = /\$(\d+\.\d{2})/;
+        const priceRegex = /totaling\s+\$(\d+\.\d{2})/i;
         const priceMatch = messageText.match(priceRegex);
         const totalPrice = priceMatch ? priceMatch[1] : '0.00';
         
         // Extract customer name
-        const nameRegex = /Thanks\s+([^,!.]+)/i;
+        const nameRegex = /Dear\s+([^,]+),/i;
         const nameMatch = messageText.match(nameRegex);
         const customerName = nameMatch ? nameMatch[1].trim() : 'Customer';
         
-        // Extract quantity and product info (simplified)
-        const itemsRegex = /order\s+of\s+(.+?)(?=\s+totaling)/i;
-    const itemsMatch = messageText.match(itemsRegex);
-    const items = itemsMatch ? itemsMatch[1].trim() : 'items';
-    
+        // Extract quantity and product info
+        const orderRegex = /order\s+of\s+(.+?)\s+Custom\s+(.+?),\s+totaling/i;
+        const orderMatch = messageText.match(orderRegex);
         
-        // Extract product info
-        const productRegex = /of\s+(.+?)(?=\.\s+Total|\s+for\s+\$)/i;
-        const productMatch = messageText.match(productRegex);
-        const productInfo = productMatch ? productMatch[1].trim() : 'Custom Product';
-
-        const dateRegex = /by\s+([A-Za-z]+\s+\d+,\s+\d{4})/i;
+        const quantityInfo = orderMatch ? orderMatch[1].trim() : 'undefined';
+        const productInfo = orderMatch ? orderMatch[2].trim() : 'Custom Product';
+        
+        // Extract delivery date
+        const dateRegex = /by\s+([^,]+),\s+as\s+requested/i;
         const dateMatch = messageText.match(dateRegex);
         const receivedByDate = dateMatch ? dateMatch[1].trim() : 'Standard delivery';
         
         return {
             totalPrice,
             customerName,
-            items,
+            quantityInfo,
             productInfo,
             receivedByDate
         };
@@ -329,7 +326,7 @@ const createPayPalIntegration = () => {
 orderSummary.className = 'order-summary';
 orderSummary.innerHTML = `
     <h3>Order Summary</h3>
-    <p><strong>Items:</strong> ${orderDetails.quantityInfo} in ${orderDetails.productInfo.split(', totaling')[0]}</p>
+    <p><strong>Items:</strong> ${orderDetails.quantityInfo} Custom ${orderDetails.productInfo}</p>
     <p><strong>Receive By:</strong> ${orderDetails.receivedByDate || 'Standard delivery timeframe'}</p>
     <p><strong>Total:</strong> $${orderDetails.totalPrice}</p>
 `;

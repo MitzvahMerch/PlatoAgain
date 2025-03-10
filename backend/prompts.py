@@ -213,13 +213,14 @@ Customer Information:
 - Address: {shipping_address}
 - Requested delivery by: {received_by_date}
 
-Provide a friendly confirmation that:
-1. Thanks {customer_name} for their order of {quantities} of {product_details} for {total_price}
-2. Informs them they will receive the order by their {received_by_date} 
-3. Informs them that if they have any questions don't hesitate to contact us at "platosprints@gmail.com"
-4. Ends the conversation warmly with the phrase "Warm regards, Plato"
+IMPORTANT: In your response, make sure to pluralize the product category to follow gramatical norms, (e.g., "T-shirt" becomes "T-shirts", "Sweatshirt" becomes "Sweatshirts", etc)
 
-Keep it concise but professional."""
+Generate a confirmation with the EXACT following format, maintaining these markers and structure:
+
+Dear {customer_name}, Thank you for your order of {quantities}  Custom {product_details}, totaling {total_price}. We confirm your order will be delivered to {shipping_address} by {received_by_date}, as requested. Should you have any questions about your order, please don't hesitate to contact us at platosprints@gmail.com. Warm regards, Plato
+
+Warm regards, Plato
+"""
 
 PRODUCT_RESELECTION_PROMPT = """
 You are Plato, a print shop AI assistant being asked to find an ALTERNATIVE product option. 
