@@ -159,26 +159,78 @@ class ProductDecisionTree:
             if match:
                 product_name = match.group(1).strip()
                 color = match.group(2).strip()
+
+                # Log Claude's response and the extracted values
+                logger.info(f"Claude's raw selection: SELECTED: {product_name} in {color}")
+                logger.info(f"Claude's response excerpt: {response[-200:]}")
+
+                for idx, product in enumerate(products[:5]):  # Log first 5 products for brevity
+                    logger.info(f"Product {idx}: '{product['product_name']}' in '{product['color']}'")
                 
                 # Find the matching product
                 for product in products:
-                    if product['product_name'] == product_name and product['color'] == color:
+                    # Improved normalization - remove punctuation, lowercase, and strip spaces
+                    product_name_norm = re.sub(r'[^\w\s]', '', product['product_name']).lower().strip()
+                    product_color_norm = re.sub(r'[^\w\s]', '', product['color']).lower().strip()
+                    match_name_norm = re.sub(r'[^\w\s]', '', product_name).lower().strip()
+                    match_color_norm = re.sub(r'[^\w\s]', '', color).lower().strip()
+                    
+                    # Exact match check with normalized strings
+                    if product_name_norm == match_name_norm and product_color_norm == match_color_norm:
                         return product, response
-                    # Try partial matching if exact match fails
-                    elif product_name in product['product_name'] and color in product['color']:
+                    
+                    # Partial match check as fallback
+                    elif match_name_norm in product_name_norm and match_color_norm in product_color_norm:
                         return product, response
                 
                 logger.warning(f"Could not find exact product match for '{product_name}' in '{color}'")
+                
+                # If no exact match found but color was specified, try to find product in the specified color
+                if 'color' in preferences:
+                    requested_color = preferences['color'].lower()
+                    color_matches = []
+                    
+                    logger.info(f"Trying to find color match for: {requested_color}")
+                    for product in products:
+                        product_color = product['color'].lower()
+                        if requested_color in product_color or any(word in product_color for word in requested_color.split()):
+                            logger.info(f"Found color match: {product['product_name']} in {product['color']}")
+                            color_matches.append(product)
+                    
+                    if color_matches:
+                        # Return the first color match
+                        logger.info(f"Fallback to color match: {color_matches[0]['product_name']} in {color_matches[0]['color']}")
+                        return color_matches[0], "Fallback to color match: No exact product match found, but matched requested color."
             else:
                 logger.warning(f"Could not parse product selection from Claude's response")
                 
         except Exception as e:
             logger.error(f"Error in Claude product selection: {str(e)}")
             response = f"Error: {str(e)}"
+        
+        # Improved fallback logic - try to match any specified preferences
+        if products:
+            # Try to find a product matching the color first if specified
+            if 'color' in preferences:
+                requested_color = preferences['color'].lower()
+                for product in products:
+                    if requested_color in product['color'].lower():
+                        logger.warning(f"Fallback to color match: {product['product_name']} in {product['color']}")
+                        return product, "Fallback to color match"
             
-        # Fallback to first product if no match found
-        logger.warning(f"Falling back to first product in category")
-        return (products[0], response) if products else (None, response)
+            # Try to find a product matching the material if specified
+            if 'material' in preferences:
+                requested_material = preferences['material'].lower()
+                for product in products:
+                    if requested_material in product['material'].lower():
+                        logger.warning(f"Fallback to material match: {product['product_name']} with {product['material']}")
+                        return product, "Fallback to material match"
+            
+            # Last resort - return first product in category
+            logger.warning(f"Fallback to first product in category: {products[0]['product_name']}")
+            return products[0], "Fallback to first product in category"
+        
+        return None, response
     
     def select_product(self, query: str, sonar_analysis: str) -> Optional[Dict]:
         """
@@ -491,7 +543,7 @@ class ProductDecisionTree:
         # Hoodies category (maps to "Sweatshirt" in Claude)
         self.categories['hoodie'] = ProductCategory('Hoodies', claude_client=self.claude_client)
         
-        # Hanes - Ecosmart Hooded Sweatshirt
+        # Hanes Ecosmart Hooded Sweatshirt
         hanes_hoodie_colors = [
             "White", "Black", "Ash", "Carolina_Blue", "Charcoal_Heather", "Deep_Forest", 
             "Deep_Red", "Deep_Royal", "Gold", "Heather_Navy", "Heather_Red", "Light_Blue", 
@@ -501,7 +553,7 @@ class ProductDecisionTree:
         for color in hanes_hoodie_colors:
             self.categories['hoodie'].add_product({
                 'style_number': 'P170',
-                'product_name': 'Hanes - Ecosmart Hooded Sweatshirt',
+                'product_name': 'Hanes Ecosmart Hooded Sweatshirt',
                 'color': color.replace("_", " "),
                 'price': '$19.40',
                 'material': '50/50 cotton/polyester',
