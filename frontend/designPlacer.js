@@ -593,6 +593,37 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             fontSize: '14px'
         }
     }, 'Drag to move, drag corners to resize');
+
+    const closeButton = React.createElement('button', {
+        onClick: () => {
+            window.placementModal.hide();
+            // Reset the file input
+            const fileInput = document.getElementById('image-upload');
+            if (fileInput) fileInput.value = '';
+            // Reset upload button appearance
+            const uploadButton = document.querySelector('.chat-upload-button svg');
+            if (uploadButton) {
+                uploadButton.innerHTML = `
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                `;
+                uploadButton.style.color = 'var(--secondary-color)';
+            }
+        },
+        style: {
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            padding: '5px 10px',
+            backgroundColor: '#dc3545',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            zIndex: 3000
+        }
+    }, 'X');
     
     // Main container
     const container = React.createElement('div', {
@@ -606,7 +637,8 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         svgContainer,
         saveButton,
         toggleButton,
-        instructions
+        instructions,
+        closeButton
     ]);
 
     return React.StrictMode ? 

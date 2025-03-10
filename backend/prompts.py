@@ -250,10 +250,9 @@ Previous product:
 - Price: {previous_product_price}
 - Material: {previous_product_material}
 
-Create a brief response (2-3 sentences) asking what specific change they want:
+Create a brief response (2 sentences) asking what specific change they want:
 1. Different material (the current is {previous_product_material})
 2. Different Price (the current is {previous_product_price})
-3. Different brand
 
 Keep your response consice. Focus on the main factors: material, style, color, and quality.
 """
