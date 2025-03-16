@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple
 import os
 import re
 from collections import defaultdict
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +21,278 @@ class ProductCategory:
 
 
 class ProductDecisionTree:
-    """Decision tree for product selection"""
+    """Decision tree for product selection with color-based optimization"""
+    
+    # Color mapping dictionary with hex codes for all product colors (front view)
+    COLOR_HEX_MAP = {
+        # JERZEES T-Shirt Colors (29MR)
+        "White": "#EBEBE3",
+        "Black": "#292A2E",
+        "Aquatic_Blue": "#4DB7D1",
+        "Ash": "#BBB9BA",
+        "Athletic_Heather": "#A9ADB0",
+        "Black_Heather": "#4C4B50",
+        "Burnt_Orange": "#DB431A",
+        "California_Blue": "#32B2BB",
+        "Cardinal": "#6B1434",
+        "Charcoal_Grey": "#3C3C3E",
+        "Classic_Pink": "#E4C1C8",
+        "Columbia_Blue": "#5083B0",
+        "Cool_Mint": "#95E4C7",
+        "Cyber_Pink": "#AB386F",
+        "Deep_Purple": "#3F2D67",
+        "Forest_Green": "#2D3832",
+        "Gold": "#FEAF2C",
+        "Irish_Green_Heather": "#15AD7E",
+        "Island_Yellow": "#FFB919",
+        "J._Navy": "#303344",
+        "Jade": "#028889",
+        "Kelly": "#538A63",
+        "Kiwi": "#80C260",
+        "Light_Blue": "#B2C6E9",
+        "Maroon": "#4E1C39",
+        "Military_Green": "#5E6048",
+        "Neon_Green": "#C1FE97",
+        "Neon_Pink": "#FF6B9B",
+        "Neon_Yellow": "#F1E85F",
+        "Oxford": "#938F90",
+        "Royal": "#1F3A67",
+        "Safety_Green": "#CBFA7A",
+        "Safety_Orange": "#FF7630",
+        "Scuba_Blue": "#5DD2CC",
+        "Silver": "#CECAC9",
+        "Tennessee_Orange": "#FF6421",
+        "True_Red": "#A9102C",
+        "Vintage_Heather_Blue": "#585C68",
+        "Vintage_Heather_Maroon": "#723642",
+        "Vintage_Heather_Navy": "#4A4C58",
+        "Vintage_Heather_Red": "#AC4D53",
+        "Violet": "#7A70B9",
+        
+        # Sport-Tek Colors (ST350)
+        "Atomic Blue": "#11A2BF",
+        "Black": "#282A29",
+        "Carolina Blue": "#77A8D3",
+        "DEEP RED": "#972336",
+        "Deep Orange": "#D75D38",
+        "Forest Green": "#284330",
+        "Grey Concrete Heather": "#949F9B",
+        "Grey Concrete": "#7F8487",
+        "Iron Grey Heather": "#75797C",
+        "Iron Grey": "#535456",
+        "Kelly Green": "#0E7F51",
+        "Lime Shock": "#BADC52",
+        "Neon Orange": "#FA7228",
+        "Neon Pink": "#FD589A",
+        "Neon Yellow": "#E9FA00",
+        "Royal": "#244D81",
+        "Texas Orange": "#AC572E",
+        "Tropic Blue": "#0C96A3",
+        "True Navy": "#31384A",
+        "True Red": "#BC1830",
+        "True Royal Heather": "#5B80AA",
+        "cardinal": "#62292F",
+        "gold": "#FEC144",
+        "maroon": "#502632",
+        "purple": "#513E80",
+        "silver": "#B5B7B2",
+        "white": "#E9EDF6",
+        
+        # Bella + Canvas Jersey Tee (3001)
+        "Ash": "#ECEBF0",
+        "Asphalt": "#545454",
+        "Berry": "#EC4A7B",
+        "Black": "#191516",
+        "Blue_Storm": "#768183",
+        "Cardinal": "#6C1D23",
+        "Carolina_Blue": "#84AFE2",
+        "Dark_Grey": "#323232",
+        "Dusty_Blue": "#BAD0C4",
+        "Forest": "#17322B",
+        "Gold": "#FFB72D",
+        "Kelly": "#036431",
+        "Lavender_Blue": "#909FBE",
+        "Light_Violet": "#C1AFBD",
+        "Maroon": "#521117",
+        "Mauve": "#BE7D7B",
+        "Military_Green": "#6D6854",
+        "Mint": "#A9D5C6",
+        "Mustard": "#E6A645",
+        "Natural": "#DDDAC7",
+        "Navy": "#272435",
+        "Peach": "#F6C8B1",
+        "Pink": "#D8B3BA",
+        "Red": "#CE0120",
+        "Royal_Purple": "#98629C",
+        "Silver": "#D8D7D3",
+        "Soft_Cream": "#F0D6B3",
+        "Solid_Athletic_Grey": "#C9C5C2",
+        "Steel_Blue": "#667079",
+        "Storm": "#978D96",
+        "Tan": "#CBBBAB",
+        "Teal": "#49C9BC",
+        "Team_Purple": "#342256",
+        "Toast": "#CC8241",
+        "True_Royal": "#054FAE",
+        "Vintage_Black": "#261E1C",
+        "Vintage_White": "#EEE6E3",
+        "White": "#F0EFF4",
+        
+        # Comfort Colors T-Shirt (1717)
+        "Black": "#232323",
+        "Blossom": "#F7D5E5",
+        "Blue_Jean": "#64738A",
+        "Butter": "#FFE4AF",
+        "Chalky_Mint": "#A4E1DC",
+        "Chambray": "#CEE0EC",
+        "China_Blue": "#425073",
+        "Crimson": "#BB5A65",
+        "Crunchberry": "#E77A91",
+        "Denim": "#505362",
+        "Flo_Blue": "#7591D2",
+        "Granite": "#A5A6AA",
+        "Grey": "#9B9391",
+        "Ice_Blue": "#7898A7",
+        "Island_Green": "#00C1A2",
+        "Island_Reef": "#B0E2C9",
+        "Lagoon": "#74CDDD",
+        "Melon": "#FE8D4B",
+        "Neon_Pink": "#FF84B9",
+        "Orchid": "#DFCEDE",
+        "Pepper": "#505052",
+        "Royal_Caribe": "#159ADB",
+        "Seafoam": "#75AEA7",
+        "Terracotta": "#FA9581",
+        "Topaz_Blue": "#017282",
+        "True_Navy": "#222C45",
+        "Violet": "#9486C1",
+        "Washed_Denim": "#8EA2BD",
+        "Watermelon": "#EF767F",
+        "White": "#F2F1F6",
+        
+        # Gildan Crewneck (18000)
+        "Black": "#212226",
+        "Dark_Heather": "#444348",
+        "Forest": "#2F4038",
+        "Maroon": "#6B3241",
+        "Navy": "#282D41",
+        "Red": "#D92E40",
+        "Royal": "#2B61AB",
+        "Safety_Pink": "#FF84A6",
+        "Sport_Grey": "#A7A6AE",
+        "White": "#E9E9E1",
+        
+        # Gildan Long Sleeve (5400)
+        "Black": "#292D30",
+        "Carolina_Blue": "#7AA1DA",
+        "Forest_Green": "#383F37",
+        "Gold": "#E2A23E",
+        "Irish_Green": "#4C975E",
+        "Navy": "#333647",
+        "Purple": "#443169",
+        "Red": "#AF2C32",
+        "Royal": "#2368B5",
+        "Sport_Grey": "#A6A6A6",
+        "White": "#E7E6EB",
+        
+        # Augusta Hoodie (5414)
+        "Black": "#22222A",
+        "Carbon_Heather": "#47484C",
+        "Charcoal_Heather": "#999B9A",
+        "Columbia_Blue": "#679CD0",
+        "Dark_Green": "#1B5338",
+        "Graphite": "#7D7C81",
+        "Kelly": "#068957",
+        "Maroon": "#5C1F31",
+        "Navy": "#30324B",
+        "Orange": "#E45825",
+        "Power_Pink": "#C31D8B",
+        "Purple": "#463988",
+        "Red": "#C9233B",
+        "Royal": "#3F5AA9",
+        "Vegas_Gold": "#C8B477",
+        "White": "#D8DCDD",
+        
+        # JERZEES Sweatpants (973M)
+        "Ash": "#C8C3C9",
+        "Athletic_Heather": "#A19D9C",
+        "Black": "#222224",
+        "Black_Heather": "#2E2E30",
+        "Forest_Green": "#202F28",
+        "J._Navy": "#2C2F40",
+        "Maroon": "#501A2A",
+        "Oxford": "#858182",
+        "Royal": "#1C3259",
+        "True_Red": "#980F29",
+        "White": "#D6D6D8",
+        
+        # Hanes Hoodie (P170)
+        "Ash": "#DFDFDF",
+        "Black": "#2A282B",
+        "Carolina_Blue": "#7AA2E0",
+        "Charcoal_Heather": "#55545A",
+        "Deep_Forest": "#404D46",
+        "Deep_Red": "#950135",
+        "Deep_Royal": "#364682",
+        "Gold": "#E39E27",
+        "Heather_Navy": "#393D58",
+        "Heather_Red": "#E6425B",
+        "Light_Blue": "#B4D0E8",
+        "Light_Steel": "#C3C1C4",
+        "Maroon": "#581D23",
+        "Navy": "#393E51",
+        "Pale_Pink": "#F1D3DB",
+        "Smoke_Grey": "#4E4C51",
+        "Teal": "#04A2C9",
+        "White": "#F5F6F8",
+        
+        # Sport-Tek Long Sleeve (ST350LS)
+        "Atomic Blue": "#1EA8CC",
+        "Carolina Blue": "#80C0EC",
+        "DEEP RED": "#921E31",
+        "Forest Green": "#394F42",
+        "GREY CONCRETE HEATHER": "#979A93",
+        "GREY CONCRETE": "#9B9E97",
+        "IRON GREY HEATHER": "#7A7E7D",
+        "Iron Grey": "#575755",
+        "Lime Shock": "#9FD015",
+        "Neon Orange": "#F96446",
+        "Neon Pink": "#F9529A",
+        "Royal": "#254E82",
+        "TRUE ROYAL": "#124E94",
+        "True Navy": "#2B3245",
+        "True Red": "#BF2A3D",
+        "black": "#333333",
+        "gold": "#FCB132",
+        "maroon": "#712F39",
+        "purple": "#523C91",
+        "silver": "#D5DBDB",
+        "white": "#E8E8E8",
+        
+        # Basic color families (fallbacks)
+        "blue": "#0000FF",
+        "green": "#008000",
+        "yellow": "#FFFF00",
+        "orange": "#FFA500",
+        "red": "#FF0000",
+        "purple": "#800080",
+        "grey": "#808080",
+        "gray": "#808080",
+        "brown": "#A52A2A",
+        "pink": "#FFC0CB"
+    }
     
     def __init__(self, claude_client=None):
         self.categories = {}
         self.product_data = {}
         self.claude_client = claude_client
+        
+        # Cache for product selection to avoid repeated API calls
+        self.selection_cache = {}
+        
+        # Initialize product data
         self.init_product_data()
-    
+        
     def parse_sonar_analysis(self, analysis_text: str) -> Dict:
         """Parse the structured output from Claude's analysis"""
         preferences = {}
@@ -76,15 +341,124 @@ class ProductDecisionTree:
         logger.warning(f"Could not map category '{category}' to internal category, defaulting to t-shirt")
         return 't-shirt'
     
+    def hex_distance(self, hex1: str, hex2: str) -> float:
+        """Calculate distance between two hex color codes."""
+        # Remove '#' if present
+        hex1 = hex1.lstrip('#')
+        hex2 = hex2.lstrip('#')
+        
+        # Convert hex to RGB
+        r1, g1, b1 = int(hex1[0:2], 16), int(hex1[2:4], 16), int(hex1[4:6], 16)
+        r2, g2, b2 = int(hex2[0:2], 16), int(hex2[2:4], 16), int(hex2[4:6], 16)
+        
+        # Calculate Euclidean distance in RGB space
+        return math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2)
+    
+    def get_color_hex(self, color_name: str) -> str:
+        """Get hex code for a color name."""
+        # Try direct match
+        if color_name in self.COLOR_HEX_MAP:
+            return self.COLOR_HEX_MAP[color_name]
+        
+        # Try with spaces replaced by underscores
+        color_with_underscores = color_name.replace(" ", "_")
+        if color_with_underscores in self.COLOR_HEX_MAP:
+            return self.COLOR_HEX_MAP[color_with_underscores]
+        
+        # Try with underscores replaced by spaces
+        color_with_spaces = color_name.replace("_", " ")
+        if color_with_spaces in self.COLOR_HEX_MAP:
+            return self.COLOR_HEX_MAP[color_with_spaces]
+        
+        # Try case-insensitive match
+        color_lower = color_name.lower()
+        for key, hex_code in self.COLOR_HEX_MAP.items():
+            if key.lower() == color_lower:
+                return hex_code
+        
+        # Try partial matches
+        for key, hex_code in self.COLOR_HEX_MAP.items():
+            if color_lower in key.lower() or key.lower() in color_lower:
+                return hex_code
+        
+        # Default fallbacks for color families
+        color_lower = color_name.lower()
+        if "blue" in color_lower:
+            return self.COLOR_HEX_MAP["blue"]
+        elif "red" in color_lower:
+            return self.COLOR_HEX_MAP["red"]
+        elif "green" in color_lower:
+            return self.COLOR_HEX_MAP["green"]
+        elif "yellow" in color_lower:
+            return self.COLOR_HEX_MAP["yellow"]
+        elif "purple" in color_lower or "violet" in color_lower:
+            return self.COLOR_HEX_MAP["purple"]
+        elif "orange" in color_lower:
+            return self.COLOR_HEX_MAP["orange"]
+        elif "pink" in color_lower:
+            return self.COLOR_HEX_MAP["pink"]
+        elif "brown" in color_lower:
+            return self.COLOR_HEX_MAP["brown"]
+        elif "grey" in color_lower or "gray" in color_lower:
+            return self.COLOR_HEX_MAP["grey"]
+        
+        # Last resort - return black
+        return self.COLOR_HEX_MAP["Black"]
+    
+    def get_closest_products_by_color(self, category: str, color_name: str, max_products: int = 10) -> List[Dict]:
+        """Find products with colors closest to the target color."""
+        if category not in self.categories:
+            return []
+        
+        # Get hex code for target color
+        target_hex = self.get_color_hex(color_name)
+        
+        # Calculate distance for each product in the category
+        products = self.categories[category].products
+        product_distances = []
+        
+        for product in products:
+            product_color = product['color']
+            product_hex = self.get_color_hex(product_color)
+            
+            # Calculate color distance
+            distance = self.hex_distance(target_hex, product_hex)
+            
+            # Store product with its distance
+            product_distances.append((distance, product))
+        
+        # Sort by distance (closest first) and return top N
+        product_distances.sort(key=lambda x: x[0])
+        logger.info(f"Found {len(product_distances)} products in {category}, selecting top {max_products} closest to {color_name}")
+        
+        return [product for _, product in product_distances[:max_products]]
+    
     def select_product_with_claude(self, category: str, user_query: str, preferences: Dict) -> Tuple[Optional[Dict], str]:
-        """Use Claude to select the best product from a category based on preferences"""
+        """Use Claude to select the best product from a category based on preferences."""
         
         # Get all products in the category
         if category not in self.categories:
             logger.warning(f"Category {category} not found, defaulting to t-shirt")
             category = 't-shirt'
-            
+        
+        # OPTIMIZATION: Pre-filter products by color if specified
         products = self.categories[category].products
+        filtered_products = []
+        
+        if 'color' in preferences:
+            color_name = preferences['color']
+            # Get closest products by color
+            filtered_products = self.get_closest_products_by_color(category, color_name)
+            logger.info(f"Pre-filtered to {len(filtered_products)} products based on color proximity to {color_name}")
+        
+        # Use filtered products if available, otherwise use all products in category
+        if filtered_products:
+            products = filtered_products
+        
+        # If we have too many products, limit to a reasonable number
+        if len(products) > 10:
+            logger.info(f"Limiting from {len(products)} to 10 products for API efficiency")
+            products = products[:10]
         
         # Create a formatted list of products with key attributes
         product_options = []
@@ -152,7 +526,7 @@ class ProductDecisionTree:
         
         # Call Claude API
         try:
-            response = self.claude_client.call_api(prompt, temperature=0.2)
+            response = self.claude_client.call_api(prompt, temperature=0.1)  # Lower temperature for more deterministic output
             
             # Extract the selected product
             match = re.search(r"SELECTED: (.+) in (.+)$", response, re.MULTILINE)
@@ -236,8 +610,15 @@ class ProductDecisionTree:
         """
         Select a product based on user query and Claude's analysis.
         Returns product details dictionary with explanation.
+        Optimized with color-based pre-filtering and caching.
         """
         try:
+            # Check cache for identical query
+            cache_key = f"{query}_{sonar_analysis}"
+            if cache_key in self.selection_cache:
+                logger.info(f"Cache hit for query: {query}")
+                return self.selection_cache[cache_key]
+            
             # Parse the structured analysis from Claude
             preferences = self.parse_sonar_analysis(sonar_analysis)
             
@@ -266,6 +647,17 @@ class ProductDecisionTree:
                 # Add the original category from Claude's analysis
                 selected_product['category'] = original_category
                 logger.info(f"Added category to product: {original_category}")
+                
+                # Cache the result for future similar queries
+                self.selection_cache[cache_key] = selected_product
+                
+                # Limit cache size to prevent memory issues
+                if len(self.selection_cache) > 100:
+                    # Remove oldest entries (simple approach)
+                    keys = list(self.selection_cache.keys())[:20]
+                    for key in keys:
+                        del self.selection_cache[key]
+                
                 return selected_product
             
             # Fallback to default product
