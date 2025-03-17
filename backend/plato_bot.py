@@ -248,7 +248,7 @@ class PlatoBot:
                                         "category": product.get('category'),
                                         "style_number": product.get('style_number'),
                                         "material": product.get('material', ''),
-                                        "colorSpecified": True
+                                        "colorSpecified": False
                                     }
                                 }
                             }
@@ -383,13 +383,8 @@ class PlatoBot:
                                 "material": cheaper_product.get('material', '')
                             }
                             
-                            # Add a UI control flag to hide the color button when appropriate
-                            show_color_button = False
-                            if not hasattr(order_state, 'original_intent') or not order_state.original_intent['general_color']:
-                                show_color_button = True
-                            
-                            # Add this flag to the productInfo
-                            product_info["showColorButton"] = show_color_button
+                            # Always show color button
+                            product_info["showColorButton"] = True
                             
                             # Return the cheaper product
                             return {
@@ -704,16 +699,8 @@ class PlatoBot:
 
         response = utils.clean_response(response)
 
-        # Add a UI control flag to hide the color button when appropriate
-        show_color_button = False
-        if not hasattr(order_state, 'original_intent') or not order_state.original_intent.get('general_color'):
-            show_color_button = True
-
-        # Check if color was specified
-        color_specified = False
-        if enhanced_query and "color:" in enhanced_query.lower():
-            color_content = enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
-            color_specified = "none" not in color_content
+        # Always show color button
+        show_color_button = True
 
         # Create product info for the action, including color specification flag
         product_info = {
@@ -723,8 +710,8 @@ class PlatoBot:
             "category": details["category"],
             "style_number": details["style_number"],
             "material": details.get("material", ""),
-            "colorSpecified": color_specified,  # Add flag to indicate if color was specified
-            "showColorButton": show_color_button  # Add flag to control color button visibility
+            "colorSpecified": False,  # Always set to false to ensure color button shows
+            "showColorButton": show_color_button  # Always show color button
         }
 
         # Return the response with product selection action

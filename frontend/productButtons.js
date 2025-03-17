@@ -202,20 +202,11 @@ const createProductButtons = () => {
             colorOptionsButton.disabled = true;
         });
         
-        // Assemble and append
-        const colorWasSpecified = productInfo && (
-            productInfo.colorSpecified === true || 
-            (productInfo.color && productInfo.colorSpecified !== false)
-        );
-        
-        // Assemble and append in the desired order
         container.appendChild(uploadButton);
-        
-        // Add color options button in the middle (if it's needed)
-        if (!colorWasSpecified) {
-            container.appendChild(colorOptionsButton);
-        }
-        
+
+        // Always add color options button in the middle
+        container.appendChild(colorOptionsButton);
+
         // Add find product button last
         container.appendChild(findProductButton);
         
