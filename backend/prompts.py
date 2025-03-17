@@ -84,18 +84,19 @@ Size: [size or "None"]
 
 # Keep original get_response_prompt exactly as is
 # Update the function definition to include the category parameter
-def get_product_response_prompt(message: str, product_name: str, color: str, formatted_price: str, category: str) -> str:
+def get_product_response_prompt(message: str, product_name: str, color: str, formatted_price: str, category: str, material: str) -> str:
     return f"""
 You are Plato, a helpful and enthusiastic print shop AI assistant. A customer has just asked about: "{message}"
 
 I found this product that matches their needs:
 - Product: {product_name}
 - Color: {color}
+- Material: {material}
 - Price: {formatted_price} per garment 
 
 Create a natural, friendly response that:
 1. Shows enthusiasm about finding a good match for their specific request
-2. Mentions the product details (name, color, price) naturally in conversation
+2. Mentions the product details (name, color, material, price) naturally in conversation
 3. Highlights how this product matches what they were looking for
 6. Keeps the tone professional but conversational
 7. Always present the price to the customer as "Plato's Price of "x"" 

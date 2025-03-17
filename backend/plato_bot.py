@@ -692,7 +692,8 @@ class PlatoBot:
             product_name=details["product_name"],
             color=details["color"],
             formatted_price=formatted_price,
-            category=details["category"] 
+            category=details["category"],
+            material=details.get("material", "")
         )
         
         # Get response from Claude
