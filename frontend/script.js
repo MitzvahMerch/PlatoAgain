@@ -267,104 +267,21 @@ function addTypingIndicator() {
     return indicator;
 }
 
-// New function to show design options dialog
 function showDesignOptionsDialog(compositeUrl, wasBackImage) {
-    // Create dialog container
-    const dialogOverlay = document.createElement('div');
-    dialogOverlay.className = 'design-options-overlay';
-    dialogOverlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 2000;
-    `;
+    // Store the compositeUrl for potential next design placement
+    window.latestCompositeUrl = compositeUrl;
     
-    const dialogContent = document.createElement('div');
-    dialogContent.className = 'design-options-content';
-    dialogContent.style.cssText = `
-        width: 400px;
-        padding: 20px;
-        background: #222;
-        border-radius: 8px;
-        text-align: center;
-        color: white;
-    `;
+    // Create a bot message specifically for our design options
+    const optionsMessage = addMessage("Design added successfully! What would you like to do next?", 'bot');
     
-    const dialogHeader = document.createElement('h3');
-    dialogHeader.textContent = 'Design Added Successfully!';
-    dialogHeader.style.cssText = `
-        margin-top: 0;
-        margin-bottom: 20px;
-        color: var(--primary-color);
-    `;
-    
-    // Add logo charge notification - updated to clarify per-item charge
-    const chargeNotice = document.createElement('p');
-    chargeNotice.textContent = 'A $1.50 charge per item has been added for this logo.';
-    chargeNotice.style.cssText = `
-        font-size: 14px;
-        color: #ffcc00;
-        margin-bottom: 15px;
-    `;
-    
-    const dialogText = document.createElement('p');
-    dialogText.textContent = 'What would you like to do next?';
-    
-    // Add another design button
-    const addMoreBtn = document.createElement('button');
-    addMoreBtn.textContent = 'Add Another Design';
-    addMoreBtn.style.cssText = `
-        padding: 12px 20px;
-        margin: 10px;
-        background-color: var(--primary-color);
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 14px;
-        cursor: pointer;
-    `;
-    
-    // Finalize button
-    const finalizeBtn = document.createElement('button');
-    finalizeBtn.textContent = 'Finalize Customization';
-    finalizeBtn.style.cssText = `
-        padding: 12px 20px;
-        margin: 10px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 14px;
-        cursor: pointer;
-    `;
-    
-    // Assemble dialog
-    dialogContent.appendChild(dialogHeader);
-    dialogContent.appendChild(chargeNotice); // Add the charge notice
-    dialogContent.appendChild(dialogText);
-    dialogContent.appendChild(addMoreBtn);
-    dialogContent.appendChild(finalizeBtn);
-    dialogOverlay.appendChild(dialogContent);
-    document.body.appendChild(dialogOverlay);
-    
-    // Button event handlers
-    addMoreBtn.addEventListener('click', () => {
-        dialogOverlay.remove();
-        // Trigger design upload for next design
-        initiateNextDesignUpload(compositeUrl, wasBackImage);
-    });
-    
-    finalizeBtn.addEventListener('click', () => {
-        dialogOverlay.remove();
-        // Continue with original flow - send message to proceed to size selection
+    // Now we have a bot message, we can safely inject our options
+    if (window.designOptionsIntegration && typeof window.designOptionsIntegration.injectIntoMessage === 'function') {
+        window.designOptionsIntegration.injectIntoMessage(optionsMessage, compositeUrl, wasBackImage);
+    } else {
+        console.error('Design options integration not available');
+        // Fallback to original behavior if integration is missing
         sendMessage();
-    });
+    }
 }
 
 // New function to initiate next design upload
