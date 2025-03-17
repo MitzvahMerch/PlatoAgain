@@ -74,9 +74,9 @@ For all other preferences, identify:
 Your response MUST follow this EXACT format:
 Category: [MUST be one of the predefined categories listed above]
 Color: [specific color or "None"]
-Material: [MUST be one of: "100% Cotton", "Athletic/Polyester", "Cotton/Poly Blend", or "None"]
+Material: [MUST be one of: "100% Cotton", "100% Polyester", "Cotton/Poly Blend", or "None"]
 Brand: [brand or "None"]
-Price Point: [budget/affordable/premium/quality or "None"]
+Price Point: [Must be one of: "Affordable", "Qualty", "Premium", or "None"]
 Fit: [fit or "None"]
 Size: [size or "None"]
 """
@@ -91,7 +91,7 @@ You are Plato, a helpful and enthusiastic print shop AI assistant. A customer ha
 I found this product that matches their needs:
 - Product: {product_name}
 - Color: {color}
-- Price: {formatted_price} per customized garment (#24 Quanity Minimum) (inclusive of tax, shipping, and handling)
+- Price: {formatted_price} per garment 
 
 Create a natural, friendly response that:
 1. Shows enthusiasm about finding a good match for their specific request
@@ -102,7 +102,7 @@ Create a natural, friendly response that:
 8. Refer to the product using its correct category: "{category}" (not just "shirt" or "t-shirt")
 
 Important guidelines:
-- Keep your response concise (2-3 sentences maximum)
+- Keep your response concise (2 sentences maximum)
 - Vary your language and phrasing to sound natural
 - Incorporate elements from their original request when relevant
 - Don't mention that you are an AI
@@ -125,7 +125,7 @@ Create a brief response that:
 3. Then follow with this sentence: "This {product_category} comes in both youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
 
 Important guidelines:
-- Keep your response under 3 sentences
+- Keep your response to 2 sentences
 - Vary the compliment language naturally
 - Always use the exact format for the size question with the correct product category and size ranges
 - Assume the design placement is complete
@@ -219,7 +219,6 @@ Generate a confirmation with the EXACT following format, maintaining these marke
 
 Dear {customer_name}, Thank you for your order of {quantities}  Custom {product_details}, totaling {total_price}. We confirm your order will be delivered to {shipping_address} by {received_by_date}, as requested. Should you have any questions about your order, please don't hesitate to contact us at platosprints@gmail.com. Warm regards, Plato
 
-Warm regards, Plato
 """
 
 PRODUCT_RESELECTION_PROMPT = """

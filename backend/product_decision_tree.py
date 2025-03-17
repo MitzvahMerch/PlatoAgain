@@ -405,32 +405,39 @@ class ProductDecisionTree:
         # Last resort - return black
         return self.COLOR_HEX_MAP["Black"]
     
-    def get_closest_products_by_color(self, category: str, color_name: str, max_products: int = 10) -> List[Dict]:
-        """Find products with colors closest to the target color."""
-        if category not in self.categories:
+    def get_closest_products_by_color(self, category: str, color_name: str, candidate_pool=None, max_products: int = 10) -> List[Dict]:
+        """Find products with colors closest to the target color from a candidate pool."""
+        # Use provided candidate pool or get all products in the category
+        products = candidate_pool if candidate_pool is not None else self.categories[category].products
+    
+        if not products:
             return []
-        
+    
         # Get hex code for target color
         target_hex = self.get_color_hex(color_name)
-        
-        # Calculate distance for each product in the category
-        products = self.categories[category].products
+    
+        # Calculate distance for each product
         product_distances = []
-        
+    
         for product in products:
             product_color = product['color']
             product_hex = self.get_color_hex(product_color)
-            
+        
             # Calculate color distance
             distance = self.hex_distance(target_hex, product_hex)
-            
+        
+            # Also give priority to exact name matches
+            if color_name.lower() in product_color.lower() or product_color.lower() in color_name.lower():
+                # Give a very small distance for name matches to prioritize them
+                distance = distance * 0.2
+        
             # Store product with its distance
             product_distances.append((distance, product))
-        
+    
         # Sort by distance (closest first) and return top N
         product_distances.sort(key=lambda x: x[0])
-        logger.info(f"Found {len(product_distances)} products in {category}, selecting top {max_products} closest to {color_name}")
-        
+        logger.info(f"Found {len(product_distances)} products for color {color_name}, returning top {max_products}")
+    
         return [product for _, product in product_distances[:max_products]]
     
     def select_product_with_claude(self, category: str, user_query: str, preferences: Dict) -> Tuple[Optional[Dict], str]:
@@ -606,11 +613,10 @@ class ProductDecisionTree:
         
         return None, response
     
-    def select_product(self, query: str, sonar_analysis: str) -> Optional[Dict]:
+    def select_product(self, query: str, sonar_analysis: str, rejected_products=None) -> Optional[Dict]:
         """
-        Select a product based on user query and Claude's analysis.
-        Returns product details dictionary with explanation.
-        Optimized with color-based pre-filtering and caching.
+        Select a product based on user query and Claude's analysis using a deduction system.
+        Filter products by hard constraints rather than using scores.
         """
         try:
             # Check cache for identical query
@@ -618,10 +624,12 @@ class ProductDecisionTree:
             if cache_key in self.selection_cache:
                 logger.info(f"Cache hit for query: {query}")
                 return self.selection_cache[cache_key]
-            
+        
             # Parse the structured analysis from Claude
             preferences = self.parse_sonar_analysis(sonar_analysis)
-            
+        
+            logger.info(f"Preferences extracted: {preferences}")
+        
             # Get the category from Claude's analysis
             original_category = None
             if 'category' in preferences:
@@ -632,51 +640,163 @@ class ProductDecisionTree:
             else:
                 category = 't-shirt'  # Default category
                 original_category = "T-Shirt"  # Default category name
-            
+        
             logger.info(f"Category identified: {category}")
-            logger.info(f"Original category from Claude: {original_category}")
-            logger.info(f"Preferences extracted: {preferences}")
+        
+            # Get all products in the category
+            if category not in self.categories:
+                category = 't-shirt'  # Default fallback
+        
+            # Start with all products in the category as candidates
+            candidate_products = self.categories[category].products
+            logger.info(f"Starting with {len(candidate_products)} products in category: {category}")
+        
+            # Remove previously rejected products
+            if rejected_products:
+                candidate_products = [
+                    product for product in candidate_products 
+                    if not any(
+                        product.get('product_name') == rejected.get('product_name') and 
+                        product.get('color') == rejected.get('color')
+                        for rejected in rejected_products
+                    )
+                ]
+                logger.info(f"After removing rejected products: {len(candidate_products)} products remaining")
+        
+            # Filter by material if specified (HARD CONSTRAINT)
+            if 'material' in preferences:
+                requested_material = preferences['material'].lower()
             
-            # Use Claude to select the best product from this category
-            selected_product, explanation = self.select_product_with_claude(category, query, preferences)
+                # Handle specific material types as hard constraints
+                if "100% cotton" in requested_material:
+                    candidate_products = [p for p in candidate_products if "100% cotton" in p['material'].lower()]
+                    logger.info(f"Filtered to 100% cotton products: {len(candidate_products)} products remaining")
+                elif "polyester" in requested_material:
+                    candidate_products = [p for p in candidate_products if "polyester" in p['material'].lower()]
+                    logger.info(f"Filtered to polyester products: {len(candidate_products)} products remaining")
+                elif "blend" in requested_material or "cotton/poly" in requested_material:
+                    candidate_products = [p for p in candidate_products if 
+                                        ("blend" in p['material'].lower() or "/50" in p['material'].lower() or 
+                                        ("cotton" in p['material'].lower() and "poly" in p['material'].lower()))]
+                    logger.info(f"Filtered to blend products: {len(candidate_products)} products remaining")
+                else:
+                    # General material matching
+                    candidate_products = [p for p in candidate_products if requested_material in p['material'].lower()]
+                    logger.info(f"Filtered by material '{requested_material}': {len(candidate_products)} products remaining")
+        
+            # If no products match material constraint, log warning but continue with original set
+            # This prevents returning None when a specific material was requested but not available
+            if 'material' in preferences and not candidate_products:
+                logger.warning(f"No products match the material requirement: {preferences['material']}. Continuing with all products in category.")
+                candidate_products = self.categories[category].products
+        
+            # Filter by brand if specified (HARD CONSTRAINT)
+            if 'brand' in preferences and candidate_products:
+                requested_brand = preferences['brand'].lower()
+                brand_matched_products = []
             
-            if selected_product:
-                logger.info(f"Selected product: {selected_product['product_name']} in {selected_product['color']}")
-                # Add the explanation to the product info
-                selected_product['match_explanation'] = explanation
-                # Add the original category from Claude's analysis
-                selected_product['category'] = original_category
-                logger.info(f"Added category to product: {original_category}")
+                for product in candidate_products:
+                    product_brand = product['product_name'].split(' ')[0].lower()
+                    if requested_brand in product_brand or product_brand in requested_brand:
+                        brand_matched_products.append(product)
+            
+                if brand_matched_products:
+                    candidate_products = brand_matched_products
+                    logger.info(f"Filtered by brand '{requested_brand}': {len(candidate_products)} products remaining")
+        
+            # Filter by color (HARD CONSTRAINT if specified)
+            if 'color' in preferences and candidate_products:
+                color_name = preferences['color']
+                color_filtered_products = self.get_closest_products_by_color(
+                    category, color_name, 
+                    candidate_pool=candidate_products,
+                    max_products=10
+                )
+            
+                if color_filtered_products:
+                    candidate_products = color_filtered_products
+                    logger.info(f"Filtered by color '{color_name}': {len(candidate_products)} products remaining")
+        
+            # If no products match all constraints, return None
+            if not candidate_products:
+                logger.warning("No products match all required constraints")
+                return None
+        
+            # Apply price preferences if specified (Soft constraint - pick the cheapest or most premium)
+            if 'price' in preferences and candidate_products:
+                requested_price = preferences['price'].lower()
+            
+                if "affordable" in requested_price:
+                    # Sort by price (ascending) and take the cheapest
+                    candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()))
+                    logger.info(f"Sorted by price (ascending) for affordable preference")
+                    # Keep only the first 3 cheapest options
+                    candidate_products = candidate_products[:3]
+                elif "premium" in requested_price or "quality" in requested_price:
+                    # Sort by price (descending) and take the most premium
+                    candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()), reverse=True)
+                    logger.info(f"Sorted by price (descending) for premium/quality preference")
+                    # Keep only the first 3 premium options
+                    candidate_products = candidate_products[:3]
+        
+            # Handle explicit cheaper option requests
+            is_cheaper_request = "cheaper" in query.lower() or "less expensive" in query.lower()
+            if is_cheaper_request and rejected_products and len(rejected_products) > 0:
+                latest_rejected = rejected_products[-1]
+                try:
+                    comparison_price = float(latest_rejected.get('price', '').replace('$', ''))
+                    # Filter to only products cheaper than the rejected one
+                    cheaper_products = [
+                        p for p in candidate_products 
+                        if float(p['price'].replace('$', '').strip()) < comparison_price
+                    ]
                 
+                    if cheaper_products:
+                        candidate_products = cheaper_products
+                        # Sort by price (ascending)
+                        candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()))
+                        logger.info(f"Filtered to cheaper options than ${comparison_price}: {len(candidate_products)} products")
+                except (ValueError, TypeError):
+                    logger.warning("Could not parse price for comparison")
+        
+            # Select the best match from remaining candidates
+            # At this point, we've filtered by all hard constraints
+            # and sorted by any price preferences
+            if candidate_products:
+                selected_product = candidate_products[0]  # Take the first product after filtering
+            
+                logger.info(f"Selected product: {selected_product['product_name']} in {selected_product['color']} at {selected_product['price']}")
+            
+                # Add the category from Claude's analysis
+                selected_product['category'] = original_category
+            
                 # Cache the result for future similar queries
                 self.selection_cache[cache_key] = selected_product
-                
+            
                 # Limit cache size to prevent memory issues
                 if len(self.selection_cache) > 100:
                     # Remove oldest entries (simple approach)
                     keys = list(self.selection_cache.keys())[:20]
                     for key in keys:
                         del self.selection_cache[key]
-                
+            
                 return selected_product
-            
-            # Fallback to default product
-            logger.warning("No product selected, falling back to default")
-            default_product = None
-            
+        
+            # Fallback to default product if no matches
+            logger.warning("No product matched all criteria, falling back to default")
             if 't-shirt' in self.categories and self.categories['t-shirt'].products:
-                default_product = self.categories['t-shirt'].products[0].copy()  # Create a copy to avoid modifying the original
-                default_product['category'] = original_category or "T-Shirt"  # Set the category
-                logger.info(f"Set category on default product: {default_product['category']}")
+                default_product = self.categories['t-shirt'].products[0].copy()
+                default_product['category'] = original_category or "T-Shirt"
                 return default_product
+        
             return None
-                
+        
         except Exception as e:
-            logger.error(f"Error in product selection: {str(e)}")
+            logger.error(f"Error in product selection: {str(e)}", exc_info=True)
             # Default product if there's an error
             if self.categories.get('t-shirt') and self.categories['t-shirt'].products:
-                default_product = self.categories['t-shirt'].products[0].copy()  # Create a copy
-                default_product['category'] = "T-Shirt"  # Add default category
+                default_product = self.categories['t-shirt'].products[0].copy()
+                default_product['category'] = "T-Shirt"
                 return default_product
             return None
     
@@ -708,7 +828,7 @@ class ProductDecisionTree:
                 'product_name': 'JERZEES - Dri-Power 50/50 T-Shirt',
                 'color': color.replace("_", " "),
                 'price': '$12.36',
-                'material': '50/50 cotton/polyester',
+                'material': 'Cotton/Poly Blend',
                 'weight': 'midweight',
                 'fit': 'regular',
                 'has_youth_sizes': True,
@@ -764,7 +884,7 @@ class ProductDecisionTree:
                 'product_name': 'Sport-Tek PosiCharge Competitor Tee',
                 'color': color["display"],
                 'price': '$13.99',
-                'material': '100% polyester',
+                'material': '100% Polyester',
                 'weight': 'lightweight',
                 'fit': 'athletic',
                 'has_youth_sizes': True,
@@ -798,7 +918,7 @@ class ProductDecisionTree:
                 'product_name': 'Bella + Canvas Jersey Tee',
                 'color': color.replace("_", " "),
                 'price': '$13.99',
-                'material': '100% Airlume combed and ring-spun cotton',
+                'material': '100% Cotton',
                 'weight': 'lightweight',
                 'fit': 'retail fit',
                 'has_youth_sizes': True,
@@ -832,7 +952,7 @@ class ProductDecisionTree:
                 'product_name': 'Comfort Colors - Garment-Dyed Heavyweight T-Shirt',
                 'color': color.replace("_", " "),
                 'price': '$15.46',
-                'material': '100% ring-spun cotton',
+                'material': '100% Cotton',
                 'weight': 'heavyweight',
                 'fit': 'relaxed',
                 'has_youth_sizes': True,
@@ -865,7 +985,7 @@ class ProductDecisionTree:
                 'product_name': 'Gildan - Heavy Cotton Long Sleeve T-Shirt',
                 'color': color.replace("_", " "),
                 'price': '$14.17',
-                'material': '100% cotton',
+                'material': '100% Cotton',
                 'weight': 'heavyweight',
                 'fit': 'classic',
                 'has_youth_sizes': True,
@@ -914,7 +1034,7 @@ class ProductDecisionTree:
                 'product_name': 'Sport-Tek Long Sleeve PosiCharge Competitor Tee',
                 'color': color["display"],
                 'price': '$14.99',
-                'material': '100% polyester interlock',
+                'material': '100% Polyester',
                 'weight': 'lightweight',
                 'fit': 'athletic',
                 'has_youth_sizes': True,
@@ -948,7 +1068,7 @@ class ProductDecisionTree:
                 'product_name': 'Hanes Ecosmart Hooded Sweatshirt',
                 'color': color.replace("_", " "),
                 'price': '$19.40',
-                'material': '50/50 cotton/polyester',
+                'material': 'Cotton/Poly Blend',
                 'weight': 'midweight',
                 'fit': 'standard',
                 'has_youth_sizes': True,
@@ -980,7 +1100,7 @@ class ProductDecisionTree:
                 'product_name': 'Augusta Sportswear 60/40 Fleece Hoodie',
                 'color': color.replace("_", " "),
                 'price': '$27.50',
-                'material': '60/40 cotton/polyester athletic fleece',
+                'material': 'Cotton/Poly Blend',
                 'weight': 'heavyweight',
                 'fit': 'athletic',
                 'has_youth_sizes': True,
@@ -1014,7 +1134,7 @@ class ProductDecisionTree:
                 'product_name': 'Gildan - Heavy Blend Sweatshirt',
                 'color': color.replace("_", " "),
                 'price': '$15.95',
-                'material': '50/50 cotton/polyester',
+                'material': 'Cotton/Poly Blend',
                 'weight': 'heavyweight',
                 'fit': 'classic',
                 'has_youth_sizes': True,
@@ -1046,7 +1166,7 @@ class ProductDecisionTree:
                 'product_name': 'JERZEES - NuBlend Sweatpants',
                 'color': color.replace("_", " "),
                 'price': '$18.50',
-                'material': '50/50 cotton/polyester',
+                'material': 'Cotton/Poly Blend',
                 'weight': 'heavyweight',
                 'fit': 'relaxed',
                 'has_youth_sizes': True,
