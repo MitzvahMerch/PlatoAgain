@@ -86,6 +86,11 @@ const createDesignOptionsIntegration = () => {
         // Create the container
         const container = document.createElement('div');
         container.className = 'design-options-container';
+        if (window.chatPermissions) {
+            window.chatPermissions.registerButtonComponent('designOptions', {
+                disableMessage: 'Please choose whether to add another design or finalize your customization'
+            });
+        }
         
         // Create header
         const header = document.createElement('div');
@@ -129,6 +134,11 @@ const createDesignOptionsIntegration = () => {
         
         // Button event handlers (same as the original showDesignOptionsDialog function)
         addMoreBtn.addEventListener('click', () => {
+            // Mark this component as selected
+            if (window.chatPermissions) {
+                window.chatPermissions.markButtonSelected('designOptions');
+            }
+            
             // Hide the options after selection to avoid confusion
             container.style.display = 'none';
             
@@ -137,6 +147,11 @@ const createDesignOptionsIntegration = () => {
         });
         
         finalizeBtn.addEventListener('click', () => {
+            // Mark this component as selected
+            if (window.chatPermissions) {
+                window.chatPermissions.markButtonSelected('designOptions');
+            }
+            
             // Hide the options after selection to avoid confusion
             container.style.display = 'none';
             

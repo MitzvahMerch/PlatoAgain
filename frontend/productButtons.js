@@ -77,6 +77,11 @@ const createProductButtons = () => {
         // Create buttons container
         const container = document.createElement('div');
         container.className = 'product-buttons-container';
+        if (window.chatPermissions) {
+            window.chatPermissions.registerButtonComponent('productSelection', {
+                disableMessage: 'Please select one of the options above to continue'
+            });
+        }
         
         // Upload Logo button
         const uploadButton = document.createElement('button');
@@ -113,13 +118,22 @@ const createProductButtons = () => {
             Same Product, Different Color
         `;
         
-        // Add event listeners
         uploadButton.addEventListener('click', () => {
+            // Mark this component as selected
+            if (window.chatPermissions) {
+                window.chatPermissions.markButtonSelected('productSelection');
+            }
+            
             // Trigger the same action as the upload button in the chat
             document.getElementById('image-upload').click();
         });
         
         findProductButton.addEventListener('click', () => {
+            // Mark this component as selected
+            if (window.chatPermissions) {
+                window.chatPermissions.markButtonSelected('productSelection');
+            }
+            
             // Extract product info for the rejection message
             let productName = 'current product';
             let productColor = '';
@@ -157,6 +171,11 @@ const createProductButtons = () => {
         });
         
         colorOptionsButton.addEventListener('click', () => {
+            // Mark this component as selected
+            if (window.chatPermissions) {
+                window.chatPermissions.markButtonSelected('productSelection');
+            }
+            
             // Get product info for the color options request
             let productName = 'current product';
             
