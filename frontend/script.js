@@ -95,6 +95,12 @@ imageUploadButton.addEventListener('change', async (e) => {
 });
 
 async function sendMessage() {
+    // Check if there's an incomplete upload
+    if (window.uploadRequiresCompletion === true) {
+        // User tried to send message without completing upload
+        return;
+    }
+    
     const message = chatInput.value.trim();
     const hasImage = window.currentUpload;
     

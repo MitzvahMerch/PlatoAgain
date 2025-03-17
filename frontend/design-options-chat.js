@@ -155,6 +155,9 @@ const createDesignOptionsIntegration = () => {
             // Hide the options after selection to avoid confusion
             container.style.display = 'none';
             
+            // Add a confirmation message in the chat
+            addMessage("Design Finalized!", 'system');
+            
             // Continue with original flow - send message to proceed to size selection
             sendMessage();
         });

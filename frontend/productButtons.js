@@ -119,9 +119,9 @@ const createProductButtons = () => {
         `;
         
         uploadButton.addEventListener('click', () => {
-            // Mark this component as selected
+            // Handle upload button click without marking as selected yet
             if (window.chatPermissions) {
-                window.chatPermissions.markButtonSelected('productSelection');
+                window.chatPermissions.handleUploadButtonClick();
             }
             
             // Trigger the same action as the upload button in the chat

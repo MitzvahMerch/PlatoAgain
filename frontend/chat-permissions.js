@@ -148,6 +148,35 @@ const createChatPermissionManager = () => {
             disableChat(pendingButtonSelections[0].disableMessage);
         }
     };
+
+    const handleUploadButtonClick = () => {
+        // When upload button is clicked, we'll create a flag to track completion
+        window.uploadRequiresCompletion = true;
+        
+        // Override the existing image upload change handler temporarily
+        const imageUpload = document.getElementById('image-upload');
+        const originalOnChange = imageUpload.onchange;
+        
+        imageUpload.onchange = function(e) {
+            // Only mark as complete if a file is actually selected
+            if (e.target.files && e.target.files.length > 0) {
+                window.uploadRequiresCompletion = false;
+                if (window.chatPermissions) {
+                    window.chatPermissions.markButtonSelected('productSelection');
+                }
+            }
+            
+            // Call the original handler
+            if (typeof originalOnChange === 'function') {
+                originalOnChange.call(this, e);
+            }
+            
+            // Reset the onchange to the original after it fires once
+            setTimeout(() => {
+                imageUpload.onchange = originalOnChange;
+            }, 100);
+        };
+    };
     
     // Initialize the manager
     const init = () => {
@@ -168,6 +197,7 @@ const createChatPermissionManager = () => {
         enableChat,
         registerButtonComponent,
         markButtonSelected,
+        handleUploadButtonClick,
         isChatEnabled: () => chatEnabled
     };
 };
