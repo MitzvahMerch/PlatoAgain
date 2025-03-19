@@ -14,7 +14,7 @@ def init_routes(app, plato_bot):
     # Enable CORS for all routes
     CORS(app, resources={r"/*": {"origins": "*"}})
 
-    @app.route('/productimages/<path:filename>')
+    @app.route('/api/productimages/<path:filename>')
     def serve_product_image(filename):
         response = send_from_directory('productimages', filename)
         response.headers['Access-Control-Allow-Origin'] = '*'
@@ -145,7 +145,7 @@ def init_routes(app, plato_bot):
             logger.exception("Error checking product")
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/', methods=['GET'])
+    @app.route('/api/', methods=['GET'])
     def root():
         return jsonify({"status": "healthy"})
 
