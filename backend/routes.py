@@ -14,13 +14,13 @@ def init_routes(app, plato_bot):
     # Enable CORS for all routes
     CORS(app, resources={r"/*": {"origins": "*"}})
 
-    @app.route('/api/productimages/<path:filename>')
+    @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
         response = send_from_directory('productimages', filename)
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 
-    @app.route('/api/chat', methods=['POST'])
+    @app.route('/chat', methods=['POST'])
     def chat():
         logger.info("Received /api/chat request")
         data = request.json
@@ -40,7 +40,7 @@ def init_routes(app, plato_bot):
         logger.info(f"Chat response: {response}")
         return jsonify(response)
     
-    @app.route('/api/remove-background', methods=['POST'])
+    @app.route('/remove-background', methods=['POST'])
     def remove_background():
         try:
             logger.info("Received /api/remove-background request")
@@ -120,14 +120,14 @@ def init_routes(app, plato_bot):
             logger.exception("Error in background removal")
         return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/chat/reset', methods=['POST'])
+    @app.route('/chat/reset', methods=['POST'])
     def reset_conversation():
         data = request.json
         user_id = data.get('user_id', 'default_user')
         plato_bot.conversation_manager._reset_conversation(user_id)
         return jsonify({"status": "success"})
 
-    @app.route('/api/products/check', methods=['GET'])
+    @app.route('/products/check', methods=['GET'])
     def check_product():
         logger.info("Received /api/products/check request")
         try:
@@ -145,11 +145,11 @@ def init_routes(app, plato_bot):
             logger.exception("Error checking product")
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/', methods=['GET'])
+    @app.route('/', methods=['GET'])
     def root():
         return jsonify({"status": "healthy"})
 
-    @app.route('/api/health', methods=['GET'])
+    @app.route('/health', methods=['GET'])
     def health_check():
         logger.info("Received /api/health request")
         return jsonify({
@@ -158,7 +158,7 @@ def init_routes(app, plato_bot):
             "sonar_connected": True
         })
 
-    @app.route('/api/context/product', methods=['GET'])
+    @app.route('/context/product', methods=['GET'])
     def get_product_context():
         logger.info("Received /api/context/product request")
         try:
@@ -175,7 +175,7 @@ def init_routes(app, plato_bot):
             logger.exception("Error getting product context")
             return jsonify({'error': str(e)}), 500
         
-    @app.route('/api/update-design', methods=['POST'])
+    @app.route('/update-design', methods=['POST'])
     def update_design():
         """Update design information including explicit logo tracking"""
         try:
@@ -226,7 +226,7 @@ def init_routes(app, plato_bot):
             return jsonify({'success': False, 'error': str(e)}), 500
         
     # Updated submit_order route
-    @app.route('/api/submit-order', methods=['POST'])
+    @app.route('/submit-order', methods=['POST'])
     def submit_order():
         try:
             data = request.json
