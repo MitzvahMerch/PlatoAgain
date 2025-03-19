@@ -675,27 +675,20 @@ class PlatoBot:
         
         # Update OrderState
         order_state.update_product(product_data)
-
+        
         # Reset product modification flow flag if we've successfully selected a new product
         order_state.in_product_modification_flow = False
-
-        # Update the conversation manager with verification
-        result = self.conversation_manager.update_order_state(user_id, order_state)
-        if not result and order_state.product_selected:
-            logger.error(f"Failed to persist product details for user {user_id}, retrying...")
-            # Try again
-            result = self.conversation_manager.update_order_state(user_id, order_state)
-        if not result:
-            logger.error(f"Second attempt to persist product details failed for user {user_id}")
+        
+        self.conversation_manager.update_order_state(user_id, order_state)
 
         # Generate response using Claude
         response_prompt = prompts.get_product_response_prompt(
-        message=message,
-        product_name=details["product_name"],
-        color=details["color"],
-        formatted_price=formatted_price,
-        category=details["category"],
-        material=details.get("material", "")
+            message=message,
+            product_name=details["product_name"],
+            color=details["color"],
+            formatted_price=formatted_price,
+            category=details["category"],
+            material=details.get("material", "")
         )
         
         # Get response from Claude
@@ -833,70 +826,41 @@ class PlatoBot:
     if "i'd like to share this design with you" in message_lower:
         logger.info(f"Detected design placement confirmation from user {user_id}")
         
-        # Check if we have product details - this should be populated even if product_selected is False
-        if order_state.product_details:
-            # Since we have product details, ensure product_selected is True
-            if not order_state.product_selected:
-                order_state.product_selected = True
-                logger.info(f"Fixed product_selected flag for user {user_id}")
-                
-            # Mark design as uploaded
-            order_state.design_uploaded = True
-            logger.info(f"Set design_uploaded=True for user {user_id}")
-            
-            # Update placement if a design path exists
-            if order_state.design_path:
-                logger.info(f"Updating placement with design_path: {order_state.design_path}")
-                
-                # Determine which design this is (initial or additional)
-                design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
-                
-                # Update placement for the design
-                order_state.update_placement(placement="Custom", preview_url=order_state.design_path)
-                self.conversation_manager.update_order_state(user_id, order_state)
-                
-                logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
-                
-                # Get category and product details for a better response
-                category = order_state.product_category or "T-Shirt"
-                product_details = order_state.product_details or {}
-                product_name = product_details.get('product_name', 'Product')
-                color = product_details.get('color', 'Color')
-                youth_sizes = order_state.youth_sizes or "XS-XL"
-                adult_sizes = order_state.adult_sizes or "S-5XL"
-                
-                # Customize response based on number of designs
-                if design_count > 1:
-                    response_text = f"Great! Your {design_count} designs look amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
-                else:
-                    response_text = f"Great! Your design looks amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
-                
-                return {
-                    "text": response_text,
-                    "images": []
-                }
-            else:
-                logger.warning(f"No design_path found for user {user_id} during design confirmation")
-                return {
-                    "text": "I see you're trying to share a design, but I couldn't find the design you uploaded. Would you like to upload it again?",
-                    "images": []
-                }
+        # Always mark both design_uploaded and placement_selected as true when these phrases are detected
+        order_state.design_uploaded = True
+        logger.info(f"Set design_uploaded=True for user {user_id}")
         
-        # If we reached here, we have a confirmation message but missing product
-        logger.warning(f"Design confirmation received but no product details for user {user_id}")
-    
-    # IMPORTANT: Verify product selection
-    if not order_state.product_selected or not order_state.product_details:
-        logger.warning(f"Attempted design placement without product selection for user {user_id}")
-        # Check if we have any product category information
-        category_hint = ""
-        if order_state.product_category:
-            category_hint = f" in the {order_state.product_category} category"
-        # Guide the user back to product selection
-        return {
-            "text": f"Before we upload a design, let's select a product{category_hint} first. What type of garment are you looking for?",
-            "images": []
-        }
+        # Update placement if a design path exists
+        if order_state.design_path:
+            logger.info(f"Updating placement with design_path: {order_state.design_path}")
+            
+            # Determine which design this is (initial or additional)
+            design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
+            
+            # Update placement for the design
+            order_state.update_placement(placement="Custom", preview_url=order_state.design_path)
+            self.conversation_manager.update_order_state(user_id, order_state)
+            
+            logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
+            
+            # Get category and product details for a better response
+            category = order_state.product_category or "T-Shirt"
+            product_details = order_state.product_details or {}
+            product_name = product_details.get('product_name', 'Product')
+            color = product_details.get('color', 'Color')
+            youth_sizes = order_state.youth_sizes or "XS-XL"
+            adult_sizes = order_state.adult_sizes or "S-5XL"
+            
+            # Customize response based on number of designs
+            if design_count > 1:
+                response_text = f"Great! Your {design_count} designs look amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
+            else:
+                response_text = f"Great! Your design looks amazing on the {category}. This product comes in youth sizes {youth_sizes} and adult sizes {adult_sizes}. How many of each size would you like to order?"
+            
+            return {
+                "text": response_text,
+                "images": []
+            }
     
     # Prepare full context for the prompt
     context = self._prepare_context(order_state)
@@ -929,23 +893,6 @@ class PlatoBot:
    def _handle_quantity_collection(self, user_id: str, message: str, order_state) -> dict:
     """Handle quantity collection."""
     logger.info(f"Order state product details for user {user_id}: {order_state.product_details}")
-    
-    # IMPORTANT: Verify product selection first
-    if not order_state.product_selected or not order_state.product_details:
-        # Log the issue
-        logger.warning(f"Attempted quantity collection without product selection for user {user_id}")
-        
-        # Check if we have any product category information
-        category_hint = ""
-        if order_state.product_category:
-            category_hint = f" in the {order_state.product_category} category"
-            
-        # Guide the user back to product selection
-        return {
-            "text": f"I noticed we haven't selected a product yet. Let's pick a product{category_hint} first. What type of garment are you looking for?",
-            "images": []
-        }
-    
     # Try to extract size information
     sizes = utils.extract_size_info(message)
     
@@ -986,12 +933,8 @@ class PlatoBot:
         response_text += f"\nTotal price will be ${order_state.total_price:.2f}. "
         response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
         
-        # Extract product details for the modal with null check
-        if order_state.product_details:
-            product_name = f"{order_state.product_details.get('product_name', 'Product')} in {order_state.product_details.get('color', 'Color')}"
-        else:
-            product_name = "Product"  # Default if product_details is None
-            
+        # Extract product details for the modal
+        product_name = f"{order_state.product_details.get('product_name', 'Product')} in {order_state.product_details.get('color', 'Color')}"
         quantities = ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items())
         
         # Modified text for chat display - shorter but with price breakdown
