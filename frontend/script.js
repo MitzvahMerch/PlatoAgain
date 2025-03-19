@@ -10,7 +10,37 @@ function loadImage(src) {
 }
 
 // Generate a random user ID for this session
-const userId = 'user_' + Math.random().toString(36).substr(2, 9);
+let userId;
+
+// Function to generate a new user ID
+function generateNewUserId() {
+    // Use current timestamp plus random string for better uniqueness
+    const timestamp = Date.now().toString(36);
+    const randomStr = Math.random().toString(36).substr(2, 9);
+    return 'user_' + timestamp + randomStr;
+}
+
+// Check if we need a new user ID when page loads
+window.addEventListener('DOMContentLoaded', () => {
+    // Always generate a brand new user ID on page load/reload
+    userId = generateNewUserId();
+    console.log('New conversation started with user ID:', userId);
+});
+
+// Add a function to reset the conversation with a new user ID
+window.resetConversation = function() {
+    // Generate a new user ID
+    userId = generateNewUserId();
+    
+    // Clear chat messages
+    const chatMessages = document.getElementById('chat-messages');
+    chatMessages.innerHTML = '';
+    
+    // Add initial welcome message
+    addMessage("Hey! I'm Plato. Talk to me like a friend and I'll finalize your bulk custom clothing order in seconds. What type of clothing, and in what color, are you looking to customize today?", 'bot');
+    
+    console.log('Conversation reset with new user ID:', userId);
+};
 const API_BASE_URL = 'https://platosprints-5w8mn.ondigitalocean.app';
 let currentProductImageUrl = null;  // Add this variable to store front product image
 let currentProductBackImageUrl = null;
@@ -120,6 +150,11 @@ imageUploadButton.addEventListener('change', async (e) => {
 
 async function sendMessage() {
     // Check if there's an incomplete upload
+    if (!userId) {
+        userId = generateNewUserId();
+        console.warn('User ID was missing, generated new ID:', userId);
+    }
+    
     if (window.uploadRequiresCompletion === true) {
         // User tried to send message without completing upload
         return;

@@ -66,52 +66,52 @@ class ConversationManager:
 
     def get_order_state(self, user_id: str) -> OrderState:
         """Get or create OrderState for a user with Firestore persistence."""
-        # Check if conversation exists in memory first
-        if user_id not in self.conversations:
-            # Try to load from Firestore before creating new
-            if self.firebase_service:
-                try:
-                    doc_ref = self.firebase_service.db.collection('active_conversations').document(user_id)
-                    doc = doc_ref.get()
-                    if doc.exists:
-                        data = doc.to_dict()
-                        logger.info(f"Found active conversation in Firestore for user {user_id}")
-                        if 'order_state' in data:
-                            # Create a new OrderState from the Firestore data
-                            order_state = OrderState.from_dict(data['order_state'])
-                            # Initialize the conversation with loaded state
-                            self.conversations[user_id] = {
-                                'messages': data.get('messages', []),
-                                'last_active': datetime.now(),
-                                'order_state': order_state,
-                                'current_goal': data.get('current_goal')
-                            }
-                            logger.info(f"Loaded order state from Firestore for user {user_id}, product_selected={order_state.product_selected}, has_product_details={order_state.product_details is not None}")
-                            return order_state
-                except Exception as e:
-                    logger.error(f"Error loading from Firestore: {str(e)}", exc_info=True)
-            
-            # If no data in Firestore or error loading, initialize new conversation
-            self._initialize_conversation(user_id)
+    # Check if conversation exists in memory first
+        if user_id in self.conversations:
+            order_state = self.conversations[user_id]['order_state']
         
-        # Additional sanity check - if product_selected is True but product_details is None, that's inconsistent
-        order_state = self.conversations[user_id]['order_state']
-        if order_state.product_selected and order_state.product_details is None and self.firebase_service:
-            logger.warning(f"Inconsistent state detected: product_selected=True but product_details=None for user {user_id}")
-            # Try one more time to load from Firestore
+        # Add logging for debugging
+            logger.info(f"Found in-memory order state for user {user_id}, product: {order_state.product_details.get('product_name') if order_state.product_details else 'None'}")
+        
+            return order_state
+        
+    # Try to load from Firestore before creating new
+        if self.firebase_service:
             try:
                 doc_ref = self.firebase_service.db.collection('active_conversations').document(user_id)
                 doc = doc_ref.get()
                 if doc.exists:
                     data = doc.to_dict()
-                    if 'order_state' in data and isinstance(data['order_state'], dict) and 'product_details' in data['order_state']:
-                        # Just update the product_details field
-                        order_state.product_details = data['order_state']['product_details']
-                        logger.info(f"Recovered product_details from Firestore for user {user_id}")
+                    logger.info(f"Found active conversation in Firestore for user {user_id}")
+                
+                # IMPORTANT: Check if this is a valid conversation with the expected data
+                    if 'order_state' in data and 'messages' in data:
+                    # Protect against loading partial conversations
+                        order_state_data = data.get('order_state', {})
+                    
+                    # Create a new OrderState from the Firestore data
+                        order_state = OrderState.from_dict(order_state_data)
+                    
+                    # Initialize the conversation with loaded state
+                        self.conversations[user_id] = {
+                        'messages': data.get('messages', []),
+                        'last_active': datetime.now(),
+                        'order_state': order_state,
+                        'current_goal': data.get('current_goal')
+                        }
+                    
+                    # Add extra logging about the loaded state
+                        product_name = order_state.product_details.get('product_name') if order_state.product_details else 'None'
+                        logger.info(f"Loaded order state from Firestore for user {user_id}, product_selected={order_state.product_selected}, product={product_name}, quantities_collected={order_state.quantities_collected}")
+                    
+                    return order_state
             except Exception as e:
-                logger.error(f"Error recovering product_details from Firestore: {str(e)}")
-        
-        return order_state
+                logger.error(f"Error loading from Firestore: {str(e)}", exc_info=True)
+    
+    # If no data in Firestore or error loading, initialize new conversation
+        logger.info(f"No existing conversation found for user {user_id}, initializing new conversation")
+        self._initialize_conversation(user_id)
+        return self.conversations[user_id]['order_state']
 
     def update_order_state(self, user_id: str, order_state: OrderState) -> None:
         """Update the entire OrderState object with Firestore persistence."""
