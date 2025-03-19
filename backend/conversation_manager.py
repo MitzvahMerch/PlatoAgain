@@ -116,39 +116,48 @@ class ConversationManager:
     def update_order_state(self, user_id: str, order_state: OrderState) -> None:
         """Update the entire OrderState object with Firestore persistence."""
         if user_id in self.conversations:
-            # For debugging, log if we're losing product details
+        # Add specific logging for quantities_collected flag
             old_state = self.conversations[user_id]['order_state']
             had_product_details = old_state.product_details is not None
-            
-            # Update the in-memory conversation
+            quantities_flag_before = old_state.quantities_collected
+        
+        # Update the in-memory conversation
             self.conversations[user_id]['order_state'] = order_state
             self.conversations[user_id]['last_active'] = datetime.now()
-            
-            # Check if we're losing product details
+        
+        # Log changes in critical properties
             if had_product_details and order_state.product_details is None:
                 logger.warning(f"Product details were LOST during update for user {user_id}")
-            
-            # Persist to Firestore if available
+        
+        # Log quantities_collected flag state change
+            quantities_flag_after = order_state.quantities_collected
+            if quantities_flag_before != quantities_flag_after:
+                logger.info(f"Quantities collected flag changed: {quantities_flag_before} -> {quantities_flag_after}")
+        
+        # Persist to Firestore if available
             if self.firebase_service:
                 try:
-                    # Get conversation data to store
+                # Get conversation data to store
                     messages = self.conversations[user_id].get('messages', [])
                     current_goal = self.conversations[user_id].get('current_goal')
-                    
-                    # Convert OrderState to dict for Firestore
+                
+                # Convert OrderState to dict for Firestore
                     order_dict = order_state.to_dict() if hasattr(order_state, 'to_dict') else {}
-                    
-                    # Store in Firestore with merge=True to avoid overwriting other fields
+                
+                # Log Firestore conversion of quantities_collected flag
+                    logger.info(f"OrderState quantities_collected={order_state.quantities_collected}, in Firestore dict: {order_dict.get('quantities_collected', 'NOT PRESENT')}")
+                
+                # Store in Firestore with merge=True to avoid overwriting other fields
                     self.firebase_service.db.collection('active_conversations').document(user_id).set({
-                        'order_state': order_dict,
-                        'messages': messages[-self.max_history:] if len(messages) > self.max_history else messages,
-                        'current_goal': current_goal,
-                        'last_active': firestore.SERVER_TIMESTAMP
+                    'order_state': order_dict,
+                    'messages': messages[-self.max_history:] if len(messages) > self.max_history else messages,
+                    'current_goal': current_goal,
+                    'last_active': firestore.SERVER_TIMESTAMP
                     }, merge=True)
                     logger.info(f"Persisted order state to Firestore for user {user_id}")
                 except Exception as e:
                     logger.error(f"Error persisting to Firestore: {str(e)}", exc_info=True)
-            
+        
             logger.info(f"Updated order state for user {user_id}")
         else:
             logger.warning(f"Tried to update order state for unknown user {user_id}")
