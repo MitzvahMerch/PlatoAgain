@@ -192,7 +192,7 @@ const createBackgroundRemovalModal = () => {
     const processWithBackgroundRemoval = async (file) => {
         try {
             // Explicitly hardcode the base URL to ensure it's correct
-            const API_ENDPOINT = fetch('https://platosprints-5w8mn.ondigitalocean.app/api/remove-background');
+            const API_ENDPOINT = 'https://platosprints-5w8mn.ondigitalocean.app/api/remove-background';
             
             console.log('Calling background removal API at:', API_ENDPOINT);
             
@@ -243,7 +243,7 @@ const createBackgroundRemovalModal = () => {
             
             // Check if server is running
             try {
-                fetch('https://platosprints-5w8mn.ondigitalocean.app/api/health');
+                const healthCheck = await fetch('https://platosprints-5w8mn.ondigitalocean.app/api/health');
                 console.log('Server health check:', healthCheck.status, await healthCheck.text());
             } catch (healthError) {
                 console.error('Server health check failed - server may be down:', healthError);
