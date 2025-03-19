@@ -277,3 +277,46 @@ def init_routes(app, plato_bot):
                 "error": "Server error",
                 "message": "An unexpected error occurred. Please try again."
             }), 500
+    
+    @app.route('/debug/conversation/<user_id>', methods=['GET'])
+    def debug_conversation(user_id):
+        """Debug endpoint to check conversation state in both memory and Firestore."""
+        # Check in-memory state
+        in_memory = user_id in plato_bot.conversation_manager.conversations
+        memory_state = None
+        if in_memory:
+            conv = plato_bot.conversation_manager.conversations[user_id]
+            order_state = conv.get('order_state')
+            if order_state:
+                memory_state = {
+                    "product_selected": order_state.product_selected,
+                    "has_product_details": order_state.product_details is not None,
+                    "design_uploaded": order_state.design_uploaded,
+                    "message_count": len(conv.get('messages', [])),
+                    "last_active": str(conv.get('last_active'))
+                }
+    
+        # Check Firestore state
+        firestore_state = None
+        try:
+            doc_ref = plato_bot.firebase_service.db.collection('active_conversations').document(user_id)
+            doc = doc_ref.get()
+            if doc.exists:
+                data = doc.to_dict()
+                order_data = data.get('order_state', {})
+                firestore_state = {
+                    "product_selected": order_data.get('product_selected', False),
+                    "has_product_details": 'product_details' in order_data and order_data['product_details'] is not None,
+                    "design_uploaded": order_data.get('design_uploaded', False),
+                    "message_count": len(data.get('messages', [])),
+                    "last_active": str(data.get('last_active'))
+                }
+        except Exception as e:
+            logger.error(f"Error checking Firestore state: {str(e)}")
+    
+        return jsonify({
+        "in_memory": in_memory,
+        "memory_state": memory_state,
+        "in_firestore": firestore_state is not None,
+        "firestore_state": firestore_state
+        })

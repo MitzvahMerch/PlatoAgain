@@ -23,13 +23,14 @@ class PlatoBot:
    def __init__(self):
     logger.info("Initializing PlatoBot...")
     self.claude = ClaudeClient()
+    self.firebase_service = FirebaseService()
     self.conversation_manager = ConversationManager(
         ai_client=self.claude,
+        firebase_service=self.firebase_service,  # Pass Firebase service to ConversationManager
         max_history=MAX_HISTORY,
         timeout_minutes=TIMEOUT_MINUTES
     )
     self.goal_identifier = GoalIdentifier(self.claude)
-    self.firebase_service = FirebaseService()
     self.paypal = PayPalService()
 
     # Initialize SS Client
