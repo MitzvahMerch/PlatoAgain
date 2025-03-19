@@ -213,7 +213,7 @@ async function sendMessage() {
         
         if (data.images && data.images.length > 0) {
             data.images.forEach(image => {
-                const imageUrl = `${API_BASE_URL}${image.url}`;
+                const imageUrl = `${API_BASE_URL}/api${image.url}`;
                 if (image.type === 'product_front') {
                     currentProductImageUrl = imageUrl;
                 } else if (image.type === 'product_back') {
