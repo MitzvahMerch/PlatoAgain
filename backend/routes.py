@@ -16,9 +16,20 @@ def init_routes(app, plato_bot):
 
     @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
-        response = send_from_directory('productimages', filename)
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        return response
+        try:
+        # Split the path into directory and file components
+            parts = filename.split('/')
+            if len(parts) > 1:
+            # If there are subdirectories in the path
+                subdir = parts[0]
+                file = '/'.join(parts[1:])
+                return send_from_directory(os.path.join('productimages', subdir), file)
+            else:
+            # If the file is directly in productimages
+                return send_from_directory('productimages', filename)
+        except Exception as e:
+            logger.error(f"Error serving product image {filename}: {str(e)}")
+            return jsonify({'error': f'Image not found: {str(e)}'}), 404
 
     @app.route('/chat', methods=['POST'])
     def chat():
