@@ -11,7 +11,7 @@ function loadImage(src) {
 
 // Generate a random user ID for this session
 const userId = 'user_' + Math.random().toString(36).substr(2, 9);
-const API_BASE_URL = 'http://localhost:5001';
+const API_BASE_URL = 'https://platosprints-5w8mn.ondigitalocean.app';
 let currentProductImageUrl = null;  // Add this variable to store front product image
 let currentProductBackImageUrl = null;
 let designsAdded = 0; // Track how many designs have been added
