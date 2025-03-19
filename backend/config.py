@@ -27,7 +27,7 @@ MAX_HISTORY = 10
 TIMEOUT_MINUTES = 30
 
 # Server Settings
-PORT = 5001
-DEBUG = True
+PORT = int(os.environ.get('PORT', 5001))
+DEBUG = False
 
 REMOVE_BG_API_KEY = os.getenv('REMOVE_BG_API_KEY', '')

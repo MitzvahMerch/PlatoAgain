@@ -145,6 +145,10 @@ def init_routes(app, plato_bot):
             logger.exception("Error checking product")
             return jsonify({'error': str(e)}), 500
 
+    @app.route('/', methods=['GET'])
+    def root():
+        return jsonify({"status": "healthy"})
+
     @app.route('/api/health', methods=['GET'])
     def health_check():
         logger.info("Received /api/health request")
