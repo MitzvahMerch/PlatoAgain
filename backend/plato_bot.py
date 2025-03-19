@@ -892,6 +892,7 @@ class PlatoBot:
    
    def _handle_quantity_collection(self, user_id: str, message: str, order_state) -> dict:
     """Handle quantity collection."""
+    logger.info(f"Order state product details for user {user_id}: {order_state.product_details}")
     # Try to extract size information
     sizes = utils.extract_size_info(message)
     
