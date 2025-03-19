@@ -568,51 +568,64 @@ class OrderState:
     def from_dict(cls, data: Dict) -> 'OrderState':
         """Create an OrderState instance from a dictionary"""
         order = cls()
-        
-        # Handle the designs list separately if it exists
+    
+    # Handle the designs list separately if it exists
         if 'designs' in data:
             designs_data = data.pop('designs')
             for design_data in designs_data:
                 design = DesignInfo(
-                    design_path=design_data.get('design_path'),
-                    design_filename=design_data.get('design_filename'),
-                    design_file_type=design_data.get('design_file_type'),
-                    design_file_size=design_data.get('design_file_size'),
-                    upload_date=design_data.get('upload_date'),
-                    placement=design_data.get('placement'),
-                    preview_url=design_data.get('preview_url'),
-                    side=design_data.get('side'),
-                    has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
+                design_path=design_data.get('design_path'),
+                design_filename=design_data.get('design_filename'),
+                design_file_type=design_data.get('design_file_type'),
+                design_file_size=design_data.get('design_file_size'),
+                upload_date=design_data.get('upload_date'),
+                placement=design_data.get('placement'),
+                preview_url=design_data.get('preview_url'),
+                side=design_data.get('side'),
+                has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
                 )
                 order.designs.append(design)
-        
+    
+        # Check for nested structure from Firestore (fix for quantities_collected issue)
+        if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict):
+            if 'collected' in data['quantityInfo']:
+                order.quantities_collected = data['quantityInfo']['collected']
+            if 'sizes' in data['quantityInfo']:
+                order.sizes = data['quantityInfo']['sizes']
+            if 'totalQuantity' in data['quantityInfo']:
+                order.total_quantity = data['quantityInfo']['totalQuantity']
+            if 'totalPrice' in data['quantityInfo']:
+                order.total_price = data['quantityInfo']['totalPrice']
+            if 'logoChargePerItem' in data['quantityInfo']:
+                order.logo_charge_per_item = data['quantityInfo']['logoChargePerItem']
+    
         # Set all the other fields
         for key, value in data.items():
             if hasattr(order, key):
                 setattr(order, key, value)
-        
+    
         # Handle original_intent if it exists
         if 'original_intent' in data:
             order.original_intent = data['original_intent']
         else:
             order.original_intent = {"category": None, "general_color": None, "requested_changes": []}
 
-        # Handle in_product_modification_flow if it exists
+    # Handle in_product_modification_flow if it exists
         if 'in_product_modification_flow' in data:
             order.in_product_modification_flow = data['in_product_modification_flow']
         else:
             order.in_product_modification_flow = False
-        
-        # Ensure express shipping fields are present
+    
+    # Ensure express shipping fields are present
         if not hasattr(order, 'express_shipping_percentage') or order.express_shipping_percentage is None:
             order.express_shipping_percentage = 0
         if not hasattr(order, 'express_shipping_charge') or order.express_shipping_charge is None:
             order.express_shipping_charge = 0
-        
-        # Ensure logo_count is always set correctly based on designs
+    
+    # Ensure logo_count is always set correctly based on designs
         if order.designs:
             logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
             if order.logo_count != logo_designs:
                 order.logo_count = logo_designs
-                
-        return order 
+            
+        return order
