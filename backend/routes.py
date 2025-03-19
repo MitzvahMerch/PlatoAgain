@@ -1,14 +1,18 @@
 import logging
-from flask import jsonify, request, send_from_directory
+from flask import jsonify, request, send_from_directory, send_file
 from plato_bot import PlatoBot
 import asyncio
 from flask_cors import CORS  # Add CORS support
+import requests
+from io import BytesIO
+import os
+import base64
 
 logger = logging.getLogger(__name__)
 
-def init_routes(app, plato_bot: PlatoBot):
+def init_routes(app, plato_bot):
     # Enable CORS for all routes
-    CORS(app)
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
@@ -35,6 +39,86 @@ def init_routes(app, plato_bot: PlatoBot):
         response = plato_bot.process_message(user_id, message, design_url)
         logger.info(f"Chat response: {response}")
         return jsonify(response)
+    
+    @app.route('/api/remove-background', methods=['POST'])
+    def remove_background():
+        try:
+            logger.info("Received /api/remove-background request")
+        
+            if 'image' not in request.files:
+                logger.error("No image file provided in background removal request")
+                return jsonify({'error': 'No image file provided'}), 400
+        
+            image_file = request.files['image']
+            logger.info(f"Processing image: {image_file.filename} ({image_file.content_type})")
+        
+            # Clipping Magic API credentials - make sure these match what worked in curl
+            api_id = "23705"
+            api_secret = "98j7kc26p13ntkvvg0e4j8el61fj4pg2jmg2i4p4vro5f9pe03dn"
+        
+            # Read the image data
+            image_data = image_file.read()
+            logger.info(f"Read image data, size: {len(image_data)} bytes")
+        
+            # Encode credentials properly for Basic Auth
+            auth_string = f"{api_id}:{api_secret}"
+            encoded_auth = base64.b64encode(auth_string.encode()).decode()
+        
+            # Clipping Magic API endpoint - use the one that worked in curl
+            url = "https://clippingmagic.com/api/v1/images"
+        
+            # Log exact URL being used
+            logger.info(f"Using API URL: {url}")
+        
+            # Prepare the request
+            headers = {
+                'Authorization': f'Basic {encoded_auth}'
+            }
+        
+            # Log the headers (without the actual auth value for security)
+            logger.info(f"Using Authorization header: Basic ***")
+        
+            files = {
+                'image': (image_file.filename, image_data, image_file.content_type)
+            }
+        
+            # Parameters for automatic background removal
+            params = {
+            'format': 'result',
+            'quality': 'high',
+            'scale': 'original',
+            'crop': 'false',
+            }
+        
+            logger.info(f"Calling Clipping Magic API with params: {params}")
+        
+            # Call the Clipping Magic API
+            response = requests.post(
+            url,
+            headers=headers,
+            files=files,
+            params=params
+            )
+        
+            logger.info(f"Clipping Magic API response: {response.status_code} {response.reason}")
+        
+            if response.status_code != 200:
+                logger.error(f"Clipping Magic API error: {response.status_code}, {response.text}")
+                return jsonify({'error': f'Clipping Magic API error: {response.text}'}), response.status_code
+        
+            logger.info("Successfully removed background with Clipping Magic")
+        # Return the processed image
+            img_bytes = BytesIO(response.content)
+            img_bytes.seek(0)
+        
+        # Make sure to include CORS headers
+            response = send_file(img_bytes, mimetype='image/png')
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            return response
+        
+        except Exception as e:
+            logger.exception("Error in background removal")
+        return jsonify({'error': str(e)}), 500
 
     @app.route('/api/chat/reset', methods=['POST'])
     def reset_conversation():
@@ -120,7 +204,7 @@ def init_routes(app, plato_bot: PlatoBot):
         
             # If has_logo is True, explicitly increment logo count (as a safety measure)
             if has_logo and hasattr(order_state, 'logo_count'):
-            # We already increment in update_design, but we're making sure it happened
+                # We already increment in update_design, but we're making sure it happened
                 # If logo_count is still 0, set it to 1
                 if order_state.logo_count == 0:
                     order_state.logo_count = 1
@@ -135,7 +219,7 @@ def init_routes(app, plato_bot: PlatoBot):
     
         except Exception as e:
             logger.error(f"Error updating design: {str(e)}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': str(e)}), 500
         
     # Updated submit_order route
     @app.route('/api/submit-order', methods=['POST'])

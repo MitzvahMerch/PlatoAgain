@@ -54,7 +54,7 @@ chatInput.addEventListener('input', () => {
     chatInput.style.height = chatInput.scrollHeight + 'px';
 });
 
-// Image upload handling with design placement
+// Image upload handling with background removal and design placement
 imageUploadButton.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -66,31 +66,55 @@ imageUploadButton.addEventListener('change', async (e) => {
         uploadButton.innerHTML = '<polyline points="20 6 9 17 4 12"></polyline>';
         uploadButton.style.color = 'var(--success-color)';
         
-        // Upload the file first
-        const uploadResult = await window.uploadDesignImage(file, userId);
-        if (!uploadResult.success) {
-            throw new Error(uploadResult.error || 'Failed to upload image');
-        }
+        // Create temporary URL for the uploaded file
+        const tempImageUrl = URL.createObjectURL(file);
         
-        // Store the upload result globally
-        window.currentUploadResult = uploadResult;
+        // Show background removal modal first
+        window.backgroundRemovalModal.show(tempImageUrl, file, async (result) => {
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to process image');
+            }
+            
+            // Upload the processed file to Firebase
+            const uploadResult = await window.uploadDesignImage(result.processedFile || file, userId);
+            if (!uploadResult.success) {
+                throw new Error(uploadResult.error || 'Failed to upload image');
+            }
+            
+            // Store the upload result globally
+            window.currentUploadResult = uploadResult;
 
-        // Show placement modal with DesignPlacer
-        const root = ReactDOM.createRoot(window.placementModal.content);
-        root.render(
-            React.createElement(window.DesignPlacer, {
-                frontImage: currentProductImageUrl,
-                backImage: currentProductBackImageUrl,
-                designUrl: uploadResult.url,
-                onSave: svgBasedCompositeRenderer
-            })
-        );
-        
-        window.placementModal.show();
+            // Show placement modal with DesignPlacer
+            const root = ReactDOM.createRoot(window.placementModal.content);
+            root.render(
+                React.createElement(window.DesignPlacer, {
+                    frontImage: currentProductImageUrl,
+                    backImage: currentProductBackImageUrl,
+                    designUrl: uploadResult.url,
+                    onSave: svgBasedCompositeRenderer
+                })
+            );
+            
+            window.placementModal.show();
+        });
         
     } catch (error) {
         console.error('Error processing image:', error);
         addMessage('Sorry, there was an error processing your image. Please try again.', 'system');
+        
+        // Reset the file input and button
+        const fileInput = document.getElementById('image-upload');
+        if (fileInput) fileInput.value = '';
+        
+        const uploadButton = document.querySelector('.chat-upload-button svg');
+        if (uploadButton) {
+            uploadButton.innerHTML = `
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+            `;
+            uploadButton.style.color = 'var(--secondary-color)';
+        }
     }
 });
 

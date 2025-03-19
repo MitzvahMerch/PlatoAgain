@@ -29,3 +29,5 @@ TIMEOUT_MINUTES = 30
 # Server Settings
 PORT = 5001
 DEBUG = True
+
+REMOVE_BG_API_KEY = os.getenv('REMOVE_BG_API_KEY', '')
