@@ -13,3 +13,4 @@ pandas
 numpy  # pandas usually requires numpy
 apscheduler==3.10.1  # Added for conversation cleanup scheduling
 gunicorn==21.2.0
+firebase-admin  # Add this line
