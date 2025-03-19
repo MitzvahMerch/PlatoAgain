@@ -45,4 +45,4 @@ if __name__ == '__main__':
     # Add event loop for async support
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    app.run(debug=DEBUG, port=PORT)
+    app.run(host='0.0.0.0', debug=DEBUG, port=PORT)
