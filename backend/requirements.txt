@@ -6,9 +6,10 @@ langchain==0.0.350
 pinecone-client==2.2.4
 python-jose==3.3.0
 stripe==7.0.0
-Pillow==10.1.0
+Pillow==10.1.0 --only-binary=:all:
 requests==2.31.0
 zeep==4.2.1  # Added for SanMar SOAP API
 pandas
 numpy  # pandas usually requires numpy
 apscheduler==3.10.1  # Added for conversation cleanup scheduling
+gunicorn==21.2.0
