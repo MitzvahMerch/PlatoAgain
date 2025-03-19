@@ -57,11 +57,25 @@ class ConversationManager:
             self._initialize_conversation(user_id)
         return self.conversations[user_id]['order_state']
 
-    def update_order_state(self, user_id: str, order_state: OrderState) -> None:
-        """Update the entire OrderState object."""
+    def update_order_state(self, user_id: str, order_state: OrderState) -> bool:
+        """Update the entire OrderState object and verify critical data."""
         if user_id in self.conversations:
+            # Store original state
             self.conversations[user_id]['order_state'] = order_state
             logger.info(f"Updated order state for user {user_id}")
+        
+            # Verify critical data persisted correctly
+            verified_state = self.conversations[user_id]['order_state']
+        
+            # Check product details if product was selected
+            if order_state.product_selected and not verified_state.product_details:
+                logger.error(f"Product details failed to persist for user {user_id}")
+                return False
+            
+            return True
+    
+        logger.warning(f"Attempted to update order state for unknown user: {user_id}")
+        return False
 
     def get_conversation_messages(self, user_id: str) -> List[Dict]:
         """Get full conversation history for API context."""
