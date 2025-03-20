@@ -29,8 +29,8 @@ class OrderState:
     
     # Product Selection
     product_selected: bool = False
-    product_details: Optional[Dict] = None # Includes name, color, style, price, images
-    product_category: Optional[str] = None # Store the product category (T-Shirt, Sweatshirt, etc.)
+    product_details: Optional[Dict] = None  # Includes name, color, style, price, images
+    product_category: Optional[str] = None  # Store the product category (T-Shirt, Sweatshirt, etc.)
     youth_sizes: Optional[str] = None
     adult_sizes: Optional[str] = None
     price_per_item: float = 0
@@ -576,39 +576,48 @@ class OrderState:
     def from_dict(cls, data: Dict) -> 'OrderState':
         """Create an OrderState instance from a dictionary"""
         order = cls()
-    
-    # Log the input data structure
+
+        # Log the input data structure
         logger.info(f"from_dict called with data keys: {data.keys()}")
         if 'quantities_collected' in data:
             logger.info(f"Top-level quantities_collected found: {data['quantities_collected']}")
         if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict) and 'collected' in data['quantityInfo']:
             logger.info(f"Nested quantities_collected found: {data['quantityInfo']['collected']}")
-    
+
+        # Keep track of fields we've already processed
+        processed_fields = set()
+
         # Handle the designs list separately if it exists
         if 'designs' in data:
             designs_data = data.pop('designs')
+            processed_fields.add('designs')
             for design_data in designs_data:
                 design = DesignInfo(
-                design_path=design_data.get('design_path'),
-                design_filename=design_data.get('design_filename'),
-                design_file_type=design_data.get('design_file_type'),
-                design_file_size=design_data.get('design_file_size'),
-                upload_date=design_data.get('upload_date'),
-                placement=design_data.get('placement'),
-                preview_url=design_data.get('preview_url'),
-                side=design_data.get('side'),
-                has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
-            )
+                    design_path=design_data.get('design_path'),
+                    design_filename=design_data.get('design_filename'),
+                    design_file_type=design_data.get('design_file_type'),
+                    design_file_size=design_data.get('design_file_size'),
+                    upload_date=design_data.get('upload_date'),
+                    placement=design_data.get('placement'),
+                    preview_url=design_data.get('preview_url'),
+                    side=design_data.get('side'),
+                    has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
+                )
                 order.designs.append(design)
-    
+
         # Handle quantities_collected from both places for backward compatibility
         if 'quantities_collected' in data:
             # New flattened structure - directly use the top-level value
             order.quantities_collected = data['quantities_collected']
+            logger.info(f"Setting quantities_collected to {data['quantities_collected']} from top-level")
+            processed_fields.add('quantities_collected')  # Mark as processed
         elif 'quantityInfo' in data and isinstance(data['quantityInfo'], dict) and 'collected' in data['quantityInfo']:
             # Old nested structure - extract from quantityInfo.collected
             order.quantities_collected = data['quantityInfo']['collected']
-    
+            logger.info(f"Setting quantities_collected to {data['quantityInfo']['collected']} from quantityInfo.collected")
+        else:
+            logger.warning("No quantities_collected found in either location!")
+
         # Check for nested quantityInfo structure from Firestore
         if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict):
             quantity_info = data['quantityInfo']
@@ -620,13 +629,16 @@ class OrderState:
                 order.total_price = quantity_info['totalPrice']
             if 'logoChargePerItem' in quantity_info:
                 order.logo_charge_per_item = quantity_info['logoChargePerItem']
-    
-        logger.info(f"Final quantities_collected value after from_dict: {order.quantities_collected}")
-        # Set all the other fields
+
+        logger.info(f"quantities_collected before setting other fields: {order.quantities_collected}")
+        
+        # Set all the other fields EXCEPT ones we've already processed
         for key, value in data.items():
-            if hasattr(order, key):
+            if key not in processed_fields and hasattr(order, key):
                 setattr(order, key, value)
-    
+        
+        logger.info(f"quantities_collected after setting all fields: {order.quantities_collected}")
+
         # Handle original_intent if it exists
         if 'original_intent' in data:
             order.original_intent = data['original_intent']
@@ -638,17 +650,18 @@ class OrderState:
             order.in_product_modification_flow = data['in_product_modification_flow']
         else:
             order.in_product_modification_flow = False
-    
+
         # Ensure express shipping fields are present
         if not hasattr(order, 'express_shipping_percentage') or order.express_shipping_percentage is None:
             order.express_shipping_percentage = 0
         if not hasattr(order, 'express_shipping_charge') or order.express_shipping_charge is None:
             order.express_shipping_charge = 0
-    
+
         # Ensure logo_count is always set correctly based on designs
         if order.designs:
             logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
             if order.logo_count != logo_designs:
                 order.logo_count = logo_designs
             
+        logger.info(f"Final quantities_collected value after from_dict: {order.quantities_collected}")
         return order
