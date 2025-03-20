@@ -435,6 +435,7 @@ class OrderState:
             'userId': self.user_id,
             # Add quantities_collected at the TOP LEVEL
             'quantities_collected': self.quantities_collected,
+            'design_uploaded': self.design_uploaded,  # Add this line
             'productInfo': {
                 'selected': self.product_selected,
                 'details': self.product_details,
@@ -625,6 +626,18 @@ class OrderState:
             logger.info(f"Setting quantities_collected to {data['quantityInfo']['collected']} from quantityInfo.collected")
         else:
             logger.warning("No quantities_collected found in either location!")
+
+        if 'design_uploaded' in data:
+        # New flattened structure - directly use the top-level value
+            order.design_uploaded = data['design_uploaded']
+            logger.info(f"Setting design_uploaded to {data['design_uploaded']} from top-level")
+            processed_fields.add('design_uploaded')  # Mark as processed
+        elif 'designInfo' in data and isinstance(data['designInfo'], dict) and 'uploaded' in data['designInfo']:
+            # Old nested structure - extract from designInfo.uploaded
+            order.design_uploaded = data['designInfo']['uploaded']
+            logger.info(f"Setting design_uploaded to {data['designInfo']['uploaded']} from designInfo.uploaded")
+        else:
+            logger.warning("No design_uploaded found in either location!")    
 
         # Check for nested quantityInfo structure from Firestore
         if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict):
