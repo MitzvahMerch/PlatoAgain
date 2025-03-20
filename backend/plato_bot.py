@@ -968,6 +968,8 @@ class PlatoBot:
         response_text = utils.clean_response(response)
      
         return {"text": response_text, "images": []}
+    
+    
 
    def _handle_customer_information(self, user_id: str, message: str, order_state, form_submission=False) -> dict:
     """Handle customer information collection and save complete order to Firestore."""
@@ -1212,7 +1214,34 @@ class PlatoBot:
                 "images": []
             }
 
-
+   def get_fresh_order_state(self, user_id: str) -> OrderState:
+    """Get a fresh OrderState directly from Firestore, bypassing in-memory cache"""
+    if self.firebase_service:
+        try:
+            doc_ref = self.firebase_service.db.collection('active_conversations').document(user_id)
+            doc = doc_ref.get()
+            if doc.exists:
+                data = doc.to_dict()
+                if 'order_state' in data:
+                    order_state_data = data.get('order_state', {})
+                    logger.info(f"Loading fresh order state from Firestore with keys: {order_state_data.keys()}")
+                    if 'quantities_collected' in order_state_data:
+                        logger.info(f"Fresh Firestore data has quantities_collected={order_state_data['quantities_collected']}")
+                    order_state = OrderState.from_dict(order_state_data)
+                    logger.info(f"Fresh order state created with quantities_collected={order_state.quantities_collected}")
+                    
+                    # Force-update the in-memory cache with this fresh data
+                    if user_id in self.conversation_manager.conversations:
+                        self.conversation_manager.conversations[user_id]['order_state'] = order_state
+                        logger.info(f"Updated in-memory cache with fresh order state")
+                    
+                    return order_state
+        except Exception as e:
+            logger.error(f"Error loading fresh order state: {str(e)}")
+    
+    # Fallback to regular get_order_state
+    return self.conversation_manager.get_order_state(user_id)
+    
    def _prepare_context(self, order_state) -> dict:
     """Prepare context based on the order state."""
     # Get design count and compile design information

@@ -249,7 +249,8 @@ def init_routes(app, plato_bot):
             logger.info(f"Processing order submission for user {user_id}")
     
         # Get the order state
-            order_state = plato_bot.conversation_manager.get_order_state(user_id)
+            # Get the order state - use the fresh method that bypasses caching
+            order_state = plato_bot.get_fresh_order_state(user_id)
         
         # IMPORTANT: Log the state immediately after loading to see if it's correct
             logger.info(f"Initial order state from get_order_state: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
