@@ -279,7 +279,7 @@ class OrderState:
     
     def update_customer_info(self, name: str, address: str, email: str, received_by_date: str = None):
         """Update customer information"""
-        logger.info(f"Updating customer info: name='{name}', address='{address}', email='{email}', received_by_date='{received_by_date}'")
+        logger.info(f"BEFORE update_customer_info: quantities_collected={self.quantities_collected}")
         
         # Log previous values if they exist
         if self.customer_name or self.shipping_address or self.email or self.received_by_date:
@@ -306,6 +306,8 @@ class OrderState:
         logger.info(f"Updated values: name='{self.customer_name}', address='{self.shipping_address}', email='{self.email}', received_by_date='{self.received_by_date}'")
         if self.express_shipping_percentage > 0:
             logger.info(f"Express shipping fee applied: {self.express_shipping_percentage}% (${self.express_shipping_charge:.2f})")
+        
+        logger.info(f"AFTER update_customer_info: quantities_collected={self.quantities_collected}")
 
     def add_rejected_product(self, product_info: Dict):
         """Add a product to the rejected products list"""
@@ -430,6 +432,8 @@ class OrderState:
         
         result = {
             'userId': self.user_id,
+            # Add quantities_collected at the TOP LEVEL
+            'quantities_collected': self.quantities_collected,
             'productInfo': {
                 'selected': self.product_selected,
                 'details': self.product_details,
@@ -459,7 +463,7 @@ class OrderState:
                 'previewUrl': self.preview_url
             },
             'quantityInfo': {
-                'collected': self.quantities_collected,
+                # REMOVE 'collected' from here since it's now at top level
                 'sizes': self.sizes,
                 'totalQuantity': self.total_quantity,
                 'totalPrice': self.total_price,
@@ -586,11 +590,17 @@ class OrderState:
             )
                 order.designs.append(design)
     
-    # Check for nested quantityInfo structure from Firestore
+        # Handle quantities_collected from both places for backward compatibility
+        if 'quantities_collected' in data:
+            # New flattened structure - directly use the top-level value
+            order.quantities_collected = data['quantities_collected']
+        elif 'quantityInfo' in data and isinstance(data['quantityInfo'], dict) and 'collected' in data['quantityInfo']:
+            # Old nested structure - extract from quantityInfo.collected
+            order.quantities_collected = data['quantityInfo']['collected']
+    
+        # Check for nested quantityInfo structure from Firestore
         if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict):
             quantity_info = data['quantityInfo']
-            if 'collected' in quantity_info:
-                order.quantities_collected = quantity_info['collected']
             if 'sizes' in quantity_info:
                 order.sizes = quantity_info['sizes']
             if 'totalQuantity' in quantity_info:
@@ -600,30 +610,30 @@ class OrderState:
             if 'logoChargePerItem' in quantity_info:
                 order.logo_charge_per_item = quantity_info['logoChargePerItem']
     
-    # Set all the other fields
+        # Set all the other fields
         for key, value in data.items():
             if hasattr(order, key):
                 setattr(order, key, value)
     
-    # Handle original_intent if it exists
+        # Handle original_intent if it exists
         if 'original_intent' in data:
             order.original_intent = data['original_intent']
         else:
             order.original_intent = {"category": None, "general_color": None, "requested_changes": []}
 
-    # Handle in_product_modification_flow if it exists
+        # Handle in_product_modification_flow if it exists
         if 'in_product_modification_flow' in data:
             order.in_product_modification_flow = data['in_product_modification_flow']
         else:
             order.in_product_modification_flow = False
     
-    # Ensure express shipping fields are present
+        # Ensure express shipping fields are present
         if not hasattr(order, 'express_shipping_percentage') or order.express_shipping_percentage is None:
             order.express_shipping_percentage = 0
         if not hasattr(order, 'express_shipping_charge') or order.express_shipping_charge is None:
             order.express_shipping_charge = 0
     
-    # Ensure logo_count is always set correctly based on designs
+        # Ensure logo_count is always set correctly based on designs
         if order.designs:
             logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
             if order.logo_count != logo_designs:
