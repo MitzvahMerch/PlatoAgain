@@ -202,7 +202,7 @@ def init_routes(app, plato_bot):
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
         
             # Get the current order state
-            order_state = plato_bot.conversation_manager.get_order_state(user_id)
+            order_state = plato_bot.get_fresh_order_state(user_id)
         
             # Update the design in the order state
             file_type = None
