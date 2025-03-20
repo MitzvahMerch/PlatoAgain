@@ -91,6 +91,13 @@ class ConversationManager:
                     
                     # Create a new OrderState from the Firestore data
                         order_state = OrderState.from_dict(order_state_data)
+
+                        logger.info(f"Recreating OrderState from Firestore - input data has keys: {order_state_data.keys()}")
+                    if 'quantities_collected' in order_state_data:
+                        logger.info(f"Firestore data has top-level quantities_collected={order_state_data['quantities_collected']}")
+                    if 'quantityInfo' in order_state_data and isinstance(order_state_data['quantityInfo'], dict):
+                        logger.info(f"Firestore data has nested quantities_collected={order_state_data['quantityInfo'].get('collected')}")
+                        logger.info(f"After OrderState.from_dict, quantities_collected={order_state.quantities_collected}")    
                     
                     # Initialize the conversation with loaded state
                         self.conversations[user_id] = {

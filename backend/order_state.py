@@ -410,6 +410,7 @@ class OrderState:
     def to_firestore_dict(self) -> Dict:
         """Convert the order state to a dictionary for Firestore storage"""
         logger.debug("Converting order state to Firestore dictionary")
+        logger.info(f"to_firestore_dict called with quantities_collected={self.quantities_collected}")
         
         # Calculate total logo charges
         logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
@@ -498,6 +499,9 @@ class OrderState:
         
         # Log payment URL specifically since it's causing issues
         logger.info(f"Payment URL in Firestore dict: {result['paymentInfo']['paymentUrl']}")
+        logger.info(f"Result of to_firestore_dict has keys: {result.keys()}")
+        logger.info(f"Top-level quantities_collected in result: {result.get('quantities_collected')}")
+        logger.info(f"Nested quantities_collected in result: {result.get('quantityInfo', {}).get('collected')}")
         
         return result
     
@@ -573,6 +577,13 @@ class OrderState:
         """Create an OrderState instance from a dictionary"""
         order = cls()
     
+    # Log the input data structure
+        logger.info(f"from_dict called with data keys: {data.keys()}")
+        if 'quantities_collected' in data:
+            logger.info(f"Top-level quantities_collected found: {data['quantities_collected']}")
+        if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict) and 'collected' in data['quantityInfo']:
+            logger.info(f"Nested quantities_collected found: {data['quantityInfo']['collected']}")
+    
         # Handle the designs list separately if it exists
         if 'designs' in data:
             designs_data = data.pop('designs')
@@ -610,6 +621,7 @@ class OrderState:
             if 'logoChargePerItem' in quantity_info:
                 order.logo_charge_per_item = quantity_info['logoChargePerItem']
     
+        logger.info(f"Final quantities_collected value after from_dict: {order.quantities_collected}")
         # Set all the other fields
         for key, value in data.items():
             if hasattr(order, key):
