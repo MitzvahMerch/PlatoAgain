@@ -507,6 +507,9 @@ class OrderState:
     
     def to_dict(self) -> Dict:
         """Convert the order state to a flat dictionary for internal use"""
+        # Log the start of the method
+        logger.info(f"to_dict called with quantities_collected={self.quantities_collected}")
+        
         # Calculate total logo charges
         logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
         
@@ -525,8 +528,8 @@ class OrderState:
                 'has_logo': getattr(design, 'has_logo', True),
                 'index': idx
             })
-            
-        return {
+        
+        result = {
             "user_id": self.user_id,
             "product_selected": self.product_selected,
             "product_details": self.product_details,
@@ -544,7 +547,7 @@ class OrderState:
             "placement_selected": self.placement_selected,
             "placement": self.placement,
             "preview_url": self.preview_url,
-            "quantities_collected": self.quantities_collected,
+            "quantities_collected": self.quantities_collected,  # Ensure this is at top level, matching to_firestore_dict
             "original_intent": self.original_intent,
             "in_product_modification_flow": self.in_product_modification_flow,
             "sizes": self.sizes,
@@ -571,6 +574,11 @@ class OrderState:
             "last_active": self.last_active,
             "color_options_shown": self.color_options_shown
         }
+        
+        # Log the result
+        logger.info(f"Result of to_dict has quantities_collected={result['quantities_collected']}")
+        
+        return result
     
     @classmethod
     def from_dict(cls, data: Dict) -> 'OrderState':
