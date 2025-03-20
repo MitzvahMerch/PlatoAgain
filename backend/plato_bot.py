@@ -9,6 +9,7 @@ from conversation_manager import ConversationManager
 from claude_client import ClaudeClient
 from ss_client import SSClient
 from firebase_service import FirebaseService
+from order_state import OrderState
 from firebase_admin import firestore
 from config import (
    SS_USERNAME, SS_API_KEY, MAX_HISTORY, 
@@ -16,6 +17,7 @@ from config import (
 )
 import prompts
 import asyncio
+
 
 logger = logging.getLogger(__name__)
 
