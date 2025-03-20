@@ -242,33 +242,42 @@ def init_routes(app, plato_bot):
         try:
             data = request.json
             user_id = data.get('user_id')
-        
+    
             if not user_id:
                 return jsonify({"error": "Missing user ID"}), 400
-            
-            logger.info(f"Processing order submission for user {user_id}")
         
-            # Get the order state
+            logger.info(f"Processing order submission for user {user_id}")
+    
+        # Get the order state
             order_state = plato_bot.conversation_manager.get_order_state(user_id)
         
-            # Update customer info with form data
+        # IMPORTANT: Log the state immediately after loading to see if it's correct
+            logger.info(f"Initial order state from get_order_state: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
+        
+        # Update customer info with form data
             name = data.get('name')
             address = data.get('address')
             email = data.get('email')
             received_by_date = data.get('receivedByDate')
-        
+    
             if not all([name, address, email]):
                 return jsonify({"error": "Missing required fields"}), 400
-            
-            logger.info(f"Updating customer info: name={name}, address={address}, email={email}, received_by_date={received_by_date}")
         
-            # Use your existing method to update customer info
+        # Use your existing method to update customer info
             order_state.update_customer_info(name, address, email, received_by_date)
+        
+        # IMPORTANT: Log the state after customer info update
+            logger.info(f"After customer info update: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
+        
+        # Update the order state in conversation manager
             plato_bot.conversation_manager.update_order_state(user_id, order_state)
         
-            # Now handle the order, indicating this is a form submission
-            response = plato_bot._handle_customer_information(user_id, "", order_state, form_submission=True)
+        # Log the state after update_order_state
+            logger.info(f"After update_order_state: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
         
+        # Now handle the order, indicating this is a form submission
+            response = plato_bot._handle_customer_information(user_id, "", order_state, form_submission=True)
+    
             return jsonify(response)
     
         except Exception as e:
