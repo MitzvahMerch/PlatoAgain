@@ -569,7 +569,7 @@ class OrderState:
         """Create an OrderState instance from a dictionary"""
         order = cls()
     
-    # Handle the designs list separately if it exists
+        # Handle the designs list separately if it exists
         if 'designs' in data:
             designs_data = data.pop('designs')
             for design_data in designs_data:
@@ -583,28 +583,29 @@ class OrderState:
                 preview_url=design_data.get('preview_url'),
                 side=design_data.get('side'),
                 has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
-                )
+            )
                 order.designs.append(design)
     
-        # Check for nested structure from Firestore (fix for quantities_collected issue)
+    # Check for nested quantityInfo structure from Firestore
         if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict):
-            if 'collected' in data['quantityInfo']:
-                order.quantities_collected = data['quantityInfo']['collected']
-            if 'sizes' in data['quantityInfo']:
-                order.sizes = data['quantityInfo']['sizes']
-            if 'totalQuantity' in data['quantityInfo']:
-                order.total_quantity = data['quantityInfo']['totalQuantity']
-            if 'totalPrice' in data['quantityInfo']:
-                order.total_price = data['quantityInfo']['totalPrice']
-            if 'logoChargePerItem' in data['quantityInfo']:
-                order.logo_charge_per_item = data['quantityInfo']['logoChargePerItem']
+            quantity_info = data['quantityInfo']
+            if 'collected' in quantity_info:
+                order.quantities_collected = quantity_info['collected']
+            if 'sizes' in quantity_info:
+                order.sizes = quantity_info['sizes']
+            if 'totalQuantity' in quantity_info:
+                order.total_quantity = quantity_info['totalQuantity']
+            if 'totalPrice' in quantity_info:
+                order.total_price = quantity_info['totalPrice']
+            if 'logoChargePerItem' in quantity_info:
+                order.logo_charge_per_item = quantity_info['logoChargePerItem']
     
-        # Set all the other fields
+    # Set all the other fields
         for key, value in data.items():
             if hasattr(order, key):
                 setattr(order, key, value)
     
-        # Handle original_intent if it exists
+    # Handle original_intent if it exists
         if 'original_intent' in data:
             order.original_intent = data['original_intent']
         else:
