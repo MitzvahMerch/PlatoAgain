@@ -418,47 +418,63 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     }, [handleMouseMove, handleMouseUp, handleTouchMove]);
 
     // Save the placement by capturing the SVG coordinates
-    const handleSave = () => {
-        if (!designRef.current || !svgRef.current || !productImageRef.current) {
-            console.error('Required elements not found');
-            return;
+    // Save the placement by capturing the SVG coordinates
+const handleSave = () => {
+    if (!designRef.current || !svgRef.current || !productImageRef.current) {
+        console.error('Required elements not found');
+        return;
+    }
+    
+    // Find the save button element and disable it immediately
+    const saveButtonElement = document.querySelector('[style*="background-color: #28a745"]');
+    if (saveButtonElement) {
+        // Change appearance to indicate disabled state
+        saveButtonElement.style.backgroundColor = '#6c757d';
+        saveButtonElement.style.cursor = 'not-allowed';
+        saveButtonElement.disabled = true;
+        // Optionally change text to indicate processing
+        saveButtonElement.textContent = 'Saving...';
+    }
+
+    const x = parseFloat(designRef.current.getAttribute("x"));
+    const y = parseFloat(designRef.current.getAttribute("y"));
+    const width = parseFloat(designRef.current.getAttribute("width"));
+    const height = parseFloat(designRef.current.getAttribute("height"));
+
+    const centerX = x + (width / 2);
+    const centerY = y + (height / 2);
+
+    const centerXPercent = centerX / SVG_WIDTH;
+    const centerYPercent = centerY / SVG_HEIGHT;
+    const widthPercent = width / SVG_WIDTH;
+    const heightPercent = height / SVG_HEIGHT;
+
+    console.log('Saving placement:', {
+        svgCoordinates: { x, y, width, height },
+        center: { x: centerX, y: centerY },
+        percentages: {
+            centerX: centerXPercent,
+            centerY: centerYPercent,
+            width: widthPercent,
+            height: heightPercent
         }
+    });
 
-        const x = parseFloat(designRef.current.getAttribute("x"));
-        const y = parseFloat(designRef.current.getAttribute("y"));
-        const width = parseFloat(designRef.current.getAttribute("width"));
-        const height = parseFloat(designRef.current.getAttribute("height"));
-
-        const centerX = x + (width / 2);
-        const centerY = y + (height / 2);
-
-        const centerXPercent = centerX / SVG_WIDTH;
-        const centerYPercent = centerY / SVG_HEIGHT;
-        const widthPercent = width / SVG_WIDTH;
-        const heightPercent = height / SVG_HEIGHT;
-
-        console.log('Saving placement:', {
-            svgCoordinates: { x, y, width, height },
-            center: { x: centerX, y: centerY },
-            percentages: {
-                centerX: centerXPercent,
-                centerY: centerYPercent,
-                width: widthPercent,
-                height: heightPercent
-            }
-        });
-
-        onSave?.({
-            svgCoordinates: {
-                x, y, width, height,
-                centerX, centerY,
-                viewBoxWidth: SVG_WIDTH,
-                viewBoxHeight: SVG_HEIGHT
-            },
-            showBackImage,
-            designUrl
-        });
-    };
+    // Call the provided onSave callback with the SVG data
+    onSave?.({
+        svgCoordinates: {
+            x, y, width, height,
+            centerX, centerY,
+            viewBoxWidth: SVG_WIDTH,
+            viewBoxHeight: SVG_HEIGHT
+        },
+        showBackImage,
+        designUrl
+    });
+    
+    // We don't need to re-enable the button since the whole component 
+    // will be unmounted or replaced after the save operation completes
+};
 
     // -- Create resize handles (desktop only) --
     const createResizeHandles = () => {
