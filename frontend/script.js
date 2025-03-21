@@ -636,3 +636,43 @@ function adjustChatContainerHeight() {
         }
     }
 }
+
+// Fix for input focus issues on mobile
+document.addEventListener('DOMContentLoaded', function() {
+    const chatInput = document.getElementById('chat-input');
+    const inputWrapper = document.querySelector('.input-wrapper');
+    
+    // When clicking the wrapper, focus the input
+    if (inputWrapper) {
+      inputWrapper.addEventListener('click', function(e) {
+        chatInput.focus();
+      });
+    }
+    
+    // Ensure chatInput stays focusable
+    if (chatInput) {
+      chatInput.addEventListener('blur', function() {
+        // Small delay to ensure we can focus again
+        setTimeout(() => {
+          chatInput.setAttribute('tabindex', '0');
+        }, 100);
+      });
+    }
+    
+    // Prevent scrolling to black space when keyboard is visible
+    chatInput.addEventListener('focus', function() {
+      document.body.classList.add('keyboard-visible');
+      
+      // Scroll to keep input in view
+      setTimeout(() => {
+        const chatFooter = document.querySelector('.chat-footer');
+        if (chatFooter) {
+          chatFooter.scrollIntoView(false);
+        }
+      }, 100);
+    });
+    
+    chatInput.addEventListener('blur', function() {
+      document.body.classList.remove('keyboard-visible');
+    });
+  });

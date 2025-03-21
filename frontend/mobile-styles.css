@@ -88,6 +88,8 @@
     border: none;
     width: 100%;
     min-height: 44px;
+    position: relative;
+    z-index: 20;
   }
   
   .input-wrapper {
@@ -97,27 +99,9 @@
     padding: 0;
     border: 1px solid #ddd;
     min-height: 44px; /* Apple's recommended minimum tap target size */
-    position: relative;
     display: flex;
     align-items: center;
-  }
-  
-  /* Add placeholder text */
-  .input-wrapper::before {
-    content: "Type here";
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #999;
-    pointer-events: none; /* This ensures clicks pass through to the input */
-    z-index: 1;
-  }
-  
-  /* Hide the placeholder when the input has content or is focused */
-  #chat-input:not(:placeholder-shown) + .input-wrapper::before,
-  #chat-input:focus + .input-wrapper::before {
-    display: none;
+    position: relative;
   }
   
   #chat-input {
@@ -139,11 +123,6 @@
     z-index: 2;
   }
   
-  /* Set placeholder to empty since we're using our own */
-  #chat-input::placeholder {
-    color: transparent;
-  }
-  
   #send-button {
     height: 44px;
     width: 70px;
@@ -155,13 +134,32 @@
     min-width: 60px;
   }
   
+  /* Prevent scroll to content below footer */
+  body.keyboard-visible {
+    height: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+  }
+  
   /* Handle keyboard visibility */
   body.keyboard-visible .chat-messages {
     height: auto; /* Let flex handle the height adjustment */
+    max-height: calc(100vh - 250px);
   }
   
   /* Fix layout when keyboard is visible */
   body.keyboard-visible .chat-container {
+    height: 100%;
+    overflow: hidden;
+  }
+  
+  /* Ensure page doesn't scroll */
+  #app, #root, main, body > div {
+    overflow: hidden;
     height: 100%;
   }
 }
