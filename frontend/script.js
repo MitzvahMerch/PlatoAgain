@@ -28,6 +28,9 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Call the function to adjust chat container height for mobile
     adjustChatContainerHeight();
+    
+    // Set up keyboard visibility detection
+    handleKeyboardVisibility();
 });
 
 // Add a function to reset the conversation with a new user ID
@@ -84,17 +87,36 @@ chatInput.addEventListener('keypress', (e) => {
 // Auto-resize textarea
 chatInput.addEventListener('input', () => {
     chatInput.style.height = 'auto';
-    chatInput.style.height = chatInput.scrollHeight + 'px';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px'; // Limit max height
 });
 
 // Handle input focus to prevent interface issues on mobile
 chatInput.addEventListener('focus', () => {
     // On mobile, scroll to ensure the input is visible when focused
     if (window.innerWidth <= 600) {
+        // Add class to body to indicate keyboard is visible
+        document.body.classList.add('keyboard-visible');
+        
         // Wait a moment for the keyboard to appear
         setTimeout(() => {
-            chatInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            // Scroll the chat area to show recent messages
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            // Adjust the chat container height
+            adjustChatContainerHeight();
         }, 300);
+    }
+});
+
+chatInput.addEventListener('blur', () => {
+    // On mobile, handle keyboard hiding
+    if (window.innerWidth <= 600) {
+        // Remove class from body to indicate keyboard is hidden
+        document.body.classList.remove('keyboard-visible');
+        
+        // Adjust container height after keyboard hides
+        setTimeout(() => {
+            adjustChatContainerHeight();
+        }, 100);
     }
 });
 
@@ -539,6 +561,51 @@ async function svgBasedCompositeRenderer(placement) {
     }
 }
 
+// Detect keyboard visibility on mobile
+function handleKeyboardVisibility() {
+    // iOS-specific keyboard detection
+    if (window.innerWidth <= 600) {
+        // This detects when an input is focused
+        document.querySelectorAll('input, textarea').forEach(input => {
+            input.addEventListener('focus', () => {
+                document.body.classList.add('keyboard-visible');
+                
+                // Scroll the chat container to show the input area
+                setTimeout(() => {
+                    const chatFooter = document.querySelector('.chat-footer');
+                    if (chatFooter) {
+                        chatFooter.scrollIntoView(false);
+                    }
+                }, 100);
+            });
+            
+            input.addEventListener('blur', () => {
+                document.body.classList.remove('keyboard-visible');
+                
+                // Reset the chat container
+                setTimeout(() => {
+                    adjustChatContainerHeight();
+                }, 100);
+            });
+        });
+        
+        // Additional iOS-specific workaround
+        window.addEventListener('resize', () => {
+            // On iOS, window resize is triggered when keyboard appears/disappears
+            const isKeyboardVisible = (window.innerHeight < window.outerHeight * 0.8);
+            
+            if (isKeyboardVisible) {
+                document.body.classList.add('keyboard-visible');
+            } else {
+                document.body.classList.remove('keyboard-visible');
+            }
+            
+            // Adjust the chat container height
+            adjustChatContainerHeight();
+        });
+    }
+}
+
 // Handle window resize to adjust chat message container height
 window.addEventListener('resize', () => {
     adjustChatContainerHeight();
@@ -556,8 +623,16 @@ function adjustChatContainerHeight() {
             const footerHeight = footer.offsetHeight;
             const windowHeight = window.innerHeight;
             
-            // Calculate and set the appropriate height
-            chatMessages.style.height = `${windowHeight - headerHeight - footerHeight - 20}px`;
+            // Check if keyboard is visible
+            const isKeyboardVisible = document.body.classList.contains('keyboard-visible');
+            
+            if (isKeyboardVisible) {
+                // If keyboard is visible, use a smaller height
+                chatMessages.style.height = `${windowHeight - headerHeight - footerHeight - 270}px`;
+            } else {
+                // Normal height when keyboard is not visible
+                chatMessages.style.height = `${windowHeight - headerHeight - footerHeight - 20}px`;
+            }
         }
     }
 }
