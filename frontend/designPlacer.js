@@ -487,49 +487,53 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     const createResizeControls = () => {
         if (!isMobile || !showResizeControls) return null;
         const sliderValue = designPosition.width / SVG_WIDTH * 100;
+        
         return React.createElement('div', {
             style: {
                 position: 'absolute',
-                bottom: '80px',
+                bottom: '70px',  // Position just above the bottom buttons
                 left: '10%',
                 width: '80%',
-                padding: '15px',
+                padding: '10px 15px',
                 backgroundColor: 'rgba(0,0,0,0.7)',
                 borderRadius: '8px',
                 zIndex: 3000,
                 display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center'
+                alignItems: 'center',
+                justifyContent: 'space-between'
             }
         }, [
-            React.createElement('label', {
-                style: {
-                    color: 'white',
-                    marginBottom: '10px',
-                    fontSize: '16px',
-                    fontWeight: 'bold'
-                }
-            }, 'Adjust Size:'),
+            // Smaller icon
+            React.createElement('svg', {
+                width: '24',
+                height: '24',
+                viewBox: '0 0 24 24',
+                fill: 'white',
+                style: { minWidth: '24px' }
+            }, [
+                React.createElement('path', {
+                    d: 'M13,10H18V12H13V17H11V12H6V10H11V5H13V10Z',
+                    transform: 'scale(0.7) translate(5, 5)'
+                })
+            ]),
+            
+            // Slider with label above it
             React.createElement('div', {
                 style: {
-                    width: '100%',
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'space-between'
+                    width: '70%'
                 }
             }, [
-                React.createElement('svg', {
-                    width: '24',
-                    height: '24',
-                    viewBox: '0 0 24 24',
-                    fill: 'white',
-                    style: { minWidth: '24px' }
-                }, [
-                    React.createElement('path', {
-                        d: 'M13,10H18V12H13V17H11V12H6V10H11V5H13V10Z',
-                        transform: 'scale(0.7) translate(5, 5)'
-                    })
-                ]),
+                React.createElement('label', {
+                    style: {
+                        color: 'white',
+                        marginBottom: '5px',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                    }
+                }, 'Adjust Size:'),
                 React.createElement('input', {
                     ref: sliderRef,
                     type: 'range',
@@ -537,50 +541,26 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
                     max: '100',
                     defaultValue: sliderValue,
                     style: {
-                        width: '70%',
-                        margin: '0 10px',
+                        width: '100%',
                         height: '30px'
                     },
                     onChange: handleSliderResize
-                }),
-                React.createElement('svg', {
-                    width: '24',
-                    height: '24',
-                    viewBox: '0 0 24 24',
-                    fill: 'white',
-                    style: { minWidth: '24px' }
-                }, [
-                    React.createElement('path', {
-                        d: 'M13,10H18V12H13V17H11V12H6V10H11V5H13V10Z',
-                        transform: 'scale(1.3) translate(2, 2)'
-                    })
-                ])
+                })
             ]),
-            React.createElement('button', {
-                onClick: () => {
-                    if (!designRef.current) return;
-                    const width = parseFloat(designRef.current.getAttribute("width"));
-                    const height = parseFloat(designRef.current.getAttribute("height"));
-                    const centerX = SVG_WIDTH / 2 - width / 2;
-                    const centerY = SVG_HEIGHT / 2 - height / 2;
-                    designRef.current.setAttribute("x", centerX);
-                    designRef.current.setAttribute("y", centerY);
-                    updateDesignPosition();
-                    setShowCenterGuide({ vertical: true, horizontal: true });
-                    setTimeout(() => {
-                        setShowCenterGuide({ vertical: false, horizontal: false });
-                    }, 1000);
-                },
-                style: {
-                    marginTop: '15px',
-                    padding: '8px 15px',
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px'
-                }
-            }, 'Center Design')
+            
+            // Larger icon
+            React.createElement('svg', {
+                width: '24',
+                height: '24',
+                viewBox: '0 0 24 24',
+                fill: 'white',
+                style: { minWidth: '24px' }
+            }, [
+                React.createElement('path', {
+                    d: 'M13,10H18V12H13V17H11V12H6V10H11V5H13V10Z',
+                    transform: 'scale(1.3) translate(2, 2)'
+                })
+            ])
         ]);
     };
 
@@ -682,17 +662,44 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             position: 'relative',
             width: '100%',
             height: '100%',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
         }
     }, [
-        svgContainer,
-        saveButton,
-        toggleButton,
+        // Main SVG container with adjusted height to leave room for controls
+        React.createElement('div', {
+            style: {
+                position: 'relative',
+                width: '100%',
+                height: isMobile ? 'calc(100% - 60px)' : '100%', // Leave space at bottom on mobile
+                overflow: 'hidden'
+            }
+        }, [svgContainer]),
+        
+        // Controls below the image
+        createResizeControls(),
+        
+        // Action buttons at the very bottom
+        React.createElement('div', {
+            style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '10px',
+                position: 'absolute',
+                bottom: '0',
+                left: '0',
+                right: '0'
+            }
+        }, [
+            toggleButton,
+            saveButton
+        ]),
+        
         instructions,
-        closeButton,
-        createResizeControls()
-    ].filter(Boolean));
-
+        closeButton
+    ]);
+    
     return React.StrictMode ?
         React.createElement(React.StrictMode, null, container) :
         container;
