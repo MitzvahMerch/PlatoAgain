@@ -76,71 +76,88 @@ const createQuantitySelector = () => {
     };
 
     // Helper to create a size selector row
-    const createSizeRow = (size, type) => {
-        const sizeKey = `${type.toLowerCase()}_${size.toLowerCase().replace(/xl/i, 'XL')}`;
-        
-        const row = document.createElement('div');
-        row.className = 'quantity-size-row';
-        
-        const label = document.createElement('div');
-        label.className = 'quantity-size-label';
-        label.textContent = `${type} ${size}`;
-        
-        const controls = document.createElement('div');
-        controls.className = 'quantity-controls';
-        
-        const minusBtn = document.createElement('button');
-        minusBtn.className = 'quantity-btn quantity-btn-minus';
-        minusBtn.textContent = '-';
-        minusBtn.setAttribute('data-size', sizeKey);
-        minusBtn.addEventListener('click', (e) => {
-            e.preventDefault(); // Prevent form submission
-            e.stopPropagation(); // Prevent event from bubbling
-            const input = controls.querySelector('.quantity-input');
-            let value = parseInt(input.value) || 0;
-            if (value > 0) {
-                input.value = value - 1;
-                input.dispatchEvent(new Event('change'));
-            }
-        });
-        
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.className = 'quantity-input';
-        input.min = '0';
-        input.value = '0';
-        input.setAttribute('data-size', sizeKey);
-        input.addEventListener('change', updateTotals);
-        input.addEventListener('input', (e) => {
-            // Ensure input is a non-negative integer
-            let value = e.target.value.replace(/[^0-9]/g, '');
-            if (value === '') value = '0';
-            e.target.value = value;
-            updateTotals();
-        });
-        
-        const plusBtn = document.createElement('button');
-        plusBtn.className = 'quantity-btn quantity-btn-plus';
-        plusBtn.textContent = '+';
-        plusBtn.setAttribute('data-size', sizeKey);
-        plusBtn.addEventListener('click', (e) => {
-            e.preventDefault(); // Prevent form submission
-            e.stopPropagation(); // Prevent event from bubbling
-            const input = controls.querySelector('.quantity-input');
-            let value = parseInt(input.value) || 0;
-            input.value = value + 1;
+    // Helper to create a size selector row
+const createSizeRow = (size, type) => {
+    const sizeKey = `${type.toLowerCase()}_${size.toLowerCase().replace(/xl/i, 'XL')}`;
+    
+    const row = document.createElement('div');
+    row.className = 'quantity-size-row';
+    
+    const label = document.createElement('div');
+    label.className = 'quantity-size-label';
+    label.textContent = `${type} ${size}`;
+    
+    const controls = document.createElement('div');
+    controls.className = 'quantity-controls';
+    
+    const minusBtn = document.createElement('button');
+    minusBtn.className = 'quantity-btn quantity-btn-minus';
+    minusBtn.textContent = '-';
+    minusBtn.setAttribute('data-size', sizeKey);
+    minusBtn.addEventListener('click', (e) => {
+        e.preventDefault(); // Prevent form submission
+        e.stopPropagation(); // Prevent event from bubbling
+        const input = controls.querySelector('.quantity-input');
+        let value = parseInt(input.value) || 0;
+        if (value > 0) {
+            input.value = value - 1;
             input.dispatchEvent(new Event('change'));
-        });
-        
-        controls.appendChild(minusBtn);
-        controls.appendChild(input);
-        controls.appendChild(plusBtn);
-        
-        row.appendChild(label);
-        row.appendChild(controls);
-        
-        return row;
-    };
+        }
+    });
+    
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'quantity-input';
+    input.min = '0';
+    input.value = '0';
+    input.setAttribute('data-size', sizeKey);
+
+    // Clear the default '0' when the field is focused
+    input.addEventListener('focus', (e) => {
+        if (e.target.value === '0') {
+            e.target.value = '';
+        }
+    });
+    
+    // If the field is left empty on blur, reset it to '0'
+    input.addEventListener('blur', (e) => {
+        if (e.target.value === '') {
+            e.target.value = '0';
+            updateTotals();
+        }
+    });
+    
+    input.addEventListener('change', updateTotals);
+    input.addEventListener('input', (e) => {
+        // Ensure input is a non-negative integer
+        let value = e.target.value.replace(/[^0-9]/g, '');
+        if (value === '') value = '0';
+        e.target.value = value;
+        updateTotals();
+    });
+    
+    const plusBtn = document.createElement('button');
+    plusBtn.className = 'quantity-btn quantity-btn-plus';
+    plusBtn.textContent = '+';
+    plusBtn.setAttribute('data-size', sizeKey);
+    plusBtn.addEventListener('click', (e) => {
+        e.preventDefault(); // Prevent form submission
+        e.stopPropagation(); // Prevent event from bubbling
+        const input = controls.querySelector('.quantity-input');
+        let value = parseInt(input.value) || 0;
+        input.value = value + 1;
+        input.dispatchEvent(new Event('change'));
+    });
+    
+    controls.appendChild(minusBtn);
+    controls.appendChild(input);
+    controls.appendChild(plusBtn);
+    
+    row.appendChild(label);
+    row.appendChild(controls);
+    
+    return row;
+};
 
     // Update total quantities and trigger notification
     function updateTotals() {
