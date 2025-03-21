@@ -25,6 +25,7 @@ body {
     display: flex;
     flex-direction: column;
     width: 100%;
+    box-sizing: border-box;
 }
 
 /* Header Styles */
@@ -70,6 +71,8 @@ body {
     background-color: white;
     border: 1px solid var(--border-color);
     border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .message {
@@ -124,6 +127,7 @@ body {
     width: 100%;
     padding: 20px 0;
     background: var(--background-color);
+    box-sizing: border-box;
 }
 
 .chat-input-container {
@@ -135,12 +139,19 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 10px;
+    box-sizing: border-box;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .input-wrapper {
     flex: 1;
     width: 100%;
     display: flex;
+    align-items: center;
+    height: 36px;
+    max-height: 36px;
+    overflow: hidden;
 }
 
 .chat-upload-button {
@@ -155,6 +166,7 @@ body {
     cursor: pointer;
     transition: all 0.2s;
     padding: 8px;
+    flex-shrink: 0;
 }
 
 .chat-upload-button:hover {
@@ -175,8 +187,10 @@ body {
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
-    max-height: 150px;
+    height: 36px;
+    max-height: 36px;
     overflow-y: auto;
+    box-sizing: border-box;
 }
 
 #chat-input:focus {
@@ -185,9 +199,9 @@ body {
 }
 
 #send-button {
-    min-width: 60px;
+    min-width: 70px;
     padding: 10px 20px;
-    height: 38px;
+    height: 36px;
     background-color: var(--primary-color);
     color: white;
     border: none;
@@ -197,6 +211,8 @@ body {
     transition: background-color 0.2s;
     display: flex;
     align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 #send-button:hover {
