@@ -177,7 +177,7 @@ const createBackgroundRemovalModal = () => {
     
     // Create the option cards with placeholder images
     const { card: option1Card, img: option1Img } = createOptionCard('Keep Original', '');
-    const { card: option2Card, img: option2Img } = createOptionCard('Remove White Background', '');
+    const { card: option2Card, img: option2Img } = createOptionCard('Remove Background', '');
     
     optionsContainer.appendChild(option1Card);
     optionsContainer.appendChild(option2Card);
