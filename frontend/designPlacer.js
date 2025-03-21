@@ -99,17 +99,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
                     designImage.setAttribute("width", initialWidth);
                     designImage.setAttribute("height", initialHeight);
                     designImage.setAttribute("preserveAspectRatio", "xMidYMid meet");
-
-                    designImage.addEventListener('mousedown', handleDragStart);
-                    designImage.addEventListener('touchstart', (e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        handleDragStart({
-                            clientX: touch.clientX,
-                            clientY: touch.clientY,
-                            preventDefault: () => {}
-                        });
-                    });
+                    
+                    // Important: Do NOT add drag event handlers to the design image itself
+                    // Instead, we'll handle all dragging through the parent SVG to avoid conflicts
                     
                     svgRef.current.appendChild(designImage);
                     designRef.current = designImage;
@@ -148,6 +140,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         
         if (!designRef.current) return;
         
+        // Don't start a new drag if already resizing
+        if (isResizing) return;
+        
         setIsDragging(true);
         
         // Get current design position
@@ -157,12 +152,16 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         // Store start position
         startPositionRef.current = { x, y };
         
-        // Store mouse start position
-        const svgPoint = screenToSVGPoint(e.clientX, e.clientY);
+        // Get client coordinates from either mouse or touch event
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // Store mouse/touch start position
+        const svgPoint = screenToSVGPoint(clientX, clientY);
         startPosRef.current = svgPoint;
         
         console.log('Drag start:', { position: startPositionRef.current, mouse: startPosRef.current });
-    }, [screenToSVGPoint]);
+    }, [screenToSVGPoint, isResizing]);
     
     // Start resizing the design
     const handleResizeStart = React.useCallback((e, handle) => {
@@ -170,6 +169,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         e.stopPropagation();
         
         if (!designRef.current) return;
+        
+        // Don't start resizing if already dragging
+        if (isDragging) return;
         
         setIsResizing(true);
         currentHandleRef.current = handle;
@@ -184,8 +186,12 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         startPositionRef.current = { x, y };
         startSizeRef.current = { width, height };
         
+        // Get client coordinates from either mouse or touch event
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
         // Store mouse/touch start position
-        const svgPoint = screenToSVGPoint(e.clientX, e.clientY);
+        const svgPoint = screenToSVGPoint(clientX, clientY);
         startPosRef.current = svgPoint;
         
         console.log('Resize start:', { 
@@ -194,7 +200,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             mouse: startPosRef.current,
             handle
         });
-    }, [screenToSVGPoint]);
+    }, [screenToSVGPoint, isDragging]);
     
     // Check if design is close to center and show guides
     const checkCenterAlignment = React.useCallback((x, y, width, height) => {
@@ -237,6 +243,11 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         if (!isDragging && !isResizing) return;
         if (!designRef.current) return;
         
+        // Prevent default browser behavior to avoid scrolling and other issues during interaction
+        if (e.preventDefault) {
+            e.preventDefault();
+        }
+        
         // Get client coordinates from either mouse or touch event
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -261,12 +272,15 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             // Check for center alignment and potentially snap
             const { newX: alignedX, newY: alignedY } = checkCenterAlignment(boundedX, boundedY, width, height);
             
-            // Update position
-            designRef.current.setAttribute("x", alignedX);
-            designRef.current.setAttribute("y", alignedY);
-            
-            // Update state to trigger re-render for handles
-            updateDesignPosition();
+            // Update position - Using requestAnimationFrame for smoother updates on mobile
+            requestAnimationFrame(() => {
+                if (designRef.current) {
+                    designRef.current.setAttribute("x", alignedX);
+                    designRef.current.setAttribute("y", alignedY);
+                    // Update state to trigger re-render for handles
+                    updateDesignPosition();
+                }
+            });
         } 
         else if (isResizing) {
             // Get current aspect ratio
@@ -278,26 +292,31 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             let newX = startPositionRef.current.x;
             let newY = startPositionRef.current.y;
             
+            // Apply a sensitivity multiplier for mobile to make resizing more responsive
+            const mobileSensitivity = isMobile ? 1.5 : 1;
+            const adjustedDx = dx * mobileSensitivity;
+            const adjustedDy = dy * mobileSensitivity;
+            
             switch (currentHandleRef.current) {
                 case 'se': // Bottom right
-                    newWidth = startSizeRef.current.width + dx;
+                    newWidth = Math.max(startSizeRef.current.width + adjustedDx, 0);
                     newHeight = newWidth * aspectRatio;
                     break;
                 case 'sw': // Bottom left
-                    newWidth = startSizeRef.current.width - dx;
+                    newWidth = Math.max(startSizeRef.current.width - adjustedDx, 0);
                     newHeight = newWidth * aspectRatio;
-                    newX = startPositionRef.current.x + dx;
+                    newX = startPositionRef.current.x + (startSizeRef.current.width - newWidth);
                     break;
                 case 'ne': // Top right
-                    newWidth = startSizeRef.current.width + dx;
+                    newWidth = Math.max(startSizeRef.current.width + adjustedDx, 0);
                     newHeight = newWidth * aspectRatio;
-                    newY = startPositionRef.current.y + startSizeRef.current.height - newHeight;
+                    newY = startPositionRef.current.y + (startSizeRef.current.height - newHeight);
                     break;
                 case 'nw': // Top left
-                    newWidth = startSizeRef.current.width - dx;
+                    newWidth = Math.max(startSizeRef.current.width - adjustedDx, 0);
                     newHeight = newWidth * aspectRatio;
-                    newX = startPositionRef.current.x + dx;
-                    newY = startPositionRef.current.y + startSizeRef.current.height - newHeight;
+                    newX = startPositionRef.current.x + (startSizeRef.current.width - newWidth);
+                    newY = startPositionRef.current.y + (startSizeRef.current.height - newHeight);
                     break;
             }
             
@@ -348,19 +367,50 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             // Check for center alignment during resize
             const { newX: alignedX, newY: alignedY } = checkCenterAlignment(newX, newY, newWidth, newHeight);
             
-            // Update size and position
-            designRef.current.setAttribute("x", alignedX);
-            designRef.current.setAttribute("y", alignedY);
-            designRef.current.setAttribute("width", newWidth);
-            designRef.current.setAttribute("height", newHeight);
-            
-            // Update state to trigger re-render for handles
-            updateDesignPosition();
+            // Update size and position with requestAnimationFrame for smoother updates
+            requestAnimationFrame(() => {
+                if (designRef.current) {
+                    designRef.current.setAttribute("x", alignedX);
+                    designRef.current.setAttribute("y", alignedY);
+                    designRef.current.setAttribute("width", newWidth);
+                    designRef.current.setAttribute("height", newHeight);
+                    // Update state to trigger re-render for handles
+                    updateDesignPosition();
+                }
+            });
         }
-    }, [isDragging, isResizing, screenToSVGPoint, updateDesignPosition, checkCenterAlignment]);
+    }, [isDragging, isResizing, screenToSVGPoint, updateDesignPosition, checkCenterAlignment, isMobile]);
     
     // Handle mouse/touch up
     const handleMouseUp = React.useCallback(() => {
+        // If we weren't dragging or resizing, this is a no-op
+        if (!isDragging && !isResizing) return;
+        
+        // Store final values to ensure consistency
+        if (designRef.current) {
+            const finalX = parseFloat(designRef.current.getAttribute("x")) || 0;
+            const finalY = parseFloat(designRef.current.getAttribute("y")) || 0;
+            const finalWidth = parseFloat(designRef.current.getAttribute("width")) || 0;
+            const finalHeight = parseFloat(designRef.current.getAttribute("height")) || 0;
+            
+            // Save the final position immediately to prevent any visual jumps
+            setDesignPosition({
+                x: finalX,
+                y: finalY,
+                width: finalWidth,
+                height: finalHeight
+            });
+            
+            // Log the final position for debugging
+            console.log('Final position after ' + (isDragging ? 'drag' : 'resize') + ':', {
+                x: finalX,
+                y: finalY,
+                width: finalWidth,
+                height: finalHeight
+            });
+        }
+        
+        // Reset state flags
         setIsDragging(false);
         setIsResizing(false);
         currentHandleRef.current = null;
@@ -369,25 +419,47 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         setTimeout(() => {
             setShowCenterGuide({ vertical: false, horizontal: false });
         }, 500);
-    }, []);
+    }, [isDragging, isResizing]);
     
-    // Add/remove event listeners
+    // Add/remove event listeners with special handling for touch events
     React.useEffect(() => {
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-        window.addEventListener('touchmove', e => {
-            e.preventDefault(); // Prevent scrolling while resizing
-            handleMouseMove(e);
-        }, { passive: false });
-        window.addEventListener('touchend', handleMouseUp);
+        // Mouse event handlers
+        const mouseMoveHandler = (e) => handleMouseMove(e);
+        const mouseUpHandler = (e) => handleMouseUp(e);
+        
+        // Touch event handlers with special handling
+        const touchMoveHandler = (e) => {
+            if (isDragging || isResizing) {
+                e.preventDefault(); // Prevent scrolling only during active operations
+                handleMouseMove(e);
+            }
+        };
+        
+        const touchEndHandler = (e) => {
+            handleMouseUp(e);
+            // Add a small delay before enabling normal touch behavior again
+            setTimeout(() => {
+                setIsDragging(false);
+                setIsResizing(false);
+            }, 50);
+        };
+        
+        // Add event listeners
+        window.addEventListener('mousemove', mouseMoveHandler);
+        window.addEventListener('mouseup', mouseUpHandler);
+        window.addEventListener('touchmove', touchMoveHandler, { passive: false });
+        window.addEventListener('touchend', touchEndHandler);
+        window.addEventListener('touchcancel', touchEndHandler);
         
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-            window.removeEventListener('touchmove', handleMouseMove);
-            window.removeEventListener('touchend', handleMouseUp);
+            // Clean up event listeners
+            window.removeEventListener('mousemove', mouseMoveHandler);
+            window.removeEventListener('mouseup', mouseUpHandler);
+            window.removeEventListener('touchmove', touchMoveHandler);
+            window.removeEventListener('touchend', touchEndHandler);
+            window.removeEventListener('touchcancel', touchEndHandler);
         };
-    }, [handleMouseMove, handleMouseUp]);
+    }, [handleMouseMove, handleMouseUp, isDragging, isResizing]);
     
     // Save the placement by capturing the SVG coordinates
     const handleSave = () => {
@@ -439,8 +511,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     // Create resize handles - Using designPosition state to update handle positions
     const createResizeHandles = () => {
         // Determine handle size based on device type
-        // Much larger handles on mobile devices
+        // Much larger handles on mobile devices with a touch-friendly hit area
         const handleSize = isMobile ? 24 : 8;
+        const hitAreaSize = isMobile ? 40 : 16; // Larger invisible hit area for better touch targeting
         const { x, y, width, height } = designPosition;
         
         // Configuration for handle positions
@@ -451,61 +524,73 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             { position: 'sw', cursor: 'nesw-resize', cx: x, cy: y + height }
         ];
         
-        // For mobile, add visual indicator inside resize handles
+        // For mobile, enhance visual indicators inside resize handles
         const mobileHandleIndicator = (cx, cy, position) => {
             if (!isMobile) return null;
             
-            // Create different indicators based on the corner position
+            // Create directional arrow indicators based on the corner position
+            // Make them more prominent for better visibility
             let pathData;
             
             switch(position) {
                 case 'nw':
-                    pathData = `M${cx-10},${cy} L${cx},${cy-10} L${cx},${cy} Z`;
+                    pathData = `M${cx-15},${cy} L${cx-5},${cy} M${cx},${cy-15} L${cx},${cy-5} M${cx-12},${cy-12} L${cx-5},${cy-5}`;
                     break;
                 case 'ne':
-                    pathData = `M${cx+10},${cy} L${cx},${cy-10} L${cx},${cy} Z`;
+                    pathData = `M${cx+15},${cy} L${cx+5},${cy} M${cx},${cy-15} L${cx},${cy-5} M${cx+12},${cy-12} L${cx+5},${cy-5}`;
                     break;
                 case 'se':
-                    pathData = `M${cx+10},${cy} L${cx},${cy+10} L${cx},${cy} Z`;
+                    pathData = `M${cx+15},${cy} L${cx+5},${cy} M${cx},${cy+15} L${cx},${cy+5} M${cx+12},${cy+12} L${cx+5},${cy+5}`;
                     break;
                 case 'sw':
-                    pathData = `M${cx-10},${cy} L${cx},${cy+10} L${cx},${cy} Z`;
+                    pathData = `M${cx-15},${cy} L${cx-5},${cy} M${cx},${cy+15} L${cx},${cy+5} M${cx-12},${cy+12} L${cx-5},${cy+5}`;
                     break;
             }
             
             return React.createElement('path', {
                 d: pathData,
-                fill: '#0066ff',
-                stroke: 'none'
+                stroke: '#0066ff',
+                strokeWidth: 3,
+                fill: 'none'
             });
         };
         
         return handles.map(handle => {
-            // Create handle group
+            // Create handle group with events attached to the group for better touch handling
             return React.createElement('g', 
-                { key: handle.position },
+                { 
+                    key: handle.position,
+                    onMouseDown: (e) => handleResizeStart(e, handle.position),
+                    onTouchStart: (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const touch = e.touches[0];
+                        handleResizeStart({
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            preventDefault: () => {},
+                            stopPropagation: () => {}
+                        }, handle.position);
+                    },
+                    style: { cursor: handle.cursor }
+                },
                 [
-                    // Main handle circle
+                    // Invisible larger hit area for better touch targeting
+                    isMobile ? React.createElement('circle', {
+                        cx: handle.cx,
+                        cy: handle.cy,
+                        r: hitAreaSize,
+                        fill: 'rgba(0,0,0,0)', // Transparent
+                        stroke: 'none'
+                    }) : null,
+                    // Main visible handle circle
                     React.createElement('circle', {
                         cx: handle.cx,
                         cy: handle.cy,
                         r: handleSize,
                         fill: 'white',
                         stroke: '#0066ff',
-                        strokeWidth: 2,
-                        style: { cursor: handle.cursor },
-                        onMouseDown: (e) => handleResizeStart(e, handle.position),
-                        onTouchStart: (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const touch = e.touches[0];
-                            handleResizeStart({
-                                clientX: touch.clientX,
-                                clientY: touch.clientY,
-                                preventDefault: () => {},
-                                stopPropagation: () => {}
-                            }, handle.position);
-                        }
+                        strokeWidth: isMobile ? 3 : 2 // Thicker border on mobile
                     }),
                     // Add visual indicator for mobile
                     mobileHandleIndicator(handle.cx, handle.cy, handle.position)
@@ -527,6 +612,28 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             height: SVG_HEIGHT,
             preserveAspectRatio: "xMidYMid meet"
         });
+        
+        // Create SVG image click/tap area for dragging the design
+        const imageClickArea = loadComplete ? React.createElement('rect', {
+            key: 'image-drag-area',
+            x: designPosition.x,
+            y: designPosition.y,
+            width: designPosition.width,
+            height: designPosition.height,
+            fill: 'rgba(0,0,0,0)', // Transparent
+            style: { cursor: isDragging ? 'grabbing' : 'grab' },
+            onMouseDown: handleDragStart,
+            onTouchStart: (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                handleDragStart({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    touches: e.touches,
+                    preventDefault: () => {}
+                });
+            }
+        }) : null;
         
         // Create center alignment guides
         const centerGuides = [];
@@ -565,26 +672,21 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             );
         }
         
-        // Create design container group for drag operations
+        // Create design group - it's crucial that the resize handles are rendered AFTER the design image
         const designGroup = loadComplete ? React.createElement('g', {
             key: 'design-group',
-            onMouseDown: handleDragStart,
-            onTouchStart: (e) => {
-                e.preventDefault();
-                const touch = e.touches[0];
-                handleDragStart({
-                    clientX: touch.clientX,
-                    clientY: touch.clientY,
-                    preventDefault: () => {}
-                });
-            },
-            style: { cursor: isDragging ? 'grabbing' : 'grab' }
         }, [
             // Add resize handles
             ...createResizeHandles()
         ]) : null;
         
-        return [productImage, ...centerGuides, designGroup].filter(Boolean);
+        return [
+            productImage, 
+            loadComplete ? designRef.current : null, // The design image element itself
+            imageClickArea,
+            ...centerGuides, 
+            designGroup
+        ].filter(Boolean);
     };
     
     // Main SVG container
