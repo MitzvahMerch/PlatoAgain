@@ -17,17 +17,36 @@ body {
     background-color: var(--background-color);
 }
 
+/* Chat Container */
 .chat-container {
     max-width: 800px;
     margin: 0 auto;
     height: 100vh;
     display: flex;
     flex-direction: column;
+    width: 100%;
 }
 
+/* Header Styles */
 .chat-header {
     text-align: center;
     margin-bottom: 20px;
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-text {
+    margin: 0 15px;
+}
+
+.header-icon {
+    width: 80px;
+    height: 120px;
+    object-fit: contain;
 }
 
 .chat-header h1 {
@@ -40,6 +59,7 @@ body {
     color: var(--secondary-color);
 }
 
+/* Messages Area */
 .chat-messages {
     flex: 1 1 auto;
     overflow-y: auto;
@@ -51,7 +71,6 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
 }
-
 
 .message {
     margin-bottom: 15px;
@@ -98,17 +117,31 @@ body {
     margin: 10px 0;
 }
 
+/* Footer and Input Area */
+.chat-footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    width: 100%;
+    padding: 20px 0;
+    background: var(--background-color);
+}
+
 .chat-input-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     background: white;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 10px;
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
 }
 
-
+.input-wrapper {
+    flex: 1;
+    width: 100%;
+    display: flex;
+}
 
 .chat-upload-button {
     display: flex;
@@ -133,18 +166,17 @@ body {
 }
 
 #chat-input {
-    flex-grow: 1;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+    width: 100%;
+    flex: 1;
+    border: none;
+    outline: none;
     resize: none;
+    padding: 8px 0;
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
     max-height: 150px;
     overflow-y: auto;
-    width: auto;
-    max-width: calc(100% - 100px);
 }
 
 #chat-input:focus {
@@ -153,6 +185,7 @@ body {
 }
 
 #send-button {
+    min-width: 60px;
     padding: 10px 20px;
     height: 38px;
     background-color: var(--primary-color);
@@ -170,6 +203,7 @@ body {
     background-color: #0056b3;
 }
 
+/* Product Images */
 .product-image {
     text-align: center;
     margin: 15px 0;
@@ -182,6 +216,7 @@ body {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Modal and Upload Progress */
 .placement-modal {
     position: fixed;
     top: 0;
@@ -202,7 +237,6 @@ body {
     border-radius: 8px;
     overflow: hidden;
 }
-
 
 .upload-progress {
     position: fixed;
@@ -285,37 +319,3 @@ body {
         width: auto;
     }
 }
-.chat-footer {
-    flex: 0 0 auto;
-    margin-top: auto;
-    padding: 20px 0;
-    background: var(--background-color);
-}
-
-.header-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.header-text {
-    margin: 0 15px;
-}
-
-.header-icon {
-    width: 80px;
-    height: 120px;
-    object-fit: contain;
-}
-
-.chat-input-container {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  
-  #chat-input, .input-wrapper {
-    flex-grow: 1;
-    width: 100%;
-  }

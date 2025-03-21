@@ -2,21 +2,39 @@
 
 /* Prevent zoom on input focus for mobile devices */
 @media (max-width: 600px) {
+  html, body {
+    overflow: hidden; /* Prevent document scrolling */
+    position: fixed; /* Lock the viewport */
+    width: 100%;
+    height: 100%;
+    touch-action: manipulation; /* Improve touch handling */
+  }
+  
   input, textarea, select, button {
     font-size: 16px; /* This prevents iOS from zooming in on input focus */
   }
   
   .chat-container {
-    height: 100vh;
+    height: 100%;
     padding: 0;
     display: flex;
     flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
   }
   
   /* Make header much smaller on mobile */
   .chat-header {
     margin-bottom: 5px;
     padding: 5px 0;
+    flex-shrink: 0; /* Prevent header from shrinking */
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
   
   .header-icon {
@@ -37,16 +55,23 @@
   /* Enlarge the chat area */
   .chat-messages {
     flex: 1;
-    max-height: none; /* Remove the fixed max-height */
-    height: calc(100vh - 180px); /* Adjust based on header + footer height */
-    margin-bottom: 5px;
+    overflow-y: auto; /* Only allow scrolling here */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    height: auto; /* Let flex handle the height */
+    margin-bottom: 0;
     padding: 10px;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   }
   
-  /* Adjust footer for better mobile usability */
+  /* Fix footer to bottom of screen */
   .chat-footer {
     padding: 10px;
     width: 100%;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    flex-shrink: 0; /* Prevent footer from shrinking */
+    background-color: var(--background-color);
   }
   
   /* iMessage-style input area */
@@ -100,7 +125,12 @@
   
   /* Handle keyboard visibility */
   body.keyboard-visible .chat-messages {
-    height: calc(100vh - 300px); /* Adjust based on keyboard height */
+    height: auto; /* Let flex handle the height adjustment */
+  }
+  
+  /* Fix layout when keyboard is visible */
+  body.keyboard-visible .chat-container {
+    height: 100%;
   }
 }
 
@@ -110,24 +140,7 @@
     height: -webkit-fill-available;
   }
   
-  .chat-messages {
-    height: calc(100vh - 180px);
-    height: calc(-webkit-fill-available - 180px);
+  body.keyboard-visible .chat-container {
+    height: -webkit-fill-available;
   }
-  
-  body.keyboard-visible .chat-messages {
-    height: calc(-webkit-fill-available - 300px);
-  }
-}
-
-/* Additional fixes for desktop input width */
-.chat-input-container {
-  width: 100%;
-  display: flex;
-  align-items: center;
-}
-
-.input-wrapper {
-  flex-grow: 1;
-  width: 100%;
 }
