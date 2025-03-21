@@ -419,64 +419,40 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     
     // Create resize handles - Using designPosition state to update handle positions
     const createResizeHandles = () => {
-        // Detect mobile devices (simple user agent check)
-        const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-        // Increase handle size on mobile for better touch response
-        const handleSize = isMobile ? 16 : 8;
-        // Set a larger invisible hit area for easier interaction on mobile
-        const hitAreaSize = isMobile ? 24 : handleSize;
+        // Smaller handle size and closer to design edges
+        const handleSize = 8; // Reduced from 10
         const { x, y, width, height } = designPosition;
         
-        // Configuration for handle positions at the four corners
+        // Configuration for handle positions
         const handles = [
-            { position: 'nw', cursor: 'nwse-resize', cx: x,         cy: y },
+            { position: 'nw', cursor: 'nwse-resize', cx: x, cy: y },
             { position: 'ne', cursor: 'nesw-resize', cx: x + width, cy: y },
             { position: 'se', cursor: 'nwse-resize', cx: x + width, cy: y + height },
-            { position: 'sw', cursor: 'nesw-resize', cx: x,         cy: y + height }
+            { position: 'sw', cursor: 'nesw-resize', cx: x, cy: y + height }
         ];
         
         return handles.map(handle => {
-            return React.createElement('g', { key: handle.position },
-                // Invisible larger circle to capture touch events on mobile
-                React.createElement('circle', {
-                    cx: handle.cx,
-                    cy: handle.cy,
-                    r: hitAreaSize,
-                    fill: 'transparent',
-                    onMouseDown: (e) => handleResizeStart(e, handle.position),
-                    onTouchStart: (e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        handleResizeStart({
-                            clientX: touch.clientX,
-                            clientY: touch.clientY,
-                            preventDefault: () => {},
-                            stopPropagation: () => {}
-                        }, handle.position);
-                    }
-                }),
-                // Visible handle circle
-                React.createElement('circle', {
-                    cx: handle.cx,
-                    cy: handle.cy,
-                    r: handleSize,
-                    fill: 'white',
-                    stroke: '#0066ff',
-                    strokeWidth: 2,
-                    style: { cursor: handle.cursor },
-                    onMouseDown: (e) => handleResizeStart(e, handle.position),
-                    onTouchStart: (e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        handleResizeStart({
-                            clientX: touch.clientX,
-                            clientY: touch.clientY,
-                            preventDefault: () => {},
-                            stopPropagation: () => {}
-                        }, handle.position);
-                    }
-                })
-            );
+            return React.createElement('circle', {
+                key: handle.position,
+                cx: handle.cx,
+                cy: handle.cy,
+                r: handleSize,
+                fill: 'white',
+                stroke: '#0066ff',
+                strokeWidth: 2,
+                style: { cursor: handle.cursor },
+                onMouseDown: (e) => handleResizeStart(e, handle.position),
+                onTouchStart: (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    handleResizeStart({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        preventDefault: () => {},
+                        stopPropagation: () => {}
+                    }, handle.position);
+                }
+            });
         });
     };
     
