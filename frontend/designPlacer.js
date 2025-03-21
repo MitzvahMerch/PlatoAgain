@@ -127,21 +127,59 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     // Specialized touch handler for mobile dragging
     const handleTouchStart = React.useCallback((e) => {
         e.preventDefault();
+        
         if (!designRef.current) return;
+        
+        // Only handle single touches
         if (e.touches.length === 1) {
             const touch = e.touches[0];
-            setIsDragging(true);
+            const clientX = touch.clientX;
+            const clientY = touch.clientY;
+            
+            // Convert to SVG coordinates
+            const svgPoint = screenToSVGPoint(clientX, clientY);
+            
+            // Get current design position and dimensions
             const x = parseFloat(designRef.current.getAttribute("x")) || 0;
             const y = parseFloat(designRef.current.getAttribute("y")) || 0;
+            const width = parseFloat(designRef.current.getAttribute("width")) || 0;
+            const height = parseFloat(designRef.current.getAttribute("height")) || 0;
+            
+            // Calculate handle positions
+            const handleSize = isMobile ? 40 : 20; // Detection area slightly larger than visual
+            const handles = [
+                { position: 'nw', cx: x, cy: y },
+                { position: 'ne', cx: x + width, cy: y },
+                { position: 'se', cx: x + width, cy: y + height },
+                { position: 'sw', cx: x, cy: y + height }
+            ];
+            
+            // Check if the touch is on any handle
+            for (const handle of handles) {
+                const dx = svgPoint.x - handle.cx;
+                const dy = svgPoint.y - handle.cy;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance <= handleSize) {
+                    // Touch is on a handle, start resizing
+                    console.log('Touch on handle:', handle.position);
+                    handleResizeStart({
+                        clientX,
+                        clientY,
+                        preventDefault: () => {},
+                        stopPropagation: () => {}
+                    }, handle.position);
+                    return;
+                }
+            }
+            
+            // Not on a handle, so start dragging
+            setIsDragging(true);
             startPositionRef.current = { x, y };
-            const svgPoint = screenToSVGPoint(touch.clientX, touch.clientY);
             startPosRef.current = svgPoint;
             console.log('Touch drag start:', { position: startPositionRef.current, touch: startPosRef.current });
-            if (isMobile) {
-                setShowResizeControls(true);
-            }
         }
-    }, [screenToSVGPoint, isMobile]);
+    }, [screenToSVGPoint, isMobile, handleResizeStart]);
 
     // Start dragging the design (with mobile functionality)
     const handleDragStart = React.useCallback((e) => {
@@ -387,24 +425,26 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
 
     // Create resize handles (desktop only)
     const createResizeHandles = () => {
-        if (isMobile) return [];
-        const handleSize = 16;
+        // Significantly larger handle size on mobile
+        const handleSize = isMobile ? 30 : 16; 
         const { x, y, width, height } = designPosition;
+        
         const handles = [
             { position: 'nw', cursor: 'nwse-resize', cx: x, cy: y },
             { position: 'ne', cursor: 'nesw-resize', cx: x + width, cy: y },
             { position: 'se', cursor: 'nwse-resize', cx: x + width, cy: y + height },
             { position: 'sw', cursor: 'nesw-resize', cx: x, cy: y + height }
         ];
+        
         return handles.map(handle => {
             return React.createElement('circle', {
                 key: handle.position,
                 cx: handle.cx,
                 cy: handle.cy,
                 r: handleSize,
-                fill: 'white',
+                fill: isMobile ? 'rgba(255, 255, 255, 0.7)' : 'white', // Semi-transparent on mobile
                 stroke: '#0066ff',
-                strokeWidth: 2,
+                strokeWidth: isMobile ? 4 : 2, // Thicker border on mobile
                 style: { cursor: handle.cursor },
                 onMouseDown: (e) => handleResizeStart(e, handle.position),
                 onTouchStart: (e) => {
@@ -420,6 +460,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             });
         });
     };
+    
 
     // Create SVG elements for the editor
     const createSVGElements = () => {
@@ -575,9 +616,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             color: 'white',
             borderRadius: '4px',
             zIndex: 3000,
-            fontSize: '14px'
+            fontSize: isMobile ? '16px' : '14px'
         }
-    }, isMobile ? 'Tap and drag to move design' : 'Drag to move, drag corners to resize');
+    }, isMobile ? 'Tap and drag to move design • Drag corners to resize' : 'Drag to move, drag corners to resize');
 
     const closeButton = React.createElement('button', {
         onClick: () => {
@@ -662,43 +703,15 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             position: 'relative',
             width: '100%',
             height: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column'
+            overflow: 'hidden'
         }
     }, [
-        // Main SVG container with adjusted height to leave room for controls
-        React.createElement('div', {
-            style: {
-                position: 'relative',
-                width: '100%',
-                height: isMobile ? 'calc(100% - 60px)' : '100%', // Leave space at bottom on mobile
-                overflow: 'hidden'
-            }
-        }, [svgContainer]),
-        
-        // Controls below the image
-        createResizeControls(),
-        
-        // Action buttons at the very bottom
-        React.createElement('div', {
-            style: {
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '10px',
-                position: 'absolute',
-                bottom: '0',
-                left: '0',
-                right: '0'
-            }
-        }, [
-            toggleButton,
-            saveButton
-        ]),
-        
+        svgContainer,
+        saveButton,
+        toggleButton,
         instructions,
         closeButton
-    ]);
+    ].filter(Boolean));
     
     return React.StrictMode ?
         React.createElement(React.StrictMode, null, container) :
