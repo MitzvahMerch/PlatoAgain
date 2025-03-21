@@ -8,6 +8,8 @@
     width: 100%;
     height: 100%;
     touch-action: manipulation; /* Improve touch handling */
+    overscroll-behavior: none; /* Prevents bounce/rubber-band effect */
+    max-width: 100vw;
   }
   
   input, textarea, select, button {
@@ -16,10 +18,11 @@
   
   .chat-container {
     height: 100%;
+    max-height: 100vh;
     padding: 0;
     display: flex;
     flex-direction: column;
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
@@ -58,6 +61,7 @@
     overflow-y: auto; /* Only allow scrolling here */
     overflow-x: hidden; /* Prevent horizontal scrolling */
     height: auto; /* Let flex handle the height */
+    max-height: calc(100vh - 150px);
     margin-bottom: 0;
     padding: 10px;
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
@@ -65,7 +69,7 @@
   
   /* Fix footer to bottom of screen */
   .chat-footer {
-    padding: 10px;
+    padding: 12px;
     width: 100%;
     position: sticky;
     bottom: 0;
@@ -83,6 +87,7 @@
     background: transparent;
     border: none;
     width: 100%;
+    min-height: 44px;
   }
   
   .input-wrapper {
@@ -91,9 +96,28 @@
     background: white;
     padding: 0;
     border: 1px solid #ddd;
-    height: 36px;
+    min-height: 44px; /* Apple's recommended minimum tap target size */
+    position: relative;
     display: flex;
     align-items: center;
+  }
+  
+  /* Add placeholder text */
+  .input-wrapper::before {
+    content: "Type here";
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    pointer-events: none; /* This ensures clicks pass through to the input */
+    z-index: 1;
+  }
+  
+  /* Hide the placeholder when the input has content or is focused */
+  #chat-input:not(:placeholder-shown) + .input-wrapper::before,
+  #chat-input:focus + .input-wrapper::before {
+    display: none;
   }
   
   #chat-input {
@@ -111,16 +135,24 @@
     margin: 0;
     resize: none;
     overflow: hidden;
+    position: relative;
+    z-index: 2;
+  }
+  
+  /* Set placeholder to empty since we're using our own */
+  #chat-input::placeholder {
+    color: transparent;
   }
   
   #send-button {
-    height: 36px;
+    height: 44px;
     width: 70px;
     padding: 0;
-    border-radius: 18px;
+    border-radius: 22px;
     background-color: var(--primary-color);
     font-weight: 500;
     flex-shrink: 0;
+    min-width: 60px;
   }
   
   /* Handle keyboard visibility */
@@ -142,5 +174,13 @@
   
   body.keyboard-visible .chat-container {
     height: -webkit-fill-available;
+  }
+  
+  .chat-messages {
+    height: calc(-webkit-fill-available - 150px);
+  }
+  
+  body.keyboard-visible .chat-messages {
+    height: calc(-webkit-fill-available - 300px);
   }
 }
