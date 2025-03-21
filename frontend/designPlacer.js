@@ -1,4 +1,4 @@
-// designPlacer.js (SVG-based implementation with improved mobile support for resize handles and centering guides)
+// designPlacer.js (SVG-based implementation with improved resize handles and centering guides)
 const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     console.log('DesignPlacer props:', { frontImage, backImage, designUrl });
     
@@ -22,9 +22,6 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
     const startPositionRef = React.useRef({ x: 0, y: 0 });
     const startSizeRef = React.useRef({ width: 0, height: 0 });
     const currentHandleRef = React.useRef(null);
-    
-    // Utility: Detect mobile devices
-    const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent);
     
     // Initialize SVG dimensions based on product image aspect ratio
     React.useEffect(() => {
@@ -84,7 +81,6 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
                     designImage.setAttribute("height", initialHeight);
                     designImage.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
-                    // Add event listeners for dragging
                     designImage.addEventListener('mousedown', handleDragStart);
                     designImage.addEventListener('touchstart', (e) => {
                         e.preventDefault();
@@ -127,10 +123,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         return pt.matrixTransform(svgElement.getScreenCTM().inverse());
     }, []);
     
-    // Start dragging the design. On mobile, ignore drag events originating from the resize handle.
+    // Start dragging the design
     const handleDragStart = React.useCallback((e) => {
         e.preventDefault();
-        if (isMobileDevice && e.target.tagName.toLowerCase() === 'circle') return;
         
         if (!designRef.current) return;
         
@@ -148,7 +143,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         startPosRef.current = svgPoint;
         
         console.log('Drag start:', { position: startPositionRef.current, mouse: startPosRef.current });
-    }, [screenToSVGPoint, isMobileDevice]);
+    }, [screenToSVGPoint]);
     
     // Start resizing the design
     const handleResizeStart = React.useCallback((e, handle) => {
@@ -270,7 +265,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
                     newHeight = newWidth * aspectRatio;
                     newX = startPositionRef.current.x + dx;
                     break;
-                case 'ne': // Top right (mobile uses only this handle)
+                case 'ne': // Top right
                     newWidth = startSizeRef.current.width + dx;
                     newHeight = newWidth * aspectRatio;
                     newY = startPositionRef.current.y + startSizeRef.current.height - newHeight;
@@ -320,6 +315,7 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
                 newHeight = SVG_HEIGHT - newY;
                 newWidth = newHeight / aspectRatio;
                 if (currentHandleRef.current === 'sw' || currentHandleRef.current === 'se') {
+                    // Only adjust width for bottom handles
                     if (currentHandleRef.current === 'sw') {
                         newX = startPositionRef.current.x + startSizeRef.current.width - newWidth;
                     }
@@ -421,70 +417,42 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
         });
     };
     
-    // Create resize handles - using designPosition state to update handle positions
+    // Create resize handles - Using designPosition state to update handle positions
     const createResizeHandles = () => {
-        // On mobile, we show only one larger handle at the top right ("ne") for resizing.
-        const isMobile = isMobileDevice;
-        const handleSize = isMobile ? 24 : 8;
-        const hitAreaSize = isMobile ? 32 : handleSize;
+        // Smaller handle size and closer to design edges
+        const handleSize = 8; // Reduced from 10
         const { x, y, width, height } = designPosition;
         
-        let handles;
-        if (isMobile) {
-            // Only one handle (top right) on mobile
-            handles = [{ position: 'ne', cursor: 'nesw-resize', cx: x + width, cy: y }];
-        } else {
-            // All four handles on desktop
-            handles = [
-                { position: 'nw', cursor: 'nwse-resize', cx: x,         cy: y },
-                { position: 'ne', cursor: 'nesw-resize', cx: x + width, cy: y },
-                { position: 'se', cursor: 'nwse-resize', cx: x + width, cy: y + height },
-                { position: 'sw', cursor: 'nesw-resize', cx: x,         cy: y + height }
-            ];
-        }
+        // Configuration for handle positions
+        const handles = [
+            { position: 'nw', cursor: 'nwse-resize', cx: x, cy: y },
+            { position: 'ne', cursor: 'nesw-resize', cx: x + width, cy: y },
+            { position: 'se', cursor: 'nwse-resize', cx: x + width, cy: y + height },
+            { position: 'sw', cursor: 'nesw-resize', cx: x, cy: y + height }
+        ];
         
         return handles.map(handle => {
-            return React.createElement('g', { key: handle.position },
-                // Invisible hit area to boost touch target
-                React.createElement('circle', {
-                    cx: handle.cx,
-                    cy: handle.cy,
-                    r: hitAreaSize,
-                    fill: 'transparent',
-                    onMouseDown: (e) => handleResizeStart(e, handle.position),
-                    onTouchStart: (e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        handleResizeStart({
-                            clientX: touch.clientX,
-                            clientY: touch.clientY,
-                            preventDefault: () => {},
-                            stopPropagation: () => {}
-                        }, handle.position);
-                    }
-                }),
-                // Visible handle
-                React.createElement('circle', {
-                    cx: handle.cx,
-                    cy: handle.cy,
-                    r: handleSize,
-                    fill: 'white',
-                    stroke: '#0066ff',
-                    strokeWidth: 2,
-                    style: { cursor: handle.cursor },
-                    onMouseDown: (e) => handleResizeStart(e, handle.position),
-                    onTouchStart: (e) => {
-                        e.preventDefault();
-                        const touch = e.touches[0];
-                        handleResizeStart({
-                            clientX: touch.clientX,
-                            clientY: touch.clientY,
-                            preventDefault: () => {},
-                            stopPropagation: () => {}
-                        }, handle.position);
-                    }
-                })
-            );
+            return React.createElement('circle', {
+                key: handle.position,
+                cx: handle.cx,
+                cy: handle.cy,
+                r: handleSize,
+                fill: 'white',
+                stroke: '#0066ff',
+                strokeWidth: 2,
+                style: { cursor: handle.cursor },
+                onMouseDown: (e) => handleResizeStart(e, handle.position),
+                onTouchStart: (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    handleResizeStart({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        preventDefault: () => {},
+                        stopPropagation: () => {}
+                    }, handle.position);
+                }
+            });
         });
     };
     
@@ -624,9 +592,8 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
             zIndex: 3000,
             fontSize: '14px'
         }
-    }, 'Drag to move, drag corner to resize');
-    
-    // Close button
+    }, 'Drag to move, drag corners to resize');
+
     const closeButton = React.createElement('button', {
         onClick: () => {
             window.placementModal.hide();
