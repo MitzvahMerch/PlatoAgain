@@ -25,6 +25,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Always generate a brand new user ID on page load/reload
     userId = generateNewUserId();
     console.log('New conversation started with user ID:', userId);
+    
+    // Call the function to adjust chat container height for mobile
+    adjustChatContainerHeight();
 });
 
 // Add a function to reset the conversation with a new user ID
@@ -82,6 +85,17 @@ chatInput.addEventListener('keypress', (e) => {
 chatInput.addEventListener('input', () => {
     chatInput.style.height = 'auto';
     chatInput.style.height = chatInput.scrollHeight + 'px';
+});
+
+// Handle input focus to prevent interface issues on mobile
+chatInput.addEventListener('focus', () => {
+    // On mobile, scroll to ensure the input is visible when focused
+    if (window.innerWidth <= 600) {
+        // Wait a moment for the keyboard to appear
+        setTimeout(() => {
+            chatInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }, 300);
+    }
 });
 
 // Image upload handling with background removal and design placement
@@ -171,6 +185,12 @@ async function sendMessage() {
 
     chatInput.value = '';
     chatInput.style.height = 'auto';
+    
+    // Hide keyboard after sending on mobile
+    if (window.innerWidth <= 600) {
+        chatInput.blur();
+    }
+    
     window.currentUpload = null;
 
     const uploadButton = document.querySelector('.chat-upload-button svg');
@@ -516,5 +536,28 @@ async function svgBasedCompositeRenderer(placement) {
     } catch (error) {
         console.error('Error saving placement:', error);
         addMessage('Sorry, there was an error saving your design placement. Please try again.', 'system');
+    }
+}
+
+// Handle window resize to adjust chat message container height
+window.addEventListener('resize', () => {
+    adjustChatContainerHeight();
+});
+
+// Function to adjust the chat container height based on viewport
+function adjustChatContainerHeight() {
+    if (window.innerWidth <= 600) {
+        const chatMessages = document.getElementById('chat-messages');
+        const header = document.querySelector('.chat-header');
+        const footer = document.querySelector('.chat-footer');
+        
+        if (chatMessages && header && footer) {
+            const headerHeight = header.offsetHeight;
+            const footerHeight = footer.offsetHeight;
+            const windowHeight = window.innerHeight;
+            
+            // Calculate and set the appropriate height
+            chatMessages.style.height = `${windowHeight - headerHeight - footerHeight - 20}px`;
+        }
     }
 }

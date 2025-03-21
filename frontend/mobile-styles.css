@@ -1,0 +1,76 @@
+/* Mobile-specific improvements for Plato chat interface */
+
+/* Prevent zoom on input focus for mobile devices */
+@media (max-width: 600px) {
+    input, textarea, select, button {
+      font-size: 16px; /* This prevents iOS from zooming in on input focus */
+    }
+    
+    .chat-container {
+      height: 100vh;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* Make header much smaller on mobile */
+    .chat-header {
+      margin-bottom: 5px;
+      padding: 5px 0;
+    }
+    
+    .header-icon {
+      width: 40px;
+      height: 60px;
+    }
+    
+    .header-text h1 {
+      font-size: 24px;
+      margin: 0;
+    }
+    
+    .header-text p {
+      font-size: 12px;
+      margin: 0;
+    }
+    
+    /* Enlarge the chat area */
+    .chat-messages {
+      flex: 1;
+      max-height: none; /* Remove the fixed max-height */
+      height: calc(100vh - 180px); /* Adjust based on header + footer height */
+      margin-bottom: 5px;
+      padding: 10px;
+    }
+    
+    /* Adjust footer for better mobile usability */
+    .chat-footer {
+      padding: 10px 0;
+    }
+    
+    .chat-input-container {
+      padding: 8px;
+    }
+    
+    #chat-input {
+      padding: 8px;
+      font-size: 16px; /* Ensures no zoom on iOS */
+      min-height: 22px;
+    }
+    
+    #send-button {
+      padding: 8px 15px;
+    }
+  }
+  
+  /* Fix for iPhone Safari additional height issues */
+  @supports (-webkit-touch-callout: none) {
+    .chat-container {
+      height: -webkit-fill-available;
+    }
+    
+    .chat-messages {
+      height: calc(100vh - 180px);
+      height: calc(-webkit-fill-available - 180px);
+    }
+  }
