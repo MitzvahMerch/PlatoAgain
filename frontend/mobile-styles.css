@@ -2,106 +2,132 @@
 
 /* Prevent zoom on input focus for mobile devices */
 @media (max-width: 600px) {
-    input, textarea, select, button {
-      font-size: 16px; /* This prevents iOS from zooming in on input focus */
-    }
-    
-    .chat-container {
-      height: 100vh;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    /* Make header much smaller on mobile */
-    .chat-header {
-      margin-bottom: 5px;
-      padding: 5px 0;
-    }
-    
-    .header-icon {
-      width: 40px;
-      height: 60px;
-    }
-    
-    .header-text h1 {
-      font-size: 24px;
-      margin: 0;
-    }
-    
-    .header-text p {
-      font-size: 12px;
-      margin: 0;
-    }
-    
-    /* Enlarge the chat area */
-    .chat-messages {
-      flex: 1;
-      max-height: none; /* Remove the fixed max-height */
-      height: calc(100vh - 180px); /* Adjust based on header + footer height */
-      margin-bottom: 5px;
-      padding: 10px;
-    }
-    
-    /* Adjust footer for better mobile usability */
-    .chat-footer {
-      padding: 6px 0;
-    }
-    
-    /* iMessage-style input area */
-    .input-wrapper {
-      flex-grow: 1;
-      position: relative;
-      border: 1px solid var(--border-color);
-      border-radius: 18px;
-      background: white;
-      overflow: hidden;
-    }
-    
-    .chat-input-container {
-      display: flex;
-      align-items: center;
-      padding: 6px;
-      gap: 8px;
-    }
-    
-    #chat-input {
-      border: none;
-      border-radius: 0;
-      padding: 6px 8px;
-      font-size: 16px; /* Ensures no zoom on iOS */
-      min-height: 16px;
-      max-height: 80px; /* Limit maximum expansion */
-      line-height: 1.2;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    
-    #send-button {
-      height: 36px;
-      width: 60px;
-      padding: 0;
-      border-radius: 18px;
-    }
-    
-    /* Handle keyboard visibility */
-    body.keyboard-visible .chat-messages {
-      height: calc(100vh - 300px); /* Adjust based on keyboard height */
-    }
+  input, textarea, select, button {
+    font-size: 16px; /* This prevents iOS from zooming in on input focus */
   }
   
-  /* Fix for iPhone Safari additional height issues */
-  @supports (-webkit-touch-callout: none) {
-    .chat-container {
-      height: -webkit-fill-available;
-    }
-    
-    .chat-messages {
-      height: calc(100vh - 180px);
-      height: calc(-webkit-fill-available - 180px);
-    }
-    
-    body.keyboard-visible .chat-messages {
-      height: calc(-webkit-fill-available - 300px);
-    }
+  .chat-container {
+    height: 100vh;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
   }
+  
+  /* Make header much smaller on mobile */
+  .chat-header {
+    margin-bottom: 5px;
+    padding: 5px 0;
+  }
+  
+  .header-icon {
+    width: 40px;
+    height: 60px;
+  }
+  
+  .header-text h1 {
+    font-size: 24px;
+    margin: 0;
+  }
+  
+  .header-text p {
+    font-size: 12px;
+    margin: 0;
+  }
+  
+  /* Enlarge the chat area */
+  .chat-messages {
+    flex: 1;
+    max-height: none; /* Remove the fixed max-height */
+    height: calc(100vh - 180px); /* Adjust based on header + footer height */
+    margin-bottom: 5px;
+    padding: 10px;
+  }
+  
+  /* Adjust footer for better mobile usability */
+  .chat-footer {
+    padding: 10px;
+    width: 100%;
+  }
+  
+  /* iMessage-style input area */
+  .chat-input-container {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    width: 100%;
+  }
+  
+  .input-wrapper {
+    flex-grow: 1;
+    border-radius: 20px;
+    background: white;
+    padding: 0;
+    border: 1px solid #ddd;
+    height: 36px;
+    display: flex;
+    align-items: center;
+  }
+  
+  #chat-input {
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 16px;
+    min-height: 16px;
+    height: 36px;
+    line-height: 20px;
+    box-sizing: border-box;
+    background: transparent;
+    outline: none;
+    width: 100%;
+    margin: 0;
+    resize: none;
+    overflow: hidden;
+  }
+  
+  #send-button {
+    height: 36px;
+    width: 70px;
+    padding: 0;
+    border-radius: 18px;
+    background-color: var(--primary-color);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  
+  /* Handle keyboard visibility */
+  body.keyboard-visible .chat-messages {
+    height: calc(100vh - 300px); /* Adjust based on keyboard height */
+  }
+}
+
+/* Fix for iPhone Safari additional height issues */
+@supports (-webkit-touch-callout: none) {
+  .chat-container {
+    height: -webkit-fill-available;
+  }
+  
+  .chat-messages {
+    height: calc(100vh - 180px);
+    height: calc(-webkit-fill-available - 180px);
+  }
+  
+  body.keyboard-visible .chat-messages {
+    height: calc(-webkit-fill-available - 300px);
+  }
+}
+
+/* Additional fixes for desktop input width */
+.chat-input-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrapper {
+  flex-grow: 1;
+  width: 100%;
+}
