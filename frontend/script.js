@@ -44,8 +44,8 @@ window.resetConversation = function() {
     
     // Add initial welcome message
    // Add initial welcome messages
-    addMessage("Hey! I'm Plato. Talk to me like a friend and I'll finalize your bulk custom clothing order in seconds.", 'bot');
-    addMessage("Tell me, what type of clothing, and in what color, are you looking to customize today?", 'bot');
+    addMessage("Hey! I'm Plato. I'm here to finalize your bulk custom clothing order in seconds.", 'bot');
+    addMessage("What type of clothing, and in what color, are you looking to customize today?", 'bot');
     
     console.log('Conversation reset with new user ID:', userId);
 };
@@ -67,8 +67,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         const health = await response.json();
         
         if (health.status === 'healthy') {
-            addMessage("Hey! I'm Plato. Talk to me like a friend and I'll finalize your bulk custom clothing order in seconds.", 'bot');
-            addMessage("Tell me, what type of clothing, and in what color, are you looking to customize today?", 'bot');
+            addMessage("Hey! I'm Plato. I'm here to finalize your bulk custom clothing order in seconds.", 'bot');
+            addMessage("What type of clothing, and in what color, are you looking to customize today?", 'bot');
         } else {
             addMessage("Warning: System is currently unavailable. Please try again later.", 'system');
         }
