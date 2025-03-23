@@ -102,7 +102,7 @@ SEMANTIC_COLOR_MAP = {
     # Blacks
     "black": ["Black", "Vintage Black"],
     "jet black": ["Black"],
-
+    "tan": ["Natural", "Soft Cream", "Tan"],
     "beige": ["Natural", "Soft Cream", "Tan"],
     "coral": ["Melon", "Terracotta", "Watermelon"],
     "copper": ["Toast", "Burnt Orange", "Tennessee Orange"],
