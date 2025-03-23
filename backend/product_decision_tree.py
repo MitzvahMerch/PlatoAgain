@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 SEMANTIC_COLOR_MAP = {
     # Blues
+    "blue": ["Carolina Blue", "Light Blue", "Atomic Blue", "Tropic Blue", "Royal", "True Royal", "True Royal Heather", "True Navy", "Navy", "Columbia Blue", "Lavender Blue", "Dusty Blue", "Steel Blue", "Blue Storm", "Scuba Blue", "Aquatic Blue", "California Blue", "China Blue", "Flo Blue", "Ice Blue", "Blue Jean", "Washed Denim", "Vintage Heather Blue", "Chambray", "Topaz Blue", "Denim", "Royal Caribe"],
     "light blue": ["Carolina Blue", "Light Blue"],
     "sky blue": ["Carolina Blue"],
     "baby blue": ["Carolina Blue"],
@@ -27,6 +28,7 @@ SEMANTIC_COLOR_MAP = {
     "azure": ["Carolina Blue"],
     
     # Reds
+    "red": ["True Red", "Red", "Cardinal", "Maroon", "Burgundy", "Deep Red", "Crimson", "Poppy", "Watermelon", "Terracotta", "Crunchberry", "Vintage Heather Red", "Vintage Heather Maroon"],
     "light red": ["True Red", "Red", "Poppy"],
     "bright red": ["True Red", "Red", "Cardinal"],
     "dark red": ["Maroon", "Cardinal", "Burgundy", "Deep Red"],
@@ -37,6 +39,7 @@ SEMANTIC_COLOR_MAP = {
     "scarlet": ["True Red", "Cardinal"],
     
     # Greens
+    "green": ["Mint", "Kelly Green", "Lime Shock", "Neon Green", "Forest Green", "Dark Green", "Deep Forest", "Chalky Mint", "Irish Green", "Kelly", "Military Green", "Island Green", "Island Reef", "Kiwi", "Seafoam"],
     "light green": ["Mint", "Kelly Green", "Lime Shock"],
     "bright green": ["Kelly Green", "Lime Shock", "Neon Green"],
     "dark green": ["Forest Green", "Dark Green", "Deep Forest"],
@@ -47,12 +50,14 @@ SEMANTIC_COLOR_MAP = {
     "olive": ["Forest Green", "Military Green"],
     
     # Yellows
+    "yellow": ["Butter", "Neon Yellow", "Gold", "Vegas Gold", "Mustard", "Island Yellow"],
     "light yellow": ["Butter", "Neon Yellow"],
     "bright yellow": ["Neon Yellow"],
     "gold": ["Gold", "Vegas Gold"],
     "mustard": ["Mustard", "Gold"],
     
     # Oranges
+    "orange": ["Melon", "Peach", "Neon Orange", "Deep Orange", "Safety Orange", "Texas Orange", "Burnt Orange", "Tennessee Orange"],
     "light orange": ["Melon", "Peach"],
     "bright orange": ["Neon Orange", "Deep Orange", "Safety Orange"],
     "dark orange": ["Texas Orange", "Burnt Orange"],
@@ -60,6 +65,7 @@ SEMANTIC_COLOR_MAP = {
     "peach": ["Peach", "Melon"],
     
     # Purples
+    "purple": ["Lavender", "Orchid", "Light Violet", "Violet", "Purple", "Royal Purple", "Deep Purple", "Team Purple", "Mauve"],
     "light purple": ["Lavender", "Orchid", "Light Violet"],
     "bright purple": ["Violet", "Purple", "Royal Purple"],
     "dark purple": ["Deep Purple", "Team Purple"],
@@ -67,12 +73,15 @@ SEMANTIC_COLOR_MAP = {
     "violet": ["Violet", "Purple"],
     
     # Pinks
+    "pink": ["Classic Pink", "Pale Pink", "Blossom", "Neon Pink", "Cyber Pink", "Power Pink", "Berry", "Mauve"],
     "light pink": ["Classic Pink", "Pale Pink", "Blossom"],
     "bright pink": ["Neon Pink", "Cyber Pink", "Power Pink"],
     "dark pink": ["Cyber Pink", "Berry"],
     "hot pink": ["Neon Pink", "Cyber Pink"],
     
     # Grays
+    "gray": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite"],
+    "grey": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite"],
     "light gray": ["Silver", "Ash", "Light Steel", "Athletic Heather"],
     "medium gray": ["Grey Concrete", "Grey Concrete Heather", "Iron Grey Heather", "Sport Grey"],
     "dark gray": ["Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey"],
@@ -80,6 +89,7 @@ SEMANTIC_COLOR_MAP = {
     "charcoal": ["Charcoal Grey", "Graphite", "Iron Grey"],
     
     # Browns
+    "brown": ["Tan", "Toast", "Soft Cream", "Saddle", "Nut Brown", "Chocolate", "Dark Brown", "Coffee"],
     "light brown": ["Tan", "Toast", "Soft Cream"],
     "medium brown": ["Saddle", "Nut Brown"],
     "dark brown": ["Chocolate", "Dark Brown", "Coffee"],
@@ -91,7 +101,21 @@ SEMANTIC_COLOR_MAP = {
     
     # Blacks
     "black": ["Black", "Vintage Black"],
-    "jet black": ["Black"]
+    "jet black": ["Black"],
+
+    "beige": ["Natural", "Soft Cream", "Tan"],
+    "coral": ["Melon", "Terracotta", "Watermelon"],
+    "copper": ["Toast", "Burnt Orange", "Tennessee Orange"],
+    "indigo": ["Deep Purple", "True Navy", "Team Purple"],
+    "khaki": ["Tan"],
+    "lilac": ["Lavender", "Light Violet", "Orchid"],
+    "magenta": ["Cyber Pink", "Neon Pink", "Berry"], 
+    "olive": ["Military Green"],
+    "rust": ["Burnt Orange", "Texas Orange"],
+    "sage": ["Mint", "Seafoam"],
+    "slate": ["Steel Blue", "Charcoal Grey", "Iron Grey"],
+    "ivory": ["Natural", "Vintage White"]
+
 }
 
 # =============================================================================
