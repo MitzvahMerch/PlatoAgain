@@ -158,7 +158,7 @@ class PlatoBot:
     
     try:
         # Check if this is a show color options request with the special marker
-        is_color_options_request = "[SHOW_COLOR_OPTIONS]" in message
+        is_color_options_request = "Show me color options" in message
         
         # If this is a color options request, handle it first
         if is_color_options_request and order_state.product_details:
@@ -257,7 +257,7 @@ class PlatoBot:
                             }
         
         # Check if this is a product reselection request with the special marker
-        is_special_reselection = "[FIND_DIFFERENT_PRODUCT]" in message
+        is_special_reselection = "I'd like to see a different product option" in message
         
         # Normal detection for other types of reselection requests
         is_new_product_request = (

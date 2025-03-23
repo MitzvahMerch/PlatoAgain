@@ -183,6 +183,7 @@ const createBackgroundRemovalModal = () => {
     optionsContainer.appendChild(option2Card);
     
     // Add all elements to the modal
+    modalContent.appendChild(closeButton);
     modalContent.appendChild(modalTitle);
     modalContent.appendChild(optionsContainer);
     modal.appendChild(modalContent);

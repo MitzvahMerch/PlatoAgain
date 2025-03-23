@@ -153,7 +153,7 @@ const createProductButtons = () => {
             
             // If we have product info, include it in the message
             if (productName !== 'current product') {
-                message = `I'd like to see a different product option. The ${productColor} ${productName} isn't quite what I'm looking for. [FIND_DIFFERENT_PRODUCT]`;
+                message = `I'd like to see a different product option. The ${productColor} ${productName} isn't quite what I'm looking for.`;
             }
             
             chatInput.value = message;
@@ -188,7 +188,7 @@ const createProductButtons = () => {
             chatInput.value = '';
             
             // Create a message that requests color options
-            let message = `Show me color options for this ${productName}. [SHOW_COLOR_OPTIONS]`;
+            let message = `Show me color options for this ${productName}. `;
             
             chatInput.value = message;
             
