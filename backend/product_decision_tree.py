@@ -1420,6 +1420,20 @@ class ProductDecisionTree:
                     if color_candidates:
                         logger.info(f"Found {len(color_candidates)} products with direct color name matches")
                         candidate_products = color_candidates + [p for p in candidate_products if p not in color_candidates]
+                        # Add after the code that finds direct color matches
+                        # Special handling for "vintage" in the query
+                        if "vintage" in query.lower():
+                            logger.info(f"Special prioritization for 'vintage' in query")
+                            vintage_products = []
+                        for product in candidate_products:
+                            if "vintage" in product.get('color', '').lower():
+                                logger.info(f"Found vintage product: {product.get('product_name')} in {product.get('color')}")
+                                vintage_products.append(product)
+    
+                    if vintage_products:
+                        logger.info(f"Prioritizing {len(vintage_products)} vintage products")
+                        candidate_products = vintage_products + [p for p in candidate_products if p not in vintage_products]
+                        logger.info(f"Revised candidates after vintage prioritization: {candidate_products[0].get('color')}")
             
             # Select first candidate after all filtering and prioritization
                 selected_product = candidate_products[0]
