@@ -1149,15 +1149,6 @@ class ProductDecisionTree:
             # Add category and return
                 selected_product['category'] = original_category
             
-            # Cache the result
-                self.selection_cache[cache_key] = selected_product
-                if len(self.selection_cache) > 100:
-                    keys = list(self.selection_cache.keys())[:20]
-                    for key in keys:
-                        del self.selection_cache[key]
-            
-                logger.info("=== PRODUCT SELECTION COMPLETED ===")
-                return selected_product
         
             # No products matched - fallback
             logger.warning("No product matched all criteria, falling back to default")
