@@ -725,21 +725,36 @@ class ProductDecisionTree:
         products = candidate_pool if candidate_pool is not None else self.categories[category].products
         if not products:
             return []
-        
+    
         color_query_lower = color_query.lower()
+    
+    # Create product line to available colors mapping
+        product_lines = {}
+        for product in products:
+            product_name = product['product_name']
+            product_color = product['color'].lower()
+            if product_name not in product_lines:
+                product_lines[product_name] = set()
+            product_lines[product_name].add(product_color)
+    
         semantic_matches = []
         # 1. Semantic mapping
         for semantic_term, color_list in SEMANTIC_COLOR_MAP.items():
             if semantic_term in color_query_lower or color_query_lower in semantic_term:
                 for product in products:
+                    product_name = product['product_name']
                     product_color = product['color'].lower()
-                    if any(color.lower() in product_color or product_color in color.lower() for color in color_list):
-                        semantic_matches.append(product)
-        if semantic_matches:
-            logger.info(f"Found {len(semantic_matches)} semantic matches for '{color_query}'")
-            return semantic_matches[:max_products]
-        
-        # 2. Color Family Filtering
+                
+                # Critical check: Only add this product if its color actually exists for this product line
+                    if product_color in product_lines.get(product_name, set()):
+                        if any(color.lower() in product_color or product_color in color.lower() for color in color_list):
+                            semantic_matches.append(product)
+    
+            if semantic_matches:
+                logger.info(f"Found {len(semantic_matches)} semantic matches for '{color_query}'")
+                return semantic_matches[:max_products]
+    
+    # 2. Color Family Filtering
         color_terms = color_query_lower.split()
         base_color = color_terms[-1] if len(color_terms) > 0 else ""
         modifiers = color_terms[:-1] if len(color_terms) > 1 else []
@@ -753,31 +768,42 @@ class ProductDecisionTree:
             for product in products:
                 product_color_hex = self.get_color_hex(product['color'])
                 product_family = determine_color_family(product_color_hex)
-                if product_family == target_family:
+            
+            # Add additional check to verify color exists for this product line
+                product_name = product['product_name']
+                product_color = product['color'].lower()
+                if product_color in product_lines.get(product_name, set()) and product_family == target_family:
                     family_filtered.append(product)
+                
             if family_filtered:
                 logger.info(f"Filtered to {len(family_filtered)} products in the '{target_family}' color family")
                 products = family_filtered
-        
-        # 3. Perceptual Matching using HSL distance
+    
+    # 3. Perceptual Matching using HSL distance
         target_hex = self.COLOR_HEX_MAP.get(base_color, "#0000FF")  # Default blue if not found
         target_hsl = hex_to_hsl(target_hex)
         product_distances = []
         for product in products:
+            product_name = product['product_name']
             product_color = product['color']
-            product_hex = self.get_color_hex(product_color)
-            product_hsl = hex_to_hsl(product_hex)
-            distance = hsl_distance(target_hsl, product_hsl)
-            for modifier in modifiers:
-                if modifier == "light" and product_hsl[2] < 50:
-                    distance *= 1.5
-                elif modifier == "dark" and product_hsl[2] > 50:
-                    distance *= 1.5
-                elif modifier == "bright" and product_hsl[1] < 60:
-                    distance *= 1.5
-            if color_query_lower in product_color.lower() or product_color.lower() in color_query_lower:
-                distance *= 0.2
-            product_distances.append((distance, product))
+            product_color_lower = product_color.lower()
+        
+        # Only include products whose colors actually exist for that product line
+            if product_color_lower in product_lines.get(product_name, set()):
+                product_hex = self.get_color_hex(product_color)
+                product_hsl = hex_to_hsl(product_hex)
+                distance = hsl_distance(target_hsl, product_hsl)
+                for modifier in modifiers:
+                    if modifier == "light" and product_hsl[2] < 50:
+                        distance *= 1.5
+                    elif modifier == "dark" and product_hsl[2] > 50:
+                        distance *= 1.5
+                    elif modifier == "bright" and product_hsl[1] < 60:
+                        distance *= 1.5
+                if color_query_lower in product_color_lower or product_color_lower in color_query_lower:
+                    distance *= 0.2
+                product_distances.append((distance, product))
+            
         product_distances.sort(key=lambda x: x[0])
         logger.info(f"Found {len(product_distances)} products for color '{color_query}', returning top {max_products}")
         return [product for _, product in product_distances[:max_products]]
