@@ -40,6 +40,33 @@ const createBackgroundRemovalModal = () => {
         position: relative;
     `;
     
+    // Add close button (X)
+    const closeButton = document.createElement('div');
+    closeButton.className = 'background-removal-close-button';
+    closeButton.innerHTML = '&times;'; // X symbol
+    closeButton.style.cssText = `
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #555;
+        cursor: pointer;
+        z-index: 2100;
+    `;
+
+    // Add click event to close the modal
+    closeButton.addEventListener('click', () => {
+        modal.style.display = 'none';
+        // Clean up URLs to prevent memory leaks
+        if (processedOptions) {
+            URL.revokeObjectURL(processedOptions.original.url);
+            URL.revokeObjectURL(processedOptions.bgRemove.url);
+            processedOptions = null;
+        }
+        currentFile = null;
+    });
+    
     // Create modal title
     const modalTitle = document.createElement('h3');
     modalTitle.textContent = 'Choose Background Option';
