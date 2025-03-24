@@ -796,7 +796,7 @@ class ProductDecisionTree:
             products = products[:10]
         product_options = []
         for product in products:
-            material_type = "100% Cotton" if "100% cotton" in product['material'].lower() else \
+            material_type = "100% Cotton" if "100% Cotton" in product['material'].lower() else \
                            "Athletic/Polyester" if "polyester" in product['material'].lower() else \
                            "Cotton/Poly Blend"
             product_options.append(
@@ -935,8 +935,8 @@ class ProductDecisionTree:
                 logger.info(f"After removing rejected products: {len(candidate_products)} products remaining")
             if 'material' in preferences:
                 requested_material = preferences['material'].lower()
-                if "100% cotton" in requested_material:
-                    candidate_products = [p for p in candidate_products if "100% cotton" in p['material'].lower()]
+                if "100% Cotton" in requested_material:
+                    candidate_products = [p for p in candidate_products if "100% Cotton" in p['material'].lower()]
                     logger.info(f"Filtered to 100% cotton products: {len(candidate_products)} products remaining")
                 elif "polyester" in requested_material:
                     candidate_products = [p for p in candidate_products if "polyester" in p['material'].lower()]
