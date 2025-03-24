@@ -905,12 +905,18 @@ class ProductDecisionTree:
         Filter products by hard constraints rather than using scores.
         """
         try:
-            cache_key = f"{query}_{sonar_analysis}"
-            if cache_key in self.selection_cache:
-                logger.info(f"Cache hit for query: {query}")
-                return self.selection_cache[cache_key]
+        # Start with comprehensive logging of input
+            logger.info(f"=== PRODUCT SELECTION STARTED ===")
+            logger.info(f"Query: '{query}'")
+            logger.info(f"Sonar Analysis: '{sonar_analysis}'")
+        
+        # Parse preferences
             preferences = self.parse_sonar_analysis(sonar_analysis)
             logger.info(f"Preferences extracted: {preferences}")
+            logger.info(f"Color preference: {preferences.get('color', 'None')}")
+            logger.info(f"Material preference: {preferences.get('material', 'None')}")
+        
+        # Get category
             original_category = None
             if 'category' in preferences:
                 original_category = preferences['category']
@@ -918,12 +924,23 @@ class ProductDecisionTree:
             else:
                 category = 't-shirt'
                 original_category = "T-Shirt"
-            logger.info(f"Category identified: {category}")
+            logger.info(f"Category identified: {category} (original: {original_category})")
+        
+        # Validate category
             if category not in self.categories:
+                logger.warning(f"Category '{category}' not found in available categories. Defaulting to 't-shirt'")
                 category = 't-shirt'
-            candidate_products = self.categories[category].products
-            logger.info(f"Starting with {len(candidate_products)} products in category: {category}")
+        
+        # Get all products in the category
+            all_category_products = self.categories[category].products
+            logger.info(f"Starting with {len(all_category_products)} products in category: {category}")
+        
+        # Step 1: Initialize candidate pool
+            candidate_products = all_category_products.copy()
+        
+        # Step 2: Remove rejected products
             if rejected_products:
+                before_count = len(candidate_products)
                 candidate_products = [
                     product for product in candidate_products 
                     if not any(
@@ -932,51 +949,125 @@ class ProductDecisionTree:
                         for rejected in rejected_products
                     )
                 ]
-                logger.info(f"After removing rejected products: {len(candidate_products)} products remaining")
+                logger.info(f"Rejected products filter: {before_count} → {len(candidate_products)} products")
+        
+        # Step 3: Filter by material
             if 'material' in preferences:
                 requested_material = preferences['material'].lower()
-                if "100% Cotton" in requested_material:
-                    candidate_products = [p for p in candidate_products if "100% Cotton" in p['material'].lower()]
-                    logger.info(f"Filtered to 100% cotton products: {len(candidate_products)} products remaining")
+                logger.info(f"Filtering by material: '{requested_material}'")
+            
+                before_count = len(candidate_products)
+            
+            # Material filter logic with case-insensitive comparison - fixed the case sensitivity issue!
+                if "100% cotton" in requested_material.lower():
+                    logger.info("Looking for 100% cotton products with case-insensitive match")
+                    candidate_products = [p for p in candidate_products if "100% cotton".lower() in p['material'].lower()]
                 elif "polyester" in requested_material:
                     candidate_products = [p for p in candidate_products if "polyester" in p['material'].lower()]
-                    logger.info(f"Filtered to polyester products: {len(candidate_products)} products remaining")
                 elif "blend" in requested_material or "cotton/poly" in requested_material:
                     candidate_products = [p for p in candidate_products if 
-                                        ("blend" in p['material'].lower() or "/50" in p['material'].lower() or 
-                                         ("cotton" in p['material'].lower() and "poly" in p['material'].lower()))]
-                    logger.info(f"Filtered to blend products: {len(candidate_products)} products remaining")
+                                    ("blend" in p['material'].lower() or "/50" in p['material'].lower() or 
+                                     ("cotton" in p['material'].lower() and "poly" in p['material'].lower()))]
                 else:
                     candidate_products = [p for p in candidate_products if requested_material in p['material'].lower()]
-                    logger.info(f"Filtered by material '{requested_material}': {len(candidate_products)} products remaining")
-            if 'material' in preferences and not candidate_products:
-                logger.warning(f"No products match the material requirement: {preferences['material']}. Continuing with all products in category.")
-                candidate_products = self.categories[category].products
+            
+                logger.info(f"Material filter: {before_count} → {len(candidate_products)} products")
+            
+            # Log first few products that passed material filter
+                for idx, p in enumerate(candidate_products[:3]):
+                    logger.info(f"  After material filter product {idx}: {p.get('product_name')} in {p.get('color')} with material '{p.get('material')}'")
+            
+            # Material fallback if no matches
+                if not candidate_products:
+                    logger.warning(f"No products match the material requirement: {preferences['material']}. Continuing with all products in category.")
+                    candidate_products = all_category_products.copy()
+        
+        # Step 4: Filter by brand
             if 'brand' in preferences and candidate_products:
                 requested_brand = preferences['brand'].lower()
+                logger.info(f"Filtering by brand: '{requested_brand}'")
+            
+                before_count = len(candidate_products)
                 brand_matched_products = []
+            
                 for product in candidate_products:
                     product_brand = product['product_name'].split(' ')[0].lower()
                     if requested_brand in product_brand or product_brand in requested_brand:
                         brand_matched_products.append(product)
+            
                 if brand_matched_products:
                     candidate_products = brand_matched_products
-                    logger.info(f"Filtered by brand '{requested_brand}': {len(candidate_products)} products remaining")
+                    logger.info(f"Brand filter: {before_count} → {len(candidate_products)} products")
+        
+        # Step 5: Filter by color - CRITICAL PART
             if 'color' in preferences and candidate_products:
                 color_name = preferences['color']
+                logger.info(f"Filtering by color: '{color_name}'")
+            
+                before_count = len(candidate_products)
+            
+            # Get color-filtered products
                 color_filtered_products = self.get_closest_products_by_color(
                     category, color_name, 
                     candidate_pool=candidate_products,
                     max_products=10
                 )
+            
+            # Log extensive details about color filtering
+                logger.info(f"get_closest_products_by_color returned {len(color_filtered_products) if color_filtered_products else 0} products")
+            
                 if color_filtered_products:
+                    logger.info("Color-filtered products (showing up to 5):")
+                    for idx, product in enumerate(color_filtered_products[:5]):
+                        logger.info(f"  Color-filtered product {idx}: {product.get('product_name')} in {product.get('color')}")
+                
+                # CREATE A CHECKPOINT COPY before assignment to detect later changes
+                    color_filtered_copy = color_filtered_products.copy()
+                    logger.info(f"Created checkpoint copy with {len(color_filtered_copy)} products")
+                
+                # CRITICAL LINE: Update the candidate pool
                     candidate_products = color_filtered_products
-                    logger.info(f"Filtered by color '{color_name}': {len(candidate_products)} products remaining")
-            if not candidate_products:
-                logger.warning("No products match all required constraints")
+                    logger.info(f"Color filter: {before_count} → {len(candidate_products)} products")
+                
+                # Verify assignment worked correctly
+                    if id(candidate_products) == id(color_filtered_products):
+                        logger.info("Assignment verified: candidate_products and color_filtered_products have same id")
+                    else:
+                        logger.warning("Assignment issue: candidate_products and color_filtered_products have different id")
+                else:
+                    logger.warning(f"No products match the color '{color_name}' after filtering")
+        
+        # Step 6: Check candidate pool state after all filters
+            logger.info(f"Candidate pool after all filters: {len(candidate_products)} products")
+            if candidate_products:
+                logger.info("Candidates after all filters (showing up to 3):")
+                for idx, product in enumerate(candidate_products[:3]):
+                    logger.info(f"  Final candidate {idx}: {product.get('product_name')} in {product.get('color')} with material '{product.get('material')}'")
+            
+            # If we had color filtering, verify candidates still match color
+                if 'color' in preferences and color_filtered_copy:
+                # Check if any of the color-filtered products are still in the candidate pool
+                    overlap = [p for p in candidate_products if any(
+                        p.get('product_name') == cp.get('product_name') and p.get('color') == cp.get('color')
+                        for cp in color_filtered_copy
+                    )]
+                
+                    logger.info(f"Color filter integrity check: {len(overlap)}/{len(candidate_products)} candidates were in the original color-filtered set")
+                
+                    if len(overlap) < len(candidate_products):
+                        logger.error("COLOR FILTER INTEGRITY FAILURE: Some products in the candidate pool weren't in the color-filtered set!")
+                        for p in candidate_products:
+                            if p not in overlap:
+                                logger.error(f"  Non-matching product: {p.get('product_name')} in {p.get('color')}")
+            else:
+                logger.warning("No products remain after applying all filters")
                 return None
+        
+        # Step 7: Apply price sorting if requested
             if 'price' in preferences and candidate_products:
                 requested_price = preferences['price'].lower()
+                before_count = len(candidate_products)
+            
                 if "affordable" in requested_price:
                     candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()))
                     logger.info(f"Sorted by price (ascending) for affordable preference")
@@ -985,44 +1076,116 @@ class ProductDecisionTree:
                     candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()), reverse=True)
                     logger.info(f"Sorted by price (descending) for premium/quality preference")
                     candidate_products = candidate_products[:3]
+                
+                logger.info(f"Price filter: {before_count} → {len(candidate_products)} products")
+        
+        # Step 8: Handle cheaper request if applicable
             is_cheaper_request = "cheaper" in query.lower() or "less expensive" in query.lower()
             if is_cheaper_request and rejected_products and len(rejected_products) > 0:
                 latest_rejected = rejected_products[-1]
+                logger.info(f"Processing cheaper request relative to: {latest_rejected.get('product_name')} in {latest_rejected.get('color')} at {latest_rejected.get('price')}")
+            
                 try:
                     comparison_price = float(latest_rejected.get('price', '').replace('$', ''))
+                    before_count = len(candidate_products)
+                
                     cheaper_products = [
                         p for p in candidate_products 
                         if float(p['price'].replace('$', '').strip()) < comparison_price
                     ]
+                
                     if cheaper_products:
                         candidate_products = cheaper_products
                         candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()))
-                        logger.info(f"Filtered to cheaper options than ${comparison_price}: {len(candidate_products)} products")
-                except (ValueError, TypeError):
-                    logger.warning("Could not parse price for comparison")
+                        logger.info(f"Cheaper filter: {before_count} → {len(candidate_products)} products")
+                    else:
+                        logger.info(f"No cheaper products found below ${comparison_price}")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Could not parse price for comparison: {e}")
+        
+        # FINAL STEP: Select the best match
             if candidate_products:
+            # ADDITIONAL CHECK: For color preference, ensure top candidate has right color
+                if 'color' in preferences and len(candidate_products) > 1:
+                    color_name = preferences['color'].lower()
+                
+                # Look for better color match among top candidates
+                    color_candidates = []
+                    for product in candidate_products[:5]:  # Check top 5
+                        product_color = product.get('color', '').lower()
+                        if color_name in product_color or product_color in color_name:
+                            logger.info(f"Found direct color match: {product.get('product_name')} in {product.get('color')}")
+                            color_candidates.append(product)
+                
+                # If we found better color matches, prioritize them
+                    if color_candidates:
+                        logger.info(f"Found {len(color_candidates)} products with direct color name matches")
+                        candidate_products = color_candidates + [p for p in candidate_products if p not in color_candidates]
+            
+            # Select first candidate after all filtering and prioritization
                 selected_product = candidate_products[0]
-                logger.info(f"Selected product: {selected_product['product_name']} in {selected_product['color']} at {selected_product['price']}")
+                logger.info(f"FINAL SELECTION: {selected_product['product_name']} in {selected_product['color']} at {selected_product['price']}")
+            
+            # If color preference exists, validate the selection
+                if 'color' in preferences:
+                    color_name = preferences['color'].lower()
+                    selected_color = selected_product.get('color', '').lower()
+                
+                    color_match = color_name in selected_color or selected_color in color_name
+                    logger.info(f"Color preference validation: '{color_name}' vs '{selected_color}' - Match: {color_match}")
+                
+                    if not color_match:
+                        logger.warning(f"SELECTED COLOR MISMATCH: Requested '{color_name}' but selected '{selected_color}'")
+                    
+                        # Try one more time to find a better color match
+                        for product in candidate_products[1:5]:  # Try next few products
+                            p_color = product.get('color', '').lower()
+                            if color_name in p_color or p_color in color_name:
+                                logger.info(f"Found better color match: {product.get('product_name')} in {product.get('color')}")
+                                selected_product = product
+                            logger.info(f"REVISED SELECTION: {selected_product['product_name']} in {selected_product['color']}")
+                            break
+            
+            # Add category and return
                 selected_product['category'] = original_category
+            
+            # Cache the result
                 self.selection_cache[cache_key] = selected_product
                 if len(self.selection_cache) > 100:
                     keys = list(self.selection_cache.keys())[:20]
                     for key in keys:
                         del self.selection_cache[key]
+            
+                logger.info("=== PRODUCT SELECTION COMPLETED ===")
                 return selected_product
+        
+            # No products matched - fallback
             logger.warning("No product matched all criteria, falling back to default")
             if 't-shirt' in self.categories and self.categories['t-shirt'].products:
                 default_product = self.categories['t-shirt'].products[0].copy()
                 default_product['category'] = original_category or "T-Shirt"
+                logger.info(f"FALLBACK SELECTION: {default_product.get('product_name')} in {default_product.get('color')}")
+                logger.info("=== PRODUCT SELECTION COMPLETED WITH FALLBACK ===")
                 return default_product
+        
+            logger.error("No products available even for fallback")
+            logger.info("=== PRODUCT SELECTION FAILED ===")
             return None
+        
         except Exception as e:
             logger.error(f"Error in product selection: {str(e)}", exc_info=True)
-            if self.categories.get('t-shirt') and self.categories['t-shirt'].products:
-                default_product = self.categories['t-shirt'].products[0].copy()
-                default_product['category'] = "T-Shirt"
-                return default_product
-            return None
+        
+        # Emergency fallback
+        if self.categories.get('t-shirt') and self.categories['t-shirt'].products:
+            default_product = self.categories['t-shirt'].products[0].copy()
+            default_product['category'] = "T-Shirt"
+            logger.info(f"ERROR FALLBACK SELECTION: {default_product.get('product_name')} in {default_product.get('color')}")
+            logger.info("=== PRODUCT SELECTION COMPLETED WITH ERROR FALLBACK ===")
+            return default_product
+        
+        logger.error("No products available even for error fallback")
+        logger.info("=== PRODUCT SELECTION FAILED WITH ERROR ===")
+        return None
     
     def get_product_by_style_color(self, style: str, color: str) -> Optional[Dict]:
         """Get product by style number and color"""
