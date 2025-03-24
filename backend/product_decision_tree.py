@@ -1148,7 +1148,7 @@ class ProductDecisionTree:
             
             # Add category and return
                 selected_product['category'] = original_category
-            
+                return selected_product  # Add this line!
         
             # No products matched - fallback
             logger.warning("No product matched all criteria, falling back to default")
