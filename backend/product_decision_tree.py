@@ -681,40 +681,96 @@ class ProductDecisionTree:
     
     def get_color_hex(self, color_name: str) -> str:
         """Get hex code for a color name."""
+    # Step 1: Check if color_name is directly in the map
         if color_name in self.COLOR_HEX_MAP:
             return self.COLOR_HEX_MAP[color_name]
+    
+    # Step 2: Try with underscores instead of spaces
         color_with_underscores = color_name.replace(" ", "_")
         if color_with_underscores in self.COLOR_HEX_MAP:
             return self.COLOR_HEX_MAP[color_with_underscores]
+    
+    # Step 3: Try with spaces instead of underscores
         color_with_spaces = color_name.replace("_", " ")
         if color_with_spaces in self.COLOR_HEX_MAP:
             return self.COLOR_HEX_MAP[color_with_spaces]
+    
+    # Step 4: Case-insensitive comparison
         color_lower = color_name.lower()
         for key, hex_code in self.COLOR_HEX_MAP.items():
             if key.lower() == color_lower:
                 return hex_code
+    
+    # Step 5: Check if color_name is a substring of any key or vice versa
         for key, hex_code in self.COLOR_HEX_MAP.items():
             if color_lower in key.lower() or key.lower() in color_lower:
                 return hex_code
-        if "blue" in color_lower:
-            return self.COLOR_HEX_MAP["blue"]
-        elif "red" in color_lower:
-            return self.COLOR_HEX_MAP["red"]
-        elif "green" in color_lower:
-            return self.COLOR_HEX_MAP["green"]
-        elif "yellow" in color_lower:
-            return self.COLOR_HEX_MAP["yellow"]
-        elif "purple" in color_lower or "violet" in color_lower:
-            return self.COLOR_HEX_MAP["purple"]
-        elif "orange" in color_lower:
-            return self.COLOR_HEX_MAP["orange"]
-        elif "pink" in color_lower:
-            return self.COLOR_HEX_MAP["pink"]
-        elif "brown" in color_lower:
-            return self.COLOR_HEX_MAP["brown"]
-        elif "grey" in color_lower or "gray" in color_lower:
-            return self.COLOR_HEX_MAP["grey"]
-        return self.COLOR_HEX_MAP["Black"]
+    
+    # If not found in the dictionary, ask Claude
+        logger.info(f"Color '{color_name}' not found in dictionary, using Claude for hex code")
+        return self.get_color_hex_with_claude(color_name)
+    
+    def get_color_hex_with_claude(self, color_name: str) -> str:
+        """Get hex code for a color name using Claude for complex colors not in the dictionary."""
+        # Create a cache key for this color if not already present
+        cache_key = color_name.lower().strip()
+    
+    # Check if we've already generated this color before
+        if hasattr(self, 'color_cache') and cache_key in self.color_cache:
+            logger.info(f"Using cached hex code for '{color_name}'")
+            return self.color_cache[cache_key]
+    
+    # Initialize cache if it doesn't exist
+        if not hasattr(self, 'color_cache'):
+            self.color_cache = {}
+    
+    # Make sure we have a Claude client
+        if not self.claude_client:
+            logger.warning("No Claude client available for color conversion")
+            return self.COLOR_HEX_MAP.get("red", "#FF0000")  # Default to red if no Claude
+        
+        try:
+        # Prepare the prompt for Claude
+            prompt = [
+            {"role": "system", "content": """
+                You are a color expert. Your task is to convert color descriptions into precise hex color codes.
+                Respond ONLY with the hex code, nothing else.
+                For compound colors like "red-orange", generate the appropriate blend.
+                For "blend" in color names, interpret this as a gentle mixing of the colors mentioned.
+                Format all responses as valid hexadecimal color codes (e.g., "#FF5500").
+            """},
+            {"role": "user", "content": f"Convert this color description to a hex code: {color_name}"}
+            ]
+        
+        # Call Claude API
+            logger.info(f"Asking Claude for hex code for complex color: '{color_name}'")
+            esponse = self.claude_client.call_api(prompt, temperature=0.1)
+        
+        # Clean up and validate the response
+            hex_code = response.strip()
+        # Ensure it matches hex code format
+            if re.match(r'^#[0-9A-Fa-f]{6}$', hex_code):
+                logger.info(f"Claude generated hex code {hex_code} for '{color_name}'")
+            
+            # Cache the result for future use
+                self.color_cache[cache_key] = hex_code
+                return hex_code
+            else:
+            # Try to extract a hex code if Claude included other text
+                match = re.search(r'#[0-9A-Fa-f]{6}', hex_code)
+                if match:
+                    hex_code = match.group(0)
+                    logger.info(f"Extracted hex code {hex_code} from Claude response for '{color_name}'")
+                    self.color_cache[cache_key] = hex_code
+                    return hex_code
+            
+                logger.warning(f"Claude returned invalid hex code format: '{hex_code}'")
+        except Exception as e:
+            logger.error(f"Error getting hex code from Claude: {str(e)}", exc_info=True)
+    
+    # Fallback to the default color if Claude fails
+        logger.warning(f"Falling back to default color for '{color_name}'")
+        return self.COLOR_HEX_MAP.get("red", "#FF0000")  # Default to red as fallback
     
     # -------------------------------------------------------------------------
     # Enhanced get_closest_products_by_color using semantic mapping,
