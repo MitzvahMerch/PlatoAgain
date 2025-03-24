@@ -728,7 +728,7 @@ class ProductDecisionTree:
     
         color_query_lower = color_query.lower()
     
-        # Get exact color matches first (highest priority)
+    # Get exact color matches first (highest priority)
         exact_matches = []
         for product in products:
             product_color_lower = product['color'].lower()
@@ -739,14 +739,14 @@ class ProductDecisionTree:
             logger.info(f"Found {len(exact_matches)} exact color matches for '{color_query}'")
             return exact_matches[:max_products]
     
-        # 1. Improved Semantic mapping with stricter matching
+    # 1. Improved Semantic mapping with stricter matching
         semantic_matches = []
         direct_matches = []  # For when color query directly matches a semantic term
     
-        # First, check if color query directly matches any semantic term
+    # First, check if color query directly matches any semantic term
         for semantic_term, color_list in SEMANTIC_COLOR_MAP.items():
             if semantic_term == color_query_lower:
-                # Direct match with semantic term - highest priority after exact match
+            # Direct match with semantic term - highest priority after exact match
                 for product in products:
                     product_color = product['color'].lower()
                     if any(color.lower() == product_color for color in color_list):
@@ -758,20 +758,20 @@ class ProductDecisionTree:
     
     # Next, look for semantic matches with proper containment checks
         for semantic_term, color_list in SEMANTIC_COLOR_MAP.items():
-            # Check if the query is in this semantic category
+        # Check if the query is in this semantic category
             if semantic_term == color_query_lower or (
-                # Only match partial terms if they're at word boundaries to prevent substrings
+            # Only match partial terms if they're at word boundaries to prevent substrings
                 (semantic_term in color_query_lower.split() or color_query_lower in semantic_term.split())
             ):
                 for product in products:
                     product_color = product['color'].lower()
                     for color in color_list:
                         color_lower = color.lower()
-                        # Better containment check with word boundary awareness
+                    # Better containment check with word boundary awareness
                         if (color_lower == product_color or 
                             color_lower in product_color.split() or 
                             product_color in color_lower.split()):
-                        # Check if this product is already in semantic_matches
+                    # Check if this product is already in semantic_matches
                             if not any(p.get('product_name') == product.get('product_name') and 
                                     p.get('color') == product.get('color') for p in semantic_matches):
                                 semantic_matches.append(product)
@@ -810,12 +810,12 @@ class ProductDecisionTree:
                 target_family = family
                 break
             elif family in base_color or base_color in family:
-                # Store potential match but keep looking for exact
+            # Store potential match but keep looking for exact
                 if target_family is None:
                     target_family = family
     
+        family_filtered = []
         if target_family:
-            family_filtered = []
             for product in products:
                 product_color_hex = self.get_color_hex(product['color'])
                 product_family = determine_color_family(product_color_hex)
@@ -824,61 +824,29 @@ class ProductDecisionTree:
         
             if family_filtered:
                 logger.info(f"Filtered to {len(family_filtered)} products in the '{target_family}' color family")
-                products = family_filtered
+                return family_filtered[:max_products]
     
-    # 3. Enhanced Perceptual Matching using HSL distance
-        target_hex = self.COLOR_HEX_MAP.get(base_color, "#0000FF")  # Default blue if not found
-        target_hsl = hex_to_hsl(target_hex)
-        product_distances = []
+    # 3. REPLACE HSL with Claude for complex color queries
+        logger.info(f"No direct color matches found for '{color_query}', using Claude for selection")
     
-        for product in products:
-            product_color = product['color']
-            product_color_lower = product_color.lower()
-            product_hex = self.get_color_hex(product_color)
-            product_hsl = hex_to_hsl(product_hex)
-        
-        # Base distance calculation
-            distance = hsl_distance(target_hsl, product_hsl)
-        
-        # Modifier adjustments
-            for modifier in modifiers:
-                if modifier == "light" and product_hsl[2] < 50:
-                    distance *= 1.8  # Increased penalty
-                elif modifier == "dark" and product_hsl[2] > 50:
-                    distance *= 1.8  # Increased penalty
-                elif modifier == "bright" and product_hsl[1] < 60:
-                    distance *= 1.8  # Increased penalty
-        
-        # Apply bonuses for textual matches - increased importance
-            color_match_bonus = 1.0
-        
-        # Exact word match in product color (highest priority)
-            if color_query_lower in product_color_lower.split():
-                color_match_bonus = 0.1  # Much stronger bonus
-        # Partial word match (medium priority)
-            elif any(query_part in product_part for query_part in color_query_lower.split()
-                    for product_part in product_color_lower.split()):
-                color_match_bonus = 0.5
-        # Substring match (lowest priority)
-            elif color_query_lower in product_color_lower or product_color_lower in color_query_lower:
-                color_match_bonus = 0.8
-            
-        # Apply match bonus
-            distance *= color_match_bonus
-        
-        # Add product with adjusted distance
-            product_distances.append((distance, product))
+    # Simple preferences dict with just the color
+        mock_preferences = {'color': color_query}
     
-    # Sort by distance and return
-        product_distances.sort(key=lambda x: x[0])
+    # Try to get a product using Claude
+        try:
+        # This is assuming we're in the ProductDecisionTree class
+        # and that select_product_with_claude is available
+            product, _ = self.select_product_with_claude(category, f"Find a {color_query} {category}", mock_preferences)
+        
+            if product:
+                logger.info(f"Claude selected: {product['product_name']} in {product['color']}")
+                return [product]  # Return as a list with the single product
+        except Exception as e:
+            logger.error(f"Error using Claude for color selection: {str(e)}")
     
-    # Log the top candidates with their distances for debugging
-        logger.info(f"Top color matches for '{color_query}' by perceptual distance:")
-        for i, (distance, product) in enumerate(product_distances[:5]):
-            logger.info(f"  {i+1}. {product['product_name']} in {product['color']} - Distance: {distance:.4f}")
-    
-        logger.info(f"Found {len(product_distances)} products for color '{color_query}', returning top {max_products}")
-        return [product for _, product in product_distances[:max_products]]
+    # Final fallback - just return a small subset of products
+        logger.warning(f"No color matches found for '{color_query}', returning subset of products")
+        return products[:max_products]
     
     def select_product_with_claude(self, category: str, user_query: str, preferences: Dict) -> Tuple[Optional[Dict], str]:
         """Use Claude to select the best product from a category based on preferences."""
