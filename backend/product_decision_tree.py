@@ -35,7 +35,7 @@ SEMANTIC_COLOR_MAP = {
     "dark red": ["Maroon", "Cardinal", "Burgundy", "Deep Red"],
     "maroon": ["Maroon"],
     "burgundy": ["Burgundy", "Deep Red"],
-    "wine": ["Deep Red", "Maroon", "Burgundy"],
+    "wine": ["Maroon", "Burgundy"],
     "crimson": ["Cardinal", "Deep Red", "Crimson"],
     "scarlet": ["True Red", "Red"],
     "ruby": ["Deep Red", "Maroon", "Burgundy"],
@@ -136,7 +136,8 @@ COLOR_FAMILIES = {
             "dark": {"lightness_max": 40},
             "bright": {"saturation_min": 70},
             "pale": {"saturation_max": 40, "lightness_min": 70},
-            "dull": {"saturation_max": 40}
+            "dull": {"saturation_max": 40},
+            "vintage": {}
         }
     },
     "green": {
@@ -1002,7 +1003,11 @@ class ProductDecisionTree:
                     distance *= 1.8  # Increased penalty
                     logger.info(f"    Applied 'bright' modifier penalty: {original_distance:.4f} → {distance:.4f}")
                     modifier_applied = True
-        
+            if "vintage" in color_query_lower and "vintage" in product_color_lower:
+            # Apply a 30% bonus (multiply distance by 0.7) for products with "vintage" in their name
+                distance *= 0.7
+                logger.info(f"    Applied 'vintage' bonus: {original_distance:.4f} → {distance:.4f}")
+                modifier_applied = True
             if not modifier_applied and modifiers:
                 logger.info(f"    No modifier penalties applied for {modifiers}")
         
