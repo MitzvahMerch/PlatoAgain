@@ -989,25 +989,28 @@ class ProductDecisionTree:
         # Apply modifier adjustments
             original_distance = distance
             modifier_applied = False
-        
-            for modifier in modifiers:
-                if modifier == "light" and product_hsl[2] < 50:
-                    distance *= 1.8  # Increased penalty
-                    logger.info(f"    Applied 'light' modifier penalty: {original_distance:.4f} → {distance:.4f}")
-                    modifier_applied = True
-                elif modifier == "dark" and product_hsl[2] > 50:
-                    distance *= 1.8  # Increased penalty
-                    logger.info(f"    Applied 'dark' modifier penalty: {original_distance:.4f} → {distance:.4f}")
-                    modifier_applied = True
-                elif modifier == "bright" and product_hsl[1] < 60:
-                    distance *= 1.8  # Increased penalty
-                    logger.info(f"    Applied 'bright' modifier penalty: {original_distance:.4f} → {distance:.4f}")
-                    modifier_applied = True
-            if "vintage" in color_query_lower and "vintage" in product_color_lower:
-            # Apply a 30% bonus (multiply distance by 0.7) for products with "vintage" in their name
-                distance *= 0.7
-                logger.info(f"    Applied 'vintage' bonus: {original_distance:.4f} → {distance:.4f}")
+
+        for modifier in modifiers:
+            if modifier == "light" and product_hsl[2] < 50:
+                distance *= 1.8  # Increased penalty
+                logger.info(f"    Applied 'light' modifier penalty: {original_distance:.4f} → {distance:.4f}")
                 modifier_applied = True
+            elif modifier == "dark" and product_hsl[2] > 50:
+                distance *= 1.8  # Increased penalty
+                logger.info(f"    Applied 'dark' modifier penalty: {original_distance:.4f} → {distance:.4f}")
+                modifier_applied = True
+            elif modifier == "bright" and product_hsl[1] < 60:
+                distance *= 1.8  # Increased penalty
+                logger.info(f"    Applied 'bright' modifier penalty: {original_distance:.4f} → {distance:.4f}")
+                modifier_applied = True
+
+# Add special handling for "vintage" modifier
+                if "vintage" in color_query_lower and "vintage" in product_color_lower:
+    # Apply a 30% bonus (multiply distance by 0.7) for products with "vintage" in their name
+                    distance *= 0.7
+                    logger.info(f"    Applied 'vintage' bonus: {original_distance:.4f} → {distance:.4f}")
+                    modifier_applied = True
+
             if not modifier_applied and modifiers:
                 logger.info(f"    No modifier penalties applied for {modifiers}")
         
