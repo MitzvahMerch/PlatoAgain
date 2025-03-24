@@ -473,6 +473,42 @@ class PlatoBot:
             
             enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
             logger.info(f"Enhanced query: {enhanced_query}")
+
+           
+            # After getting the enhanced_query from Claude but before using it for product selection
+
+            if enhanced_query and hasattr(order_state, 'original_intent'):
+                # Parse the enhanced query to extract fields
+                query_fields = {}
+            for line in enhanced_query.split('\n'):
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip().lower()
+                    value = value.strip()
+                    query_fields[key] = value
+    
+    # Check for missing or None fields that we can fill from original intent
+        if 'category' in query_fields and (query_fields['category'].lower() == 'none' or not query_fields['category']):
+            if order_state.original_intent.get('category'):
+                logger.info(f"Using original category: {order_state.original_intent['category']}")
+                for i, line in enumerate(enhanced_query.split('\n')):
+                    if line.lower().startswith('category:'):
+                        query_lines = enhanced_query.split('\n')
+                        query_lines[i] = f"Category: {order_state.original_intent['category']}"
+                        enhanced_query = '\n'.join(query_lines)
+                        break
+    
+        if 'color' in query_fields and (query_fields['color'].lower() == 'none' or not query_fields['color']):
+            if order_state.original_intent.get('general_color'):
+                logger.info(f"Using original color: {order_state.original_intent['general_color']}")
+                for i, line in enumerate(enhanced_query.split('\n')):
+                    if line.lower().startswith('color:'):
+                        query_lines = enhanced_query.split('\n')
+                        query_lines[i] = f"Color: {order_state.original_intent['general_color']}"
+                        enhanced_query = '\n'.join(query_lines)
+                        break
+    
+            logger.info(f"Enhanced query after applying original intent: {enhanced_query}")
             
             # Now override the category in the enhanced query if needed for product modification flow
             if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
