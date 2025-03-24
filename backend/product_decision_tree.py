@@ -798,15 +798,17 @@ class ProductDecisionTree:
         logger.info(f"======== COLOR MATCHING PROCESS START ========")
         logger.info(f"Finding products for color query: '{color_query}' in category '{category}'")
         logger.info(f"Candidate pool size: {len(candidate_pool) if candidate_pool is not None else 'None'}")
-    
+
         products = candidate_pool if candidate_pool is not None else self.categories[category].products
         if not products:
             logger.warning(f"No products found in category '{category}' or candidate pool")
             return []
-    
+
         color_query_lower = color_query.lower()
+        color_query_terms = color_query_lower.split()
         logger.info(f"Normalized color query: '{color_query_lower}'")
-    
+        logger.info(f"Color query terms: {color_query_terms}")
+
     # STEP 1: Check for exact color matches
         logger.info(f"STEP 1: Checking for exact color name matches")
         exact_matches = []
@@ -815,19 +817,19 @@ class ProductDecisionTree:
             if color_query_lower == product_color_lower:
                 logger.info(f"  Exact match found: {product['product_name']} in {product['color']}")
                 exact_matches.append(product)
-    
+
         if exact_matches:
             logger.info(f"Found {len(exact_matches)} exact color matches for '{color_query}'")
             logger.info(f"======== COLOR MATCHING COMPLETE: EXACT MATCHES ========")
             return exact_matches[:max_products]
         else:
             logger.info(f"No exact color matches found for '{color_query}'")
-    
+
     # STEP 2: Check for semantic color matching
         logger.info(f"STEP 2: Checking for semantic color matching")
         semantic_matches = []
         direct_matches = []  # For when color query directly matches a semantic term
-    
+
     # First, check if color query directly matches any semantic term
         logger.info(f"  Checking for direct matches with semantic terms")
         for semantic_term, color_list in SEMANTIC_COLOR_MAP.items():
@@ -839,21 +841,21 @@ class ProductDecisionTree:
                         if color.lower() == product_color:
                             logger.info(f"    Adding product: {product['product_name']} in {product['color']}")
                             direct_matches.append(product)
-    
+
         if direct_matches:
             logger.info(f"Found {len(direct_matches)} direct semantic term matches for '{color_query}'")
             logger.info(f"======== COLOR MATCHING COMPLETE: DIRECT SEMANTIC MATCHES ========")
             return direct_matches[:max_products]
         else:
             logger.info(f"No direct semantic term matches found for '{color_query}'")
-    
+
     # Next, look for semantic matches with proper containment checks
         logger.info(f"  Checking for partial semantic term matches")
         for semantic_term, color_list in SEMANTIC_COLOR_MAP.items():
         # Check if the query is in this semantic category
             semantic_match = False
             match_reason = ""
-        
+    
             if semantic_term == color_query_lower:
                 semantic_match = True
                 match_reason = "exact term match"
@@ -863,7 +865,7 @@ class ProductDecisionTree:
             elif color_query_lower in semantic_term.split():
                 semantic_match = True
                 match_reason = f"query is a word in '{semantic_term}'"
-        
+    
             if semantic_match:
                 logger.info(f"  Semantic category match: '{semantic_term}' - {match_reason}")
                 for product in products:
@@ -873,7 +875,7 @@ class ProductDecisionTree:
                         if (color_lower == product_color or 
                             color_lower in product_color.split() or 
                             product_color in color_lower.split()):
-                        # Check if this product is already in semantic_matches
+                            # Check if this product is already in semantic_matches
                             is_duplicate = any(p.get('product_name') == product.get('product_name') and 
                                     p.get('color') == product.get('color') for p in semantic_matches)
                             if not is_duplicate:
@@ -881,49 +883,19 @@ class ProductDecisionTree:
                                 semantic_matches.append(product)
                             else:
                                 logger.info(f"    Skipping duplicate: {product['product_name']} in {product['color']}")
-    
-        if semantic_matches:
-            logger.info(f"Found {len(semantic_matches)} semantic matches for '{color_query}'")
-        
-        # Additional priority sorting: exact term matches first
-            logger.info(f"Prioritizing semantic matches based on query word presence")
-            prioritized_semantic = []
-            other_semantic = []
-        
-            for product in semantic_matches:
-                product_color_lower = product['color'].lower()
-                color_words = product_color_lower.split()
-                query_words = color_query_lower.split()
-            
-            # Check if any query words appear directly in the product color name
-                has_direct_word = any(q_word in color_words for q_word in query_words)
-                if has_direct_word:
-                    matching_words = [q_word for q_word in query_words if q_word in color_words]
-                    logger.info(f"  Priority match: {product['product_name']} in {product['color']} - contains query words: {matching_words}")
-                    prioritized_semantic.append(product)
-                else:
-                    logger.info(f"  Secondary match: {product['product_name']} in {product['color']} - no direct word matches")
-                    other_semantic.append(product)
-        
-            sorted_semantic = prioritized_semantic + other_semantic
-            logger.info(f"======== COLOR MATCHING COMPLETE: SEMANTIC MATCHES ========")
-            return sorted_semantic[:max_products]
-        else:
-            logger.info(f"No semantic matches found for '{color_query}'")
-    
+
     # STEP 3: Color Family Filtering
         logger.info(f"STEP 3: Checking for color family matches")
-        color_terms = color_query_lower.split()
-        base_color = color_terms[-1] if len(color_terms) > 0 else ""
-        modifiers = color_terms[:-1] if len(color_terms) > 1 else []
-    
+        base_color = color_query_terms[-1] if len(color_query_terms) > 0 else ""
+        modifiers = color_query_terms[:-1] if len(color_query_terms) > 1 else []
+
         logger.info(f"  Base color term identified: '{base_color}'")
         logger.info(f"  Modifiers identified: {modifiers}")
-    
+
     # Find the most specific color family match
         target_family = None
         family_match_reason = ""
-    
+
         for family in COLOR_FAMILIES:
             if family == base_color:  # Exact family match
                 target_family = family
@@ -936,22 +908,22 @@ class ProductDecisionTree:
                     target_family = family
                     family_match_reason = f"partial match between '{family}' and '{base_color}'"
                     logger.info(f"  Potential color family match: {family} - {family_match_reason}")
-    
+
         if target_family:
             logger.info(f"  Target color family selected: '{target_family}' - {family_match_reason}")
             family_filtered = []
-        
+    
             for product in products:
                 product_color_hex = self.get_color_hex(product['color'])
                 product_family = determine_color_family(product_color_hex)
                 logger.info(f"  Product: {product['product_name']} in {product['color']} - Family: {product_family}, Hex: {product_color_hex}")
-            
+        
                 if product_family == target_family:
                     logger.info(f"    Color family match - adding to filtered list")
                     family_filtered.append(product)
                 else:
                     logger.info(f"    Not in target family '{target_family}' - skipping")
-        
+    
             if family_filtered:
                 logger.info(f"Filtered to {len(family_filtered)} products in the '{target_family}' color family")
                 products = family_filtered
@@ -959,17 +931,17 @@ class ProductDecisionTree:
                 logger.info(f"No products found in the '{target_family}' color family")
         else:
             logger.info(f"No matching color family found for '{base_color}'")
-    
-    # STEP 4: HSL Perceptual Distance Matching
-        logger.info(f"STEP 4: Performing HSL perceptual distance matching")
-    
-    # KEY CHANGE: Use get_color_hex for the target color rather than using the base color
+
+    # STEP 4: HSL Perceptual Distance Matching with Enhanced Prioritization
+        logger.info(f"STEP 4: Performing HSL perceptual distance matching with enhanced prioritization")
+
+    # Use get_color_hex for the target color rather than using the base color
         target_hex = self.get_color_hex(color_query)
         logger.info(f"  CRITICAL: Target hex code for full color query '{color_query}': {target_hex}")
-    
+
         target_hsl = hex_to_hsl(target_hex)
         logger.info(f"  Target HSL for '{color_query}': H={target_hsl[0]} (hue), S={target_hsl[1]:.2f}% (saturation), L={target_hsl[2]:.2f}% (lightness)")
-    
+
     # Log color wheel position for context
         hue_position = ""
         if 0 <= target_hsl[0] < 30:
@@ -988,25 +960,32 @@ class ProductDecisionTree:
             hue_position = "purple/magenta range"
         else:
             hue_position = "pink/red range"
-    
+
         logger.info(f"  Target color hue {target_hsl[0]} is in the {hue_position}")
-    
-        product_distances = []
-        logger.info(f"  Calculating HSL distance for each product:")
-    
-        for i, product in enumerate(products):
+
+    # NEW: Enhanced prioritization logic based on term matching
+    # Create priority groups for products
+        exact_compound_matches = []  # 1. Exact compound term matches
+        multiple_word_matches = []   # 2. Multiple word matches
+        single_word_matches = []     # 3. Single word matches
+        no_word_matches = []         # 4. No word matches (perceptual only)
+
+        logger.info(f"  Categorizing products by new prioritization logic:")
+
+        for product in products:
             product_color = product['color']
             product_color_lower = product_color.lower()
+            product_color_terms = product_color_lower.split()
             product_hex = self.get_color_hex(product_color)
             product_hsl = hex_to_hsl(product_hex)
         
-        # Base distance calculation
+        # Calculate HSL distance for each product
             distance = hsl_distance(target_hsl, product_hsl)
         
-            logger.info(f"  Product {i+1}: '{product_color}' - Hex: {product_hex}, HSL: H={product_hsl[0]}, S={product_hsl[1]:.2f}, L={product_hsl[2]:.2f}")
+            logger.info(f"  Product: '{product_color}' - Hex: {product_hex}, HSL: H={product_hsl[0]}, S={product_hsl[1]:.2f}, L={product_hsl[2]:.2f}")
             logger.info(f"    Base HSL distance: {distance:.4f}")
         
-        # Modifier adjustments
+        # Apply modifier adjustments
             original_distance = distance
             modifier_applied = False
         
@@ -1027,51 +1006,68 @@ class ProductDecisionTree:
             if not modifier_applied and modifiers:
                 logger.info(f"    No modifier penalties applied for {modifiers}")
         
-        # Apply bonuses for textual matches
-            color_match_bonus = 1.0
-            text_match_type = "None"
-        
-        # Exact word match in product color (highest priority)
-            if color_query_lower in product_color_lower.split():
-                color_match_bonus = 0.1  # Much stronger bonus
-                text_match_type = "Exact word match"
-        # Partial word match (medium priority)
-            elif any(query_part in product_part for query_part in color_query_lower.split()
-                    for product_part in product_color_lower.split()):
-                color_match_bonus = 0.5
-                text_match_type = "Partial word match"
-        # Substring match (lowest priority)
-            elif color_query_lower in product_color_lower or product_color_lower in color_query_lower:
-                color_match_bonus = 0.8
-                text_match_type = "Substring match"
-        
-        # Apply match bonus
-            pre_bonus_distance = distance
-            distance *= color_match_bonus
-        
-            if color_match_bonus != 1.0:
-                logger.info(f"    Applied text match bonus ({text_match_type}): {pre_bonus_distance:.4f} → {distance:.4f}")
+        # NEW: Determine which priority group this product belongs to
+            if color_query_lower == product_color_lower:
+            # This should have been caught earlier, but just in case
+                logger.info(f"    Priority: Exact compound match (highest)")
+                exact_compound_matches.append((distance, product))
+            elif len(color_query_terms) > 1 and all(term in product_color_lower for term in color_query_terms):
+            # All query terms exist in the product color (in any order)
+                logger.info(f"    Priority: Multiple word match - all terms present")
+                exact_compound_matches.append((distance, product))
+            elif len(color_query_terms) > 1:
+            # Check how many query terms match
+                matching_terms = [term for term in color_query_terms if term in product_color_terms]
+                if len(matching_terms) > 1:
+                    logger.info(f"    Priority: Multiple word match - {len(matching_terms)} terms match: {matching_terms}")
+                    multiple_word_matches.append((distance, product, len(matching_terms)))
+                elif len(matching_terms) == 1:
+                    logger.info(f"    Priority: Single word match - term: {matching_terms[0]}")
+                    single_word_matches.append((distance, product, matching_terms[0]))
+                else:
+                # No direct term matches, check for substring matches
+                    if any(term in product_color_lower for term in color_query_terms) or any(term in color_query_lower for term in product_color_terms):
+                        logger.info(f"    Priority: Substring match")
+                        single_word_matches.append((distance * 1.2, product, "substring"))  # Slight penalty for substring vs. word
+                    else:
+                        logger.info(f"    Priority: No word match - using perceptual distance only")
+                        no_word_matches.append((distance, product))
             else:
-                logger.info(f"    No text match bonus applied")
-        
-        # Final distance
-            logger.info(f"    FINAL DISTANCE: {distance:.4f}")
-        
-        # Add product with adjusted distance
-            product_distances.append((distance, product))
+            # Single term query, check if it matches any terms in product color
+                if color_query_lower in product_color_terms:
+                    logger.info(f"    Priority: Single word exact match")
+                    single_word_matches.append((distance, product, "exact"))
+                elif color_query_lower in product_color_lower:
+                    logger.info(f"    Priority: Single word substring match")
+                    single_word_matches.append((distance * 1.2, product, "substring"))  # Slight penalty
+                else:
+                    logger.info(f"    Priority: No word match - using perceptual distance only")
+                    no_word_matches.append((distance, product))
     
-    # Sort by distance and return
-        product_distances.sort(key=lambda x: x[0])
+    # Sort each priority group internally
+        exact_compound_matches.sort(key=lambda x: x[0])
+        multiple_word_matches.sort(key=lambda x: (x[2] * -1, x[0]))  # More matching words first, then by distance
+        single_word_matches.sort(key=lambda x: x[0])  # By distance
+        no_word_matches.sort(key=lambda x: x[0])  # By distance
     
-    # Log the top candidates with their distances for debugging
-        logger.info(f"Final top color matches for '{color_query}' by perceptual distance:")
-        for i, (distance, product) in enumerate(product_distances[:5]):
-            logger.info(f"  {i+1}. {product['product_name']} in {product['color']} - Distance: {distance:.4f}")
+    # Combine results in priority order
+        results = []
     
-        logger.info(f"Found {len(product_distances)} products for color '{color_query}', returning top {max_products}")
+    # Add products from each group in order of priority
+        results.extend([product for _, product in exact_compound_matches])
+        results.extend([product for _, product, _ in multiple_word_matches])
+        results.extend([product for _, product, _ in single_word_matches])
+        results.extend([product for _, product in no_word_matches])
+    
+    # Log the final prioritized results
+        logger.info(f"Final prioritized color matches for '{color_query}':")
+        for i, product in enumerate(results[:5]):
+            logger.info(f"  {i+1}. {product['product_name']} in {product['color']}")
+    
+        logger.info(f"Found {len(results)} products for color '{color_query}', returning top {max_products}")
         logger.info(f"======== COLOR MATCHING PROCESS COMPLETE ========")
     
-        return [product for _, product in product_distances[:max_products]]
+        return results[:max_products]
     
     def select_product_with_claude(self, category: str, user_query: str, preferences: Dict) -> Tuple[Optional[Dict], str]:
         """Use Claude to select the best product from a category based on preferences."""
