@@ -21,6 +21,7 @@ SEMANTIC_COLOR_MAP = {
     "deep blue": ["True Navy", "Navy", "China Blue", "Denim"],
     "dark blue": ["True Navy", "Navy", "Denim"],
     "navy": ["True Navy", "Navy", "J Navy"],
+    "navy blue": ["True Navy", "Navy", "J Navy"],
     "royal blue": ["Royal", "True Royal", "Royal Caribe"],
     "teal": ["Tropic Blue", "Teal", "Topaz Blue", "California Blue", "Scuba Blue"],
     "turquoise": ["Atomic Blue", "Tropic Blue", "Teal", "Scuba Blue", "California Blue"],
@@ -37,6 +38,7 @@ SEMANTIC_COLOR_MAP = {
     "wine": ["Deep Red", "Maroon", "Burgundy"],
     "crimson": ["Cardinal", "Deep Red", "Crimson"],
     "scarlet": ["True Red", "Red"],
+    "ruby": ["Deep Red", "Maroon", "Burgundy"],
     
     # Greens
     "green": ["Mint", "Kelly Green", "Kelly", "Lime Shock", "Neon Green", "Forest Green", "Dark Green", "Deep Forest", "Chalky Mint", "Irish Green", "Military Green", "Island Green", "Island Reef", "Kiwi", "Seafoam", "Cool Mint", "Jade"],
