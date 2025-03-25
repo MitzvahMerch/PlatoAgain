@@ -117,6 +117,15 @@ class PlatoBot:
             logger.info(f"Invalid goal format from Claude, reclassified as: {identified_goal}")
         
         logger.info(f"Identified goal: {identified_goal}")
+        
+        # NEW CODE: Redirect quantity_collection to product_selection when no product selected yet
+        if identified_goal == "quantity_collection" and not order_state.product_selected:
+            logger.info(f"Redirecting quantity_collection to product_selection since no product selected yet")
+            identified_goal = "product_selection"
+            # Store original intent for later use
+            if not hasattr(order_state.original_intent, "had_quantity"):
+                order_state.original_intent["had_quantity"] = True
+            self.conversation_manager.update_order_state(user_id, order_state)
 
         # Add message to conversation history
         self.conversation_manager.add_message(user_id, "user", message, identified_goal)
@@ -158,6 +167,10 @@ class PlatoBot:
         f"Order state for user {user_id}: color_options_shown={getattr(order_state, 'color_options_shown', False)}, "
         f"product_details={'Present' if order_state.product_details else 'None'}"
     )
+    # Check if this request was redirected from quantity_collection
+    had_quantity = order_state.original_intent.get("had_quantity", False)
+    if had_quantity:
+        logger.info(f"Request redirected from quantity_collection for user {user_id}")
 
     try:
         # Check if this is a show color options request with the special marker
@@ -751,27 +764,34 @@ class PlatoBot:
             logger.info(f"Passing original intent to product tree: {order_state.original_intent}")
         product_match = self.product_tree.select_product(context_message, enhanced_query, rejected_products)
 
-        # Avoid recommending previously rejected products
-        if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
-            for rejected in order_state.rejected_products:
-                if (product_match and 
-                    product_match.get('product_name') == rejected.get('product_name') and
-                    product_match.get('color') == rejected.get('color')):
-                    logger.warning(f"Selected product matches previously rejected product, retrying with explicit instructions")
-                    explicit_message = f"{context_message} Do not recommend {rejected.get('product_name')} in {rejected.get('color')}."
-                    analysis_prompt = [
-                        {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
-                        {"role": "user", "content": explicit_message}
-                    ]
-                    enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
-                    product_match = self.product_tree.select_product(explicit_message, enhanced_query, rejected_products)
-                    break
+        # Check if this was redirected from quantity_collection
+        had_quantity = order_state.original_intent.get("had_quantity", False)
 
         if not product_match:
-            return {
-                "text": "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details about what you're looking for?",
-                "images": []
-            }
+            logger.info(f"No product match found for user {user_id}, had_quantity={had_quantity}")
+            
+            if had_quantity:
+                logger.info(f"Generating special no-match response for quantity-first request")
+                # Special response for quantity-first requests with no product match
+                no_match_prompt = prompts.get_size_first_product_prompt()
+                response = self.claude.call_api([
+                    {"role": "system", "content": no_match_prompt},
+                    {"role": "user", "content": "Generate a response for a user who mentioned quantities but no product type."}
+                ], temperature=0.7)
+                
+                response_text = utils.clean_response(response)
+                logger.info(f"Generated special no-match response: {response_text[:100]}...")
+                
+                return {
+                    "text": response_text,
+                    "images": []
+                }
+            else:
+                # Standard no-match response
+                return {
+                    "text": "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details about what you're looking for?",
+                    "images": []
+                }
 
         # Extract product details
         details = {
@@ -810,15 +830,31 @@ class PlatoBot:
 
         self.conversation_manager.update_order_state(user_id, order_state)
 
-        # Generate response using Claude
-        response_prompt = prompts.get_product_response_prompt(
-            message=message,
-            product_name=details["product_name"],
-            color=details["color"],
-            formatted_price=formatted_price,
-            category=details["category"],
-            material=details.get("material", "")
-        )
+        # Check if this was redirected from quantity_collection
+        had_quantity = order_state.original_intent.get("had_quantity", False)
+        logger.info(f"Checking had_quantity flag before generating response: {had_quantity}")
+
+        if had_quantity:
+            logger.info(f"Adding quantity collection message to product selection response for user {user_id}")
+            # Generate response with quantity note
+            response_prompt = prompts.get_product_response_with_size_note_prompt(
+                message=message,
+                product_name=details["product_name"],
+                color=details["color"],
+                formatted_price=formatted_price,
+                category=details["category"],
+                material=details.get("material", "")
+            )
+        else:
+            # Standard response without quantity note
+            response_prompt = prompts.get_product_response_prompt(
+                message=message,
+                product_name=details["product_name"],
+                color=details["color"],
+                formatted_price=formatted_price,
+                category=details["category"],
+                material=details.get("material", "")
+            )
 
         # Get response from Claude
         response = self.claude.call_api([
