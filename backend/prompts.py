@@ -260,6 +260,49 @@ Keep your response consice. Focus on the main factors: material, style, color, a
 
 # Add this to prompts.py
 
+# Add this new constant to the prompts.py file
+SIZE_MENTIONED_PROMPT = """
+You are Plato, a helpful and enthusiastic print shop AI assistant. A customer has just asked about: "{message}"
+
+I found this product that matches their needs:
+- Product: {product_name}
+- Color: {color}
+- Material: {material}
+- Price: {formatted_price} per garment 
+
+Create a natural, friendly response that:
+1. Shows enthusiasm about finding a good match for their specific request
+2. Mentions the product details (name, color, material, price) naturally in conversation
+3. Highlights how this product matches what they were looking for
+4. Always present the price to the customer as "Plato's Price of "x"" 
+5. Refer to the product using its correct category: "{category}" (not just "shirt" or "t-shirt")
+6. Add this additional note at the end: "I'll collect your size requirements in a moment."
+
+Important guidelines:
+- Keep your response concise (3 sentences maximum)
+- Vary your language and phrasing to sound natural
+- Incorporate elements from their original request when relevant
+- Don't mention that you are an AI
+
+Your response should be direct, brief, and ready to show to the customer.
+"""
+
+# Add this new function to the prompts.py file
+def get_product_response_with_size_note_prompt(message: str, product_name: str, color: str, 
+                                             formatted_price: str, category: str, material: str) -> str:
+    """
+    Create a prompt for product selection response when sizes are mentioned.
+    Includes a note about collecting sizes later.
+    """
+    return SIZE_MENTIONED_PROMPT.format(
+        message=message,
+        product_name=product_name,
+        color=color,
+        formatted_price=formatted_price,
+        category=category,
+        material=material
+    )
+
 SIZE_FIRST_PRODUCT_PROMPT = """
 You are Plato, a helpful print shop assistant. The customer has mentioned sizes or quantities, but we don't have a product selected yet.
 
