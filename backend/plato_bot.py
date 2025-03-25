@@ -709,16 +709,41 @@ class PlatoBot:
                 logger.info(f"Modified query with original category: {enhanced_query}")
 
             if any(term in message.lower() for term in ["100% cotton", "cotton", "polyester", "blend", "material"]):
-                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
+                # Improved version for color preservation on material change
+                # Check if a color is already extracted from the enhanced query
+                color_specified = False
+                extracted_color = None
+                
+                # Parse the enhanced query to extract the color (if any)
+                query_lines = enhanced_query.split('\n')
+                for line in query_lines:
+                    if line.lower().startswith('color:'):
+                        color_value = line.split(':', 1)[1].strip()
+                        if color_value.lower() != 'none' and color_value:
+                            color_specified = True
+                            extracted_color = color_value
+                            logger.info(f"New color extracted from analysis: {extracted_color}")
+                            break
+                
+                # Only preserve original color if no new color was specified
+                if not color_specified and hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
                     preserved_color = order_state.original_intent['general_color']
-                    logger.info(f"Material change detected, forcing preservation of color: {preserved_color}")
-                    query_lines = enhanced_query.split('\n')
+                    logger.info(f"Material change detected, no new color specified, preserving original color: {preserved_color}")
+                    
+                    # Update the color in the query
                     for i, line in enumerate(query_lines):
                         if line.lower().startswith('color:'):
                             query_lines[i] = f"Color: {preserved_color}"
                             break
+                    
                     enhanced_query = '\n'.join(query_lines)
                     logger.info(f"Modified query with forced color preservation: {enhanced_query}")
+                elif color_specified:
+                    # Color is already specified in the query, no need to modify
+                    logger.info(f"Using new color from enhanced query: {extracted_color}")
+                    logger.info(f"No color override needed, query already contains: {extracted_color}")
+                else:
+                    logger.info(f"No color specified in query and no original color to preserve")
 
         rejected_products = getattr(order_state, 'rejected_products', None)
         if hasattr(order_state, 'original_intent'):
