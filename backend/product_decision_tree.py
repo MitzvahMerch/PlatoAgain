@@ -1214,6 +1214,12 @@ class ProductDecisionTree:
             logger.info(f"Preferences extracted: {preferences}")
             logger.info(f"Color preference: {preferences.get('color', 'None')}")
             logger.info(f"Material preference: {preferences.get('material', 'None')}")
+
+            if 'color' not in preferences and hasattr(self, 'original_intent_context'):
+                if self.original_intent_context.get('general_color'):
+                    original_color = self.original_intent_context.get('general_color')
+                    logger.info(f"Missing color in query - adding original color '{original_color}' from intent")
+                    preferences['color'] = original_color
         
         # Get category
             original_category = None
@@ -1481,6 +1487,11 @@ class ProductDecisionTree:
         """Get product by style number and color"""
         key = f"{style}_{color}"
         return self.product_data.get(key)
+    
+    def set_original_intent_context(self, intent):
+        """Store original intent for context during selection"""
+        self.original_intent_context = intent
+        logger.info(f"Set original intent context: {intent}")
     
     def init_product_data(self):
         """Initialize the product data with preset prices and details"""

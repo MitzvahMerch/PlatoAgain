@@ -698,6 +698,9 @@ class PlatoBot:
         
         # Use product decision tree to select the best product
         rejected_products = getattr(order_state, 'rejected_products', None)
+        if hasattr(order_state, 'original_intent'):
+            self.product_tree.set_original_intent_context(order_state.original_intent)
+            logger.info(f"Passing original intent to product tree: {order_state.original_intent}")
         product_match = self.product_tree.select_product(context_message, enhanced_query, rejected_products)
         
         # Avoid recommending previously rejected products
