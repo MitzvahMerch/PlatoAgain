@@ -768,45 +768,45 @@ class PlatoBot:
         had_quantity = order_state.original_intent.get("had_quantity", False)
 
         # Check if this is a quantity-only message without a specific category
+        # Check if this is a quantity-only message without specific details
         if had_quantity:
-            has_specific_color = False
-            has_specific_category = False
+            has_specific_details = False
     
-    # Check if there's a specific category in the enhanced query
+    # Check if there's specific details in the enhanced query
             if enhanced_query:
+        # Check for specific color or material - either one counts as specific details
                 for line in enhanced_query.split('\n'):
-                    if line.lower().startswith('category:'):
-                        category_value = line.split(':', 1)[1].strip()
-                    if category_value.lower() != 'none' and category_value:
-                        category_words = category_value.split()
-                    # Only consider it a specific category if it's more than just "T-Shirt"
-                    # (which is the default category that gets added)
-                        if category_value != "T-Shirt" or len(category_words) > 1:
-                            has_specific_category = True
+                    if line.lower().startswith('color:'):
+                        color_value = line.split(':', 1)[1].strip()
+                        if color_value.lower() != 'none' and color_value:
+                            logger.info(f"Found specific color: {color_value}")
+                            has_specific_details = True
                             break
-            
-                if line.lower().startswith('color:'):
-                    color_value = line.split(':', 1)[1].strip()
-                    if color_value.lower() != 'none' and color_value:
-                        has_specific_color = True
+                    
+                    if line.lower().startswith('material:'):
+                        material_value = line.split(':', 1)[1].strip()
+                        if material_value.lower() != 'none' and material_value:
+                            logger.info(f"Found specific material: {material_value}")
+                            has_specific_details = True
+                            break
     
-    # If we don't have a specific category (just default T-Shirt), use the special prompt
-                if not has_specific_category:
-                    logger.info(f"Quantity-first request without specific category, using special prompt")
-        # Special response for quantity-first requests without category specification
-                    no_match_prompt = prompts.get_size_first_product_prompt()
-                    response = self.claude.call_api([
-                        {"role": "system", "content": no_match_prompt},
-                        {"role": "user", "content": "Generate a response for a user who mentioned quantities but no specific product type."}
-                        ], temperature=0.7)
+    # If we don't have specific details, use the special prompt
+            if not has_specific_details:
+                logger.info(f"Quantity-first request without specific details, using special prompt")
+        # Special response for quantity-first requests without specific details
+                no_match_prompt = prompts.get_size_first_product_prompt()
+                response = self.claude.call_api([
+            {"role": "system", "content": no_match_prompt},
+            {"role": "user", "content": "Generate a response for a user who mentioned quantities but no specific product type."}
+                ], temperature=0.7)
         
-                    response_text = utils.clean_response(response)
-                    logger.info(f"Generated special no-category response: {response_text[:100]}...")
+                response_text = utils.clean_response(response)
+                logger.info(f"Generated special no-category response: {response_text[:100]}...")
         
-                    return {
-            "text": response_text,
-            "images": []
-                    }
+                return {
+                    "text": response_text,
+                    "images": []
+                }
 
         if not product_match:
             logger.info(f"No product match found for user {user_id}, had_quantity={had_quantity}")
