@@ -154,22 +154,25 @@ class PlatoBot:
    def _handle_product_selection(self, user_id: str, message: str, order_state, enhanced_query: str = None) -> dict:
     """Handle product selection with decision tree approach."""
     logger.info(f"Handling product selection for: {message}")
-    logger.info(f"Order state for user {user_id}: color_options_shown={getattr(order_state, 'color_options_shown', False)}, product_details={'Present' if order_state.product_details else 'None'}")
-    
+    logger.info(
+        f"Order state for user {user_id}: color_options_shown={getattr(order_state, 'color_options_shown', False)}, "
+        f"product_details={'Present' if order_state.product_details else 'None'}"
+    )
+
     try:
         # Check if this is a show color options request with the special marker
         is_color_options_request = "Show me color options" in message
-        
+
         # If this is a color options request, handle it first
         if is_color_options_request and order_state.product_details:
             # Extract product style number from order state
             style_number = order_state.product_details.get('style_number')
             product_name = order_state.product_details.get('product_name', 'Unknown')
-            
+
             if style_number:
                 # Get all colors available for this product style
                 all_colors = self._get_product_colors(style_number)
-                
+
                 # Generate a response with color options
                 response_text = f"Here are all the available colors for the {product_name}:\n\n"
                 response_text += "\n".join([f"• {color}" for color in all_colors])
@@ -181,7 +184,7 @@ class PlatoBot:
                 order_state.color_options_product_name = product_name
                 order_state.last_style_number = style_number
                 self.conversation_manager.update_order_state(user_id, order_state)
-                
+
                 return {
                     "text": response_text,
                     "images": []
@@ -191,34 +194,35 @@ class PlatoBot:
                     "text": f"I'm sorry, I couldn't find color options for the {product_name}. Would you like to see a different product instead?",
                     "images": []
                 }
-        
+
         # Check if this is a color selection after showing options
-        if hasattr(order_state, 'color_options_shown') and order_state.color_options_shown and hasattr(order_state, 'last_style_number') and order_state.last_style_number:
+        if hasattr(order_state, 'color_options_shown') and order_state.color_options_shown and \
+           hasattr(order_state, 'last_style_number') and order_state.last_style_number:
             logger.info(f"Processing color selection for style {order_state.last_style_number}: {message}")
-            
+
             # Get all colors for this style
             all_colors = self._get_product_colors(order_state.last_style_number)
             logger.info(f"Available colors: {all_colors}")
-            
+
             # Check if message matches any color
             selected_color = None
             for color in all_colors:
                 if color.lower() in message.lower() or message.lower() in color.lower():
                     selected_color = color
                     break
-            
+
             if selected_color:
                 logger.info(f"Matched color: {selected_color}")
-                
+
                 # Find the same product in the selected color
                 for category in self.product_tree.categories.values():
                     for product in category.products:
                         if (product.get('style_number') == order_state.last_style_number and 
                             product.get('color') == selected_color):
-                            
+
                             # We found the exact same product in the requested color!
                             logger.info(f"Found product: {product.get('product_name')} in {selected_color}")
-                            
+
                             # Update order state with this product
                             order_state.update_product(product)
                             order_state.color_options_shown = False  # Reset flag
@@ -226,7 +230,7 @@ class PlatoBot:
                             order_state.color_options_style = None
                             order_state.color_options_product_name = None
                             self.conversation_manager.update_order_state(user_id, order_state)
-                            
+
                             # Return a response with this product
                             return {
                                 "text": f"Great choice! I've selected the {product.get('product_name')} in {selected_color} at {product.get('price')}. Would you like to upload your logo now?",
@@ -255,10 +259,10 @@ class PlatoBot:
                                     }
                                 }
                             }
-        
+
         # Check if this is a product reselection request with the special marker
         is_special_reselection = "I'd like to see a different product option" in message
-        
+
         # Normal detection for other types of reselection requests
         is_new_product_request = (
             "different product" in message.lower() or 
@@ -266,64 +270,60 @@ class PlatoBot:
             "find different product" in message.lower() or
             is_special_reselection
         )
-        
-        # Check for specific requests like "cheaper option"
+
+        # Check for specific requests like "cheaper option" and "more expensive option"
         is_cheaper_request = "cheaper" in message.lower() or "less expensive" in message.lower() or "lower price" in message.lower()
-        
+        is_more_expensive_request = "more expensive" in message.lower() or "higher price" in message.lower() or "higher quality" in message.lower() or "premium" in message.lower()
+
         # Special handling for reselection requests - use Claude
         if is_special_reselection or is_new_product_request:
-            # Continue with the existing Claude-based reselection flow for all product changes
-            # This includes the preference inquiry etc.
-            
             # Handle the special reselection request
             if is_special_reselection and order_state.product_details:
-                # Extract product details for better messaging
                 previous_product = order_state.product_details
                 product_name = previous_product.get('product_name', 'Unknown')
                 product_color = previous_product.get('color', 'Unknown')
                 product_category = previous_product.get('category', 'Unknown')
                 product_price = previous_product.get('price', 'Unknown')
-                
+
                 logger.info(f"Processing special reselection request for {product_color} {product_name}")
-                
+
                 # Track the product as rejected
                 if hasattr(order_state, 'rejected_products'):
                     if previous_product not in order_state.rejected_products:
                         order_state.rejected_products.append(previous_product)
                 else:
                     order_state.rejected_products = [previous_product]
-                
+
                 # Track that we're in a product modification flow
                 order_state.in_product_modification_flow = True
                 self.conversation_manager.update_order_state(user_id, order_state)
-                
+
                 # Ask for specific preferences
                 preference_prompt = prompts.get_product_preference_inquiry_prompt(previous_product)
                 response = self.claude.call_api([
                     {"role": "system", "content": preference_prompt},
                     {"role": "user", "content": "What would make a better product recommendation?"}
                 ], temperature=0.7)
-                
+
                 response_text = utils.clean_response(response)
                 logger.info(f"Generated preference inquiry: {response_text[:100]}...")
-                
+
                 # Return the preference inquiry - THIS SHOULD DISPLAY IN THE CHAT
                 return {
                     "text": response_text,
                     "images": []
                 }
-            
+
             # Process preference-informed selection following a reselection request
             if is_new_product_request and not is_special_reselection or is_cheaper_request:
                 # When handling response to preference inquiry
                 if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
-                    # Add the current request to requested_changes
                     order_state.add_requested_change(message)
-                
+
                 # This is a response to our preference inquiry or a regular new product request
                 if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
                     previous_product = order_state.rejected_products[-1]
-                    
+
                     # Get key attributes from previous product
                     previous_category = previous_product.get('category')
                     previous_color = previous_product.get('color')
@@ -333,11 +333,11 @@ class PlatoBot:
                             previous_price = float(previous_price)
                         except ValueError:
                             previous_price = None
-                    
+
                     # For cheaper product requests - keep current Claude logic
                     if is_cheaper_request and previous_category and previous_color and previous_price:
                         logger.info(f"Processing cheaper option request for {previous_category} in {previous_color}")
-                        
+
                         # Check if there are any cheaper options in this category and color
                         cheaper_product = self._find_cheaper_product(
                             previous_category, 
@@ -345,17 +345,17 @@ class PlatoBot:
                             previous_price,
                             previous_product.get('product_name')
                         )
-                        
+
                         if cheaper_product:
                             logger.info(f"Found cheaper product: {cheaper_product.get('product_name')} at {cheaper_product.get('price')}")
-                            
+
                             # Format price for display
                             formatted_price = cheaper_product.get('price')
-                            
+
                             # Update OrderState with the cheaper product
                             order_state.update_product(cheaper_product)
                             self.conversation_manager.update_order_state(user_id, order_state)
-                            
+
                             # Generate response
                             response_prompt = prompts.get_product_response_prompt(
                                 message=message,
@@ -364,18 +364,18 @@ class PlatoBot:
                                 formatted_price=formatted_price,
                                 category=cheaper_product.get('category')
                             )
-                            
+
                             # Add specific context about this being a cheaper option
                             response_prompt += f"\n\nImportant: Mention that this is a less expensive option than the {previous_product.get('product_name')} at {previous_product.get('price')}."
-                            
+
                             # Get response from Claude
                             response = self.claude.call_api([
                                 {"role": "system", "content": response_prompt},
                                 {"role": "user", "content": "Generate the response."}
                             ], temperature=0.7)
-                            
+
                             response_text = utils.clean_response(response)
-                            
+
                             # Create product info for the action
                             product_info = {
                                 "name": cheaper_product.get('product_name'),
@@ -385,10 +385,10 @@ class PlatoBot:
                                 "style_number": cheaper_product.get('style_number'),
                                 "material": cheaper_product.get('material', '')
                             }
-                            
+
                             # Always show color button
                             product_info["showColorButton"] = True
-                            
+
                             # Return the cheaper product
                             return {
                                 "text": response_text,
@@ -412,247 +412,128 @@ class PlatoBot:
                         else:
                             # No cheaper options available
                             logger.info(f"No cheaper {previous_category} available in {previous_color}")
-                            
+
                             return {
                                 "text": f"I apologize, but the {previous_product.get('product_name')} in {previous_color} at {previous_product.get('price')} is already our lowest-priced option in this category and color. Would you like me to show you a different style or color instead?",
                                 "images": []
                             }
-                    
-                    # For non-cheaper requests or if cheaper product handling didn't return
-                    # Reset the product selection state but preserve the category
-                    category = previous_category or order_state.product_category
-                    
-                    # Reset product details
-                    order_state.product_selected = False
-                    order_state.product_details = None
-                    order_state.product_category = category
-                    self.conversation_manager.update_order_state(user_id, order_state)
-                    
-                    # Enhance the context with preference information
-                    context_message = message
-                    if previous_color:
-                        # Add color context if the user didn't mention color in this message
-                        if "red" not in message.lower() and "blue" not in message.lower() and "black" not in message.lower():
-                            color_words = previous_color.split()
-                            color_term = color_words[-1] if len(color_words) > 1 else previous_color
-                            context_message = f"{message} in {color_term}"
-                        
-                    # Add category context if the user didn't specify a category
-                    if "t-shirt" not in message.lower() and "shirt" not in message.lower() and "hoodie" not in message.lower():
-                        context_message = f"{context_message} {category}"
-                    
-                    logger.info(f"Enhanced context for selection after inquiry: {context_message}")
+                    # For more expensive product requests - similar to cheaper product handling
+                    elif is_more_expensive_request and previous_category and previous_color and previous_price:
+                        logger.info(f"Processing more expensive option request for {previous_category} in {previous_color}")
+
+                        # Check if there are any more expensive options in this category and color
+                        more_expensive_product = self._find_more_expensive_product(
+                            previous_category, 
+                            previous_color, 
+                            previous_price,
+                            previous_product.get('product_name')
+                        )
+
+                        if more_expensive_product:
+                            logger.info(f"Found more expensive product: {more_expensive_product.get('product_name')} at {more_expensive_product.get('price')}")
+
+                            # Format price for display
+                            formatted_price = more_expensive_product.get('price')
+
+                            # Update OrderState with the more expensive product
+                            order_state.update_product(more_expensive_product)
+                            self.conversation_manager.update_order_state(user_id, order_state)
+
+                            # Generate response
+                            response_prompt = prompts.get_product_response_prompt(
+                                message=message,
+                                product_name=more_expensive_product.get('product_name'),
+                                color=more_expensive_product.get('color'),
+                                formatted_price=formatted_price,
+                                category=more_expensive_product.get('category')
+                            )
+
+                            # Add specific context about this being a more expensive option
+                            response_prompt += f"\n\nImportant: Mention that this is a premium option compared to the {previous_product.get('product_name')} at {previous_product.get('price')}."
+
+                            # Get response from Claude
+                            response = self.claude.call_api([
+                                {"role": "system", "content": response_prompt},
+                                {"role": "user", "content": "Generate the response."}
+                            ], temperature=0.7)
+
+                            response_text = utils.clean_response(response)
+
+                            # Create product info for the action
+                            product_info = {
+                                "name": more_expensive_product.get('product_name'),
+                                "color": more_expensive_product.get('color'),
+                                "price": formatted_price,
+                                "category": more_expensive_product.get('category'),
+                                "style_number": more_expensive_product.get('style_number'),
+                                "material": more_expensive_product.get('material', '')
+                            }
+
+                            # Always show color button
+                            product_info["showColorButton"] = True
+
+                            # Return the more expensive product
+                            return {
+                                "text": response_text,
+                                "images": [
+                                    {
+                                        "url": more_expensive_product.get('images', {}).get('front', ''),
+                                        "alt": f"{more_expensive_product.get('product_name')} in {more_expensive_product.get('color')} - Front View",
+                                        "type": "product_front"
+                                    },
+                                    {
+                                        "url": more_expensive_product.get('images', {}).get('back', ''),
+                                        "alt": f"{more_expensive_product.get('product_name')} in {more_expensive_product.get('color')} - Back View",
+                                        "type": "product_back"
+                                    }
+                                ],
+                                "action": {
+                                    "type": "showProductOptions",
+                                    "productInfo": product_info
+                                }
+                            }
+                        else:
+                            # No more expensive options available
+                            logger.info(f"No more expensive {previous_category} available in {previous_color}")
+
+                            return {
+                                "text": f"I apologize, but the {previous_product.get('product_name')} in {previous_color} at {previous_product.get('price')} is already our highest-priced option in this category and color. Would you like me to show you a different style or color instead?",
+                                "images": []
+                            }
+                    else:
+                        # For non-cheaper requests or if cheaper/more expensive handling didn't return
+                        # Reset the product selection state but preserve the category
+                        category = previous_category or order_state.product_category
+
+                        # Reset product details
+                        order_state.product_selected = False
+                        order_state.product_details = None
+                        order_state.product_category = category
+                        self.conversation_manager.update_order_state(user_id, order_state)
+
+                        # Enhance the context with preference information
+                        context_message = message
+                        if previous_color:
+                            # Add color context if the user didn't mention color in this message
+                            if "red" not in message.lower() and "blue" not in message.lower() and "black" not in message.lower():
+                                color_words = previous_color.split()
+                                color_term = color_words[-1] if len(color_words) > 1 else previous_color
+                                context_message = f"{message} in {color_term}"
+
+                        # Add category context if the user didn't specify a category
+                        if "t-shirt" not in message.lower() and "shirt" not in message.lower() and "hoodie" not in message.lower():
+                            context_message = f"{context_message} {category}"
+
+                        logger.info(f"Enhanced context for selection after inquiry: {context_message}")
                 else:
                     context_message = message
             else:
-                # For the first message or non-reselection requests
                 context_message = message
-                
-            # Get structured analysis from Claude
-            analysis_prompt = [
-                {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
-                {"role": "user", "content": context_message}
-            ]
-            
-            # Preserve original intent when processing material change
-            if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
-                # Before calling Claude for analysis, create a modified prompt that
-                # enforces keeping the original category
-                if hasattr(order_state, 'original_intent') and order_state.original_intent['category']:
-                    original_category = order_state.original_intent['category']
-                    
-                    # Force original category in the analysis prompt
-                    system_content = analysis_prompt[0]["content"]
-                    system_content += f"\n\nIMPORTANT: The user originally requested a {original_category}, so make sure to maintain this product category in your analysis unless they explicitly ask for a different category."
-                    analysis_prompt[0]["content"] = system_content
-            
-            # Skip product selection if this was just an inquiry
-            if is_special_reselection:
-                # We've already returned the preference inquiry response
-                return
-            
-            enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
-            logger.info(f"Enhanced query: {enhanced_query}")
 
-            # Simple fix: If we have original_intent, fill in any missing preferences from it
-            if enhanced_query and hasattr(order_state, 'original_intent'):
-                # Parse the enhanced query to extract fields
-                query_fields = {}
-                for line in enhanced_query.split('\n'):
-                    if ':' in line:
-                        key, value = line.split(':', 1)
-                        key = key.strip().lower()
-                        value = value.strip()
-                        query_fields[key] = value
-                
-                # For any missing or None fields, use values from original intent
-                modified = False
-                query_lines = enhanced_query.split('\n')
-                
-                # Check category first
-                if ('category' not in query_fields or query_fields['category'] == 'None' or not query_fields['category']) and order_state.original_intent.get('category'):
-                    for i, line in enumerate(query_lines):
-                        if line.lower().startswith('category:'):
-                            query_lines[i] = f"Category: {order_state.original_intent['category']}"
-                            modified = True
-                            logger.info(f"Restored missing category to: {order_state.original_intent['category']}")
-                            break
-                
-                # Check color
-                if ('color' not in query_fields or query_fields['color'] == 'None' or not query_fields['color']) and order_state.original_intent.get('general_color'):
-                    for i, line in enumerate(query_lines):
-                        if line.lower().startswith('color:'):
-                            query_lines[i] = f"Color: {order_state.original_intent['general_color']}"
-                            modified = True
-                            logger.info(f"Restored missing color to: {order_state.original_intent['general_color']}")
-                            break
-                
-                # Check material - if material is in original preferences
-                if ('material' not in query_fields or query_fields['material'] == 'None' or not query_fields['material']) and hasattr(order_state, 'rejected_products') and order_state.rejected_products:
-                    # Get material from the last rejected product
-                    last_material = order_state.rejected_products[-1].get('material')
-                    if last_material:
-                        for i, line in enumerate(query_lines):
-                            if line.lower().startswith('material:'):
-                                query_lines[i] = f"Material: {last_material}"
-                                modified = True
-                                logger.info(f"Restored missing material to: {last_material}")
-                                break
-                
-                # Reassemble the query if modified
-                if modified:
-                    enhanced_query = '\n'.join(query_lines)
-                    logger.info(f"Enhanced query after restoring missing fields: {enhanced_query}")
-
-            # After getting the enhanced_query from Claude but before using it for product selection
-            if enhanced_query and hasattr(order_state, 'original_intent'):
-                try:
-                    # Parse the enhanced query to extract fields
-                    query_fields = {}
-                    for line in enhanced_query.split('\n'):
-                        if ':' in line:
-                            key, value = line.split(':', 1)
-                            key = key.strip().lower()
-                            value = value.strip()
-                            query_fields[key] = value
-                    
-                    # Check for missing or None fields that we can fill from original intent
-                    if 'category' in query_fields and (query_fields['category'].lower() == 'none' or not query_fields['category']):
-                        if order_state.original_intent.get('category'):
-                            logger.info(f"Using original category: {order_state.original_intent['category']}")
-                            query_lines = enhanced_query.split('\n')
-                            for i, line in enumerate(query_lines):
-                                if line.lower().startswith('category:'):
-                                    query_lines[i] = f"Category: {order_state.original_intent['category']}"
-                                    enhanced_query = '\n'.join(query_lines)
-                                    break
-                    
-                    if 'color' in query_fields and (query_fields['color'].lower() == 'none' or not query_fields['color']):
-                        if order_state.original_intent.get('general_color'):
-                            logger.info(f"Using original color: {order_state.original_intent['general_color']}")
-                            query_lines = enhanced_query.split('\n')
-                            for i, line in enumerate(query_lines):
-                                if line.lower().startswith('color:'):
-                                    query_lines[i] = f"Color: {order_state.original_intent['general_color']}"
-                                    enhanced_query = '\n'.join(query_lines)
-                                    break
-                    
-                    logger.info(f"Enhanced query after applying original intent: {enhanced_query}")
-                except Exception as e:
-                    logger.error(f"Error applying original intent: {str(e)}")
-                    # Continue with the original enhanced_query if there's an error
-            
-            # Now override the category in the enhanced query if needed for product modification flow
-            if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
-                if hasattr(order_state, 'original_intent') and order_state.original_intent['category']:
-                    original_category = order_state.original_intent['category']
-                    
-                    # Extract category line and replace it
-                    query_lines = enhanced_query.split('\n')
-                    for i, line in enumerate(query_lines):
-                        if line.lower().startswith('category:'):
-                            query_lines[i] = f"Category: {original_category}"
-                            break
-                    
-                    enhanced_query = '\n'.join(query_lines)
-                    logger.info(f"Modified query to maintain original category: {enhanced_query}")
-                    
-                # Also try to maintain original color if available
-                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
-                    original_color = order_state.original_intent['general_color']
-                    
-                    # Check if color is specified in the enhanced query
-                    color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
-                    
-                    if not color_specified:
-                        # If no color specified, add the original color
-                        query_lines = enhanced_query.split('\n')
-                        for i, line in enumerate(query_lines):
-                            if line.lower().startswith('color:'):
-                                query_lines[i] = f"Color: {original_color}"
-                                break
-                        
-                        enhanced_query = '\n'.join(query_lines)
-                        logger.info(f"Modified query to maintain original color: {enhanced_query}")
-            
-            # Check if color is missing but we have an original preference from legacy code
-            color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
-            
-            if not color_specified and hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
-                # Add the original color preference to the query
-                original_color = order_state.original_preferences['color']
-                logger.info(f"Adding original color preference: {original_color}")
-                
-                # Insert the color into the enhanced query
-                query_lines = enhanced_query.split('\n')
-                for i, line in enumerate(query_lines):
-                    if line.lower().startswith('color:'):
-                        query_lines[i] = f"Color: {original_color}"
-                        break
-                
-                enhanced_query = '\n'.join(query_lines)
-                logger.info(f"Modified query with original color: {enhanced_query}")
-            
-            # Check if category is missing or None, but we have a previous category
-            category_specified = "category:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("category:")[1].split("\n")[0].lower()
-            
-            if not category_specified and order_state.product_category:
-                # Add the original category to the query
-                logger.info(f"Adding original category: {order_state.product_category}")
-                
-                # Insert the category into the enhanced query
-                query_lines = enhanced_query.split('\n')
-                for i, line in enumerate(query_lines):
-                    if line.lower().startswith('category:'):
-                        query_lines[i] = f"Category: {order_state.product_category}"
-                        break
-                
-                enhanced_query = '\n'.join(query_lines)
-                logger.info(f"Modified query with original category: {enhanced_query}")
-                
-            # If the user asked for a specific material but didn't mention color
-            if any(term in message.lower() for term in ["100% cotton", "cotton", "polyester", "blend", "material"]):
-                # Force maintaining original color from intent
-                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
-                    preserved_color = order_state.original_intent['general_color']
-                    logger.info(f"Material change detected, forcing preservation of color: {preserved_color}")
-                    
-                    # Modify the enhanced query to keep original color
-                    query_lines = enhanced_query.split('\n')
-                    for i, line in enumerate(query_lines):
-                        if line.lower().startswith('color:'):
-                            query_lines[i] = f"Color: {preserved_color}"
-                            break
-                    
-                    enhanced_query = '\n'.join(query_lines)
-                    logger.info(f"Modified query with forced color preservation: {enhanced_query}")
-            
         else:
             # FAST PATH for initial product selection - use algorithmic approach
-            # This path is only for the very first product selection when the customer initially engages
-            # All subsequent product changes will use the Claude path above
             context_message = message
-            
+
             # Store original intent for future reference (first request only)
             if order_state.product_details is None:
                 # Get structured analysis from Claude
@@ -660,17 +541,17 @@ class PlatoBot:
                     {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
                     {"role": "user", "content": context_message}
                 ]
-                
+
                 enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
                 logger.info(f"Enhanced query: {enhanced_query}")
-                
+
                 # Extract category from Claude's analysis
                 category = None
                 if "category:" in enhanced_query.lower():
                     category_line = [line for line in enhanced_query.split('\n') if line.lower().startswith('category:')]
                     if category_line:
                         category = category_line[0].split(':', 1)[1].strip()
-                
+
                 # Extract general color term
                 general_color = None
                 if "color:" in enhanced_query.lower():
@@ -679,7 +560,7 @@ class PlatoBot:
                         general_color = color_line[0].split(':', 1)[1].strip()
                         if general_color.lower() == 'none':
                             general_color = None
-                
+
                 # Update original intent
                 order_state.update_original_intent(category=category, general_color=general_color)
                 logger.info(f"Stored original intent: category='{category}', general_color='{general_color}'")
@@ -692,30 +573,167 @@ class PlatoBot:
                         {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
                         {"role": "user", "content": context_message}
                     ]
-                    
+
                     enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
                     logger.info(f"Enhanced query: {enhanced_query}")
-        
-        # Use product decision tree to select the best product
+
+        # Post-process the enhanced query to fill in any missing fields using original intent
+        if enhanced_query and hasattr(order_state, 'original_intent'):
+            try:
+                query_fields = {}
+                for line in enhanced_query.split('\n'):
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip().lower()
+                        value = value.strip()
+                        query_fields[key] = value
+
+                modified = False
+                query_lines = enhanced_query.split('\n')
+
+                # Check category
+                if ('category' not in query_fields or query_fields['category'] == 'None' or not query_fields['category']) and order_state.original_intent.get('category'):
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('category:'):
+                            query_lines[i] = f"Category: {order_state.original_intent['category']}"
+                            modified = True
+                            logger.info(f"Restored missing category to: {order_state.original_intent['category']}")
+                            break
+
+                # Check color
+                if ('color' not in query_fields or query_fields['color'] == 'None' or not query_fields['color']) and order_state.original_intent.get('general_color'):
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('color:'):
+                            query_lines[i] = f"Color: {order_state.original_intent['general_color']}"
+                            modified = True
+                            logger.info(f"Restored missing color to: {order_state.original_intent['general_color']}")
+                            break
+
+                # Check material
+                if ('material' not in query_fields or query_fields['material'] == 'None' or not query_fields['material']) and \
+                   hasattr(order_state, 'rejected_products') and order_state.rejected_products:
+                    last_material = order_state.rejected_products[-1].get('material')
+                    if last_material:
+                        for i, line in enumerate(query_lines):
+                            if line.lower().startswith('material:'):
+                                query_lines[i] = f"Material: {last_material}"
+                                modified = True
+                                logger.info(f"Restored missing material to: {last_material}")
+                                break
+
+                if modified:
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Enhanced query after restoring missing fields: {enhanced_query}")
+            except Exception as e:
+                logger.error(f"Error applying original intent: {str(e)}")
+
+            if enhanced_query and hasattr(order_state, 'original_intent'):
+                try:
+                    query_fields = {}
+                    for line in enhanced_query.split('\n'):
+                        if ':' in line:
+                            key, value = line.split(':', 1)
+                            key = key.strip().lower()
+                            value = value.strip()
+                            query_fields[key] = value
+
+                    if 'category' in query_fields and (query_fields['category'].lower() == 'none' or not query_fields['category']):
+                        if order_state.original_intent.get('category'):
+                            logger.info(f"Using original category: {order_state.original_intent['category']}")
+                            query_lines = enhanced_query.split('\n')
+                            for i, line in enumerate(query_lines):
+                                if line.lower().startswith('category:'):
+                                    query_lines[i] = f"Category: {order_state.original_intent['category']}"
+                                    enhanced_query = '\n'.join(query_lines)
+                                    break
+
+                    if 'color' in query_fields and (query_fields['color'].lower() == 'none' or not query_fields['color']):
+                        if order_state.original_intent.get('general_color'):
+                            logger.info(f"Using original color: {order_state.original_intent['general_color']}")
+                            query_lines = enhanced_query.split('\n')
+                            for i, line in enumerate(query_lines):
+                                if line.lower().startswith('color:'):
+                                    query_lines[i] = f"Color: {order_state.original_intent['general_color']}"
+                                    enhanced_query = '\n'.join(query_lines)
+                                    break
+
+                    logger.info(f"Enhanced query after applying original intent: {enhanced_query}")
+                except Exception as e:
+                    logger.error(f"Error applying original intent: {str(e)}")
+
+            # Override category in modification flow if needed
+            if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
+                if hasattr(order_state, 'original_intent') and order_state.original_intent['category']:
+                    original_category = order_state.original_intent['category']
+                    query_lines = enhanced_query.split('\n')
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('category:'):
+                            query_lines[i] = f"Category: {original_category}"
+                            break
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Modified query to maintain original category: {enhanced_query}")
+
+                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
+                    original_color = order_state.original_intent['general_color']
+                    color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
+                    if not color_specified:
+                        query_lines = enhanced_query.split('\n')
+                        for i, line in enumerate(query_lines):
+                            if line.lower().startswith('color:'):
+                                query_lines[i] = f"Color: {original_color}"
+                                break
+                        enhanced_query = '\n'.join(query_lines)
+                        logger.info(f"Modified query to maintain original color: {enhanced_query}")
+
+            color_specified = "color:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("color:")[1].split("\n")[0].lower()
+            if not color_specified and hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
+                original_color = order_state.original_preferences['color']
+                logger.info(f"Adding original color preference: {original_color}")
+                query_lines = enhanced_query.split('\n')
+                for i, line in enumerate(query_lines):
+                    if line.lower().startswith('color:'):
+                        query_lines[i] = f"Color: {original_color}"
+                        break
+                enhanced_query = '\n'.join(query_lines)
+                logger.info(f"Modified query with original color: {enhanced_query}")
+
+            category_specified = "category:" in enhanced_query.lower() and "none" not in enhanced_query.lower().split("category:")[1].split("\n")[0].lower()
+            if not category_specified and order_state.product_category:
+                logger.info(f"Adding original category: {order_state.product_category}")
+                query_lines = enhanced_query.split('\n')
+                for i, line in enumerate(query_lines):
+                    if line.lower().startswith('category:'):
+                        query_lines[i] = f"Category: {order_state.product_category}"
+                        break
+                enhanced_query = '\n'.join(query_lines)
+                logger.info(f"Modified query with original category: {enhanced_query}")
+
+            if any(term in message.lower() for term in ["100% cotton", "cotton", "polyester", "blend", "material"]):
+                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
+                    preserved_color = order_state.original_intent['general_color']
+                    logger.info(f"Material change detected, forcing preservation of color: {preserved_color}")
+                    query_lines = enhanced_query.split('\n')
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('color:'):
+                            query_lines[i] = f"Color: {preserved_color}"
+                            break
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Modified query with forced color preservation: {enhanced_query}")
+
         rejected_products = getattr(order_state, 'rejected_products', None)
         if hasattr(order_state, 'original_intent'):
             self.product_tree.set_original_intent_context(order_state.original_intent)
             logger.info(f"Passing original intent to product tree: {order_state.original_intent}")
         product_match = self.product_tree.select_product(context_message, enhanced_query, rejected_products)
-        
+
         # Avoid recommending previously rejected products
         if hasattr(order_state, 'rejected_products') and order_state.rejected_products:
             for rejected in order_state.rejected_products:
                 if (product_match and 
                     product_match.get('product_name') == rejected.get('product_name') and
                     product_match.get('color') == rejected.get('color')):
-                    
                     logger.warning(f"Selected product matches previously rejected product, retrying with explicit instructions")
-                    
-                    # Add explicit instructions to avoid this specific product
                     explicit_message = f"{context_message} Do not recommend {rejected.get('product_name')} in {rejected.get('color')}."
-                    
-                    # Try again with more explicit instructions
                     analysis_prompt = [
                         {"role": "system", "content": prompts.PRODUCT_ANALYSIS_PROMPT},
                         {"role": "user", "content": explicit_message}
@@ -723,13 +741,13 @@ class PlatoBot:
                     enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
                     product_match = self.product_tree.select_product(explicit_message, enhanced_query, rejected_products)
                     break
-        
+
         if not product_match:
             return {
                 "text": "I'm having trouble finding a specific product that matches your requirements. Could you please provide more details about what you're looking for?",
                 "images": []
             }
-            
+
         # Extract product details
         details = {
             "style_number": product_match.get("style_number"),
@@ -740,7 +758,7 @@ class PlatoBot:
             "adult_sizes": product_match.get("adult_sizes"),
             "material": product_match.get("material", "")
         }
-        
+
         # Get images
         images = product_match.get("images")
         if not images:
@@ -748,23 +766,23 @@ class PlatoBot:
                 "text": "I found a matching product but couldn't retrieve the images. Would you like me to suggest another option?",
                 "images": []
             }
-        
+
         # Use price directly from product_match
         formatted_price = product_match.get("price")
-        
+
         # Update product details with price and images
         product_data = {
             **details,
             "price": formatted_price,
             "images": images
         }
-        
+
         # Update OrderState
         order_state.update_product(product_data)
-        
+
         # Reset product modification flow flag if we've successfully selected a new product
         order_state.in_product_modification_flow = False
-        
+
         self.conversation_manager.update_order_state(user_id, order_state)
 
         # Generate response using Claude
@@ -776,7 +794,7 @@ class PlatoBot:
             category=details["category"],
             material=details.get("material", "")
         )
-        
+
         # Get response from Claude
         response = self.claude.call_api([
             {"role": "system", "content": response_prompt},
@@ -796,8 +814,8 @@ class PlatoBot:
             "category": details["category"],
             "style_number": details["style_number"],
             "material": details.get("material", ""),
-            "colorSpecified": False,  # Always set to false to ensure color button shows
-            "showColorButton": show_color_button  # Always show color button
+            "colorSpecified": False,
+            "showColorButton": show_color_button
         }
 
         # Return the response with product selection action
@@ -820,7 +838,7 @@ class PlatoBot:
                 "productInfo": product_info
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Error in product selection: {e}", exc_info=True)
         return {
@@ -898,6 +916,52 @@ class PlatoBot:
     if cheaper_options:
         cheaper_options.sort(key=lambda x: x[0])  # Sort by price
         return cheaper_options[0][1]  # Return the product object
+    
+    return None
+    
+   def _find_more_expensive_product(self, category, color, current_price, current_product_name):
+    """Find a more expensive product in the same category and color."""
+    
+    logger.info(f"Looking for a more expensive product than ${current_price} in category {category} and color {color}")
+    
+    # Map Claude's category to internal category
+    internal_category = self.product_tree.map_category_to_internal(category)
+    
+    # Get all products in the category
+    if internal_category not in self.product_tree.categories:
+        logger.warning(f"Category {internal_category} not found in product tree")
+        return None
+    
+    category_products = self.product_tree.categories[internal_category].products
+    
+    # Filter for matching color and more expensive price
+    more_expensive_options = []
+    for product in category_products:
+        # Skip the current product
+        if product.get('product_name') == current_product_name:
+            continue
+            
+        # Check if color matches (allow partial matches)
+        product_color = product.get('color', '').lower()
+        if color.lower() not in product_color and product_color not in color.lower():
+            continue
+            
+        # Check price - strip $ and convert to float
+        product_price_str = product.get('price', '').replace('$', '')
+        try:
+            product_price = float(product_price_str)
+            
+            # Check if more expensive
+            if product_price > current_price:
+                logger.info(f"Found more expensive option: {product.get('product_name')} at ${product_price} (vs ${current_price})")
+                more_expensive_options.append((product_price, product))
+        except ValueError:
+            logger.warning(f"Could not parse price for {product.get('product_name')}: {product.get('price')}")
+    
+    # Sort by price (ascending) and return the cheapest of the more expensive options
+    if more_expensive_options:
+        more_expensive_options.sort(key=lambda x: x[0])  # Sort by price ascending
+        return more_expensive_options[0][1]  # Return the product object
     
     return None
     

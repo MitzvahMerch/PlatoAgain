@@ -1369,20 +1369,20 @@ class ProductDecisionTree:
                 return None
         
         # Step 7: Apply price sorting if requested
-            if 'price' in preferences and candidate_products:
+            if 'price' in preferences:
                 requested_price = preferences['price'].lower()
                 before_count = len(candidate_products)
-            
-                if "affordable" in requested_price:
-                    candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()))
+                if "affordable" in requested_price or "cheaper" in requested_price or "less expensive" in requested_price:
                     logger.info(f"Sorted by price (ascending) for affordable preference")
-                    candidate_products = candidate_products[:3]
-                elif "premium" in requested_price or "quality" in requested_price:
+                    candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()))
+                    candidate_products = candidate_products[:3] # Take the 3 cheapest
+                    logger.info(f"Price filter: {before_count} → {len(candidate_products)} products")
+                elif "premium" in requested_price or "expensive" in requested_price or "higher quality" in requested_price:
+                    logger.info(f"Sorted by price (descending) for premium preference")
                     candidate_products.sort(key=lambda p: float(p['price'].replace('$', '').strip()), reverse=True)
-                    logger.info(f"Sorted by price (descending) for premium/quality preference")
-                    candidate_products = candidate_products[:3]
-                
-                logger.info(f"Price filter: {before_count} → {len(candidate_products)} products")
+                    candidate_products = candidate_products[:3] # Take the 3 most expensive
+                    logger.info(f"Price filter: {before_count} → {len(candidate_products)} products")
+
         
         # Step 8: Handle cheaper request if applicable
             is_cheaper_request = "cheaper" in query.lower() or "less expensive" in query.lower()
