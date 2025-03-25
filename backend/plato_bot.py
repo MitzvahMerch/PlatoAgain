@@ -474,6 +474,56 @@ class PlatoBot:
             enhanced_query = self.claude.call_api(analysis_prompt, temperature=0.3)
             logger.info(f"Enhanced query: {enhanced_query}")
 
+            # Simple fix: If we have original_intent, fill in any missing preferences from it
+            if enhanced_query and hasattr(order_state, 'original_intent'):
+                # Parse the enhanced query to extract fields
+                query_fields = {}
+                for line in enhanced_query.split('\n'):
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip().lower()
+                        value = value.strip()
+                        query_fields[key] = value
+                
+                # For any missing or None fields, use values from original intent
+                modified = False
+                query_lines = enhanced_query.split('\n')
+                
+                # Check category first
+                if ('category' not in query_fields or query_fields['category'] == 'None' or not query_fields['category']) and order_state.original_intent.get('category'):
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('category:'):
+                            query_lines[i] = f"Category: {order_state.original_intent['category']}"
+                            modified = True
+                            logger.info(f"Restored missing category to: {order_state.original_intent['category']}")
+                            break
+                
+                # Check color
+                if ('color' not in query_fields or query_fields['color'] == 'None' or not query_fields['color']) and order_state.original_intent.get('general_color'):
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('color:'):
+                            query_lines[i] = f"Color: {order_state.original_intent['general_color']}"
+                            modified = True
+                            logger.info(f"Restored missing color to: {order_state.original_intent['general_color']}")
+                            break
+                
+                # Check material - if material is in original preferences
+                if ('material' not in query_fields or query_fields['material'] == 'None' or not query_fields['material']) and hasattr(order_state, 'rejected_products') and order_state.rejected_products:
+                    # Get material from the last rejected product
+                    last_material = order_state.rejected_products[-1].get('material')
+                    if last_material:
+                        for i, line in enumerate(query_lines):
+                            if line.lower().startswith('material:'):
+                                query_lines[i] = f"Material: {last_material}"
+                                modified = True
+                                logger.info(f"Restored missing material to: {last_material}")
+                                break
+                
+                # Reassemble the query if modified
+                if modified:
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Enhanced query after restoring missing fields: {enhanced_query}")
+
             # After getting the enhanced_query from Claude but before using it for product selection
             if enhanced_query and hasattr(order_state, 'original_intent'):
                 try:
@@ -580,30 +630,22 @@ class PlatoBot:
                 enhanced_query = '\n'.join(query_lines)
                 logger.info(f"Modified query with original category: {enhanced_query}")
                 
-            # If the user asked for a specific material but didn't mention color or category,
-            # make sure we're using the original preferences
-            if "100% cotton" in message.lower() or "cotton" in message.lower() or "polyester" in message.lower():
-                if "red" not in message.lower() and "blue" not in message.lower() and "black" not in message.lower():
-                    # First check for original intent
-                    preserved_color = None
-                    if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
-                        preserved_color = order_state.original_intent['general_color']
-                    # Fallback to rejected product color or legacy original preference
-                    elif hasattr(order_state, 'rejected_products') and order_state.rejected_products:
-                        preserved_color = order_state.rejected_products[-1].get('color')
-                    elif hasattr(order_state, 'original_preferences') and 'color' in order_state.original_preferences:
-                        preserved_color = order_state.original_preferences['color']
+            # If the user asked for a specific material but didn't mention color
+            if any(term in message.lower() for term in ["100% cotton", "cotton", "polyester", "blend", "material"]):
+                # Force maintaining original color from intent
+                if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
+                    preserved_color = order_state.original_intent['general_color']
+                    logger.info(f"Material change detected, forcing preservation of color: {preserved_color}")
                     
-                    if preserved_color:
-                        # Modify the query to include the color
-                        query_lines = enhanced_query.split('\n')
-                        for i, line in enumerate(query_lines):
-                            if line.lower().startswith('color:'):
-                                query_lines[i] = f"Color: {preserved_color}"
-                                break
-                        
-                        enhanced_query = '\n'.join(query_lines)
-                        logger.info(f"Modified material request with preserved color: {enhanced_query}")
+                    # Modify the enhanced query to keep original color
+                    query_lines = enhanced_query.split('\n')
+                    for i, line in enumerate(query_lines):
+                        if line.lower().startswith('color:'):
+                            query_lines[i] = f"Color: {preserved_color}"
+                            break
+                    
+                    enhanced_query = '\n'.join(query_lines)
+                    logger.info(f"Modified query with forced color preservation: {enhanced_query}")
             
         else:
             # FAST PATH for initial product selection - use algorithmic approach
