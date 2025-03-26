@@ -23,7 +23,6 @@ const createShippingForm = () => {
                 text-align: center;
             }
         
-            
             .shipping-form-group {
                 margin-bottom: 15px;
                 position: relative;
@@ -242,23 +241,22 @@ const createShippingForm = () => {
                 background-color: #4CAF50;
             }
         `;
-        
         document.head.appendChild(styleElement);
     };
 
     // Create the form elements
     const createShippingForm = (orderDetails) => {
         console.log('Creating shipping form with order details:', orderDetails);
-        
+
         const container = document.createElement('div');
         container.className = 'shipping-form-container';
-        
+
         // Header
         const header = document.createElement('div');
         header.className = 'shipping-form-header';
         header.textContent = 'Complete Your Order';
         container.appendChild(header);
-        
+
         // Form
         const form = document.createElement('form');
         form.className = 'shipping-form';
@@ -289,38 +287,38 @@ const createShippingForm = () => {
             </div>
         `;
         container.appendChild(form);
-        
+
         // Footer with buttons
         const footer = document.createElement('div');
         footer.className = 'shipping-form-footer';
-        
+
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'shipping-form-cancel';
         cancelBtn.textContent = 'Cancel';
-        
+
         const submitBtn = document.createElement('button');
         submitBtn.type = 'submit';
         submitBtn.className = 'shipping-form-submit';
         submitBtn.textContent = 'Complete Order';
-        
+
         footer.appendChild(cancelBtn);
         footer.appendChild(submitBtn);
         form.appendChild(footer);
-        
+
         // Add event handlers
         cancelBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             container.remove();
         });
-        
+
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             e.stopPropagation();
             handleFormSubmission(form, orderDetails);
         });
-        
+
         return { container, form };
     };
 
@@ -328,7 +326,7 @@ const createShippingForm = () => {
     const handleFormSubmission = async (form, orderDetails) => {
         try {
             console.log('Handling form submission...');
-            
+
             // Get form data
             const formData = {
                 name: form.querySelector('#customer-name').value,
@@ -336,28 +334,28 @@ const createShippingForm = () => {
                 email: form.querySelector('#customer-email').value,
                 receivedByDate: form.querySelector('#received-by-date').value
             };
-            
+
             console.log('Form data collected:', formData);
-            
+
             // Disable all form inputs instead of removing the form
             const formContainer = form.closest('.shipping-form-container');
             formContainer.querySelectorAll('input, button').forEach(element => {
                 element.disabled = true;
             });
-            
+
             // Change the submit button text and style to indicate completion
             const submitBtn = form.querySelector('.shipping-form-submit');
             if (submitBtn) {
                 submitBtn.textContent = 'Order Submitted';
                 submitBtn.style.backgroundColor = '#4CAF50'; // Green color
             }
-            
+
             // Add a "submitted" class to the container for any additional styling
             formContainer.classList.add('submitted');
-            
+
             // Show a loading indicator
             const typingIndicator = addTypingIndicator();
-            
+
             // Send data to backend
             const response = await fetch(`${API_BASE_URL}/api/submit-order`, {
                 method: 'POST',
@@ -372,20 +370,20 @@ const createShippingForm = () => {
                     receivedByDate: formData.receivedByDate
                 }),
             });
-            
+
             typingIndicator.remove();
-            
+
             if (!response.ok) {
                 throw new Error(`Server responded with ${response.status}`);
             }
-            
+
             const data = await response.json();
-            
+
             // Display the response (order confirmation)
             if (data.text) {
                 addMessage(data.text, 'bot');
             }
-            
+
         } catch (error) {
             console.error('Error submitting order:', error);
             addMessage('Sorry, I encountered an error processing your order. Please try again.', 'bot');
@@ -418,7 +416,7 @@ const createShippingForm = () => {
         const dateInput = form.querySelector('#received-by-date');
         const datePickerContainer = form.querySelector('#date-picker-container');
         const calendarIcon = form.querySelector('.calendar-icon');
-        
+
         if (!dateInput || !datePickerContainer) {
             console.error('Date picker elements not found!');
             return;
@@ -445,18 +443,22 @@ const createShippingForm = () => {
 
         // Initialize variables
         let currentDate = new Date();
-        
-        // Get today's date for comparison
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        // Calculate standard free shipping date (today + 17 days)
+
+        // Get today's date for comparison - matching backend's calculation exactly
+        const now = new Date();
+
+        // In the backend, it uses today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        // Which means it doesn't matter what time of day it is, it always uses midnight of the current day
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0); // Reset to beginning of day for date comparisons
+
+        // Calculate standard free shipping date (today + 17 days) - MATCHING BACKEND EXACTLY
         const freeShippingDate = new Date(today);
         freeShippingDate.setDate(today.getDate() + 17);
-        
+
         // Set selected date to free shipping date by default
         let selectedDate = freeShippingDate;
-        
+
         // Format date as MM/DD/YYYY
         const formatDate = (date) => {
             const month = date.getMonth() + 1;
@@ -464,74 +466,70 @@ const createShippingForm = () => {
             const year = date.getFullYear();
             return `${month}/${day}/${year}`;
         };
-        
+
         // Set default value to free shipping date
         dateInput.value = formatDate(selectedDate);
-        
+
         // Function to render calendar
         const renderCalendar = () => {
             const daysContainer = datePickerContainer.querySelector('.date-picker-days');
             const monthDisplay = datePickerContainer.querySelector('.date-picker-month');
-            
+
             if (!daysContainer || !monthDisplay) {
                 console.error('Date picker elements not found!');
                 return;
             }
-            
+
             // Format month display
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                               'July', 'August', 'September', 'October', 'November', 'December'];
+                                'July', 'August', 'September', 'October', 'November', 'December'];
             monthDisplay.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-            
+
             // Get first day of month and last day of month
             const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
             const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-            
+
             // Get day of week for first day (0 = Sunday, 6 = Saturday)
             const firstDayOfWeek = firstDay.getDay();
-            
+
             // Get total days in month
             const totalDays = lastDay.getDate();
-            
+
             // Clear container
             daysContainer.innerHTML = '';
-            
-            // Get today's date for comparison
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            // Calculate minimum shipping date (today + 11 days)
+
+            // Calculate minimum shipping date (today + 11 days) - matching backend calculation
             const minShippingDate = new Date(today);
             minShippingDate.setDate(today.getDate() + 11);
-            
-            // Calculate standard free shipping date (today + 17 days)
+
+            // Calculate standard free shipping date (today + 17 days) - MATCHING BACKEND EXACTLY
             const freeShippingDate = new Date(today);
             freeShippingDate.setDate(today.getDate() + 17);
-            
-            // Calculate pricing tiers
+
+            // Calculate pricing tiers matching backend calculation
             // Tier 1 (+10%): today + 15-16 days (closest to free shipping, lowest cost)
             const tier1StartDate = new Date(today);
             tier1StartDate.setDate(today.getDate() + 15);
             const tier1EndDate = new Date(today);
             tier1EndDate.setDate(today.getDate() + 16);
-            
+
             // Tier 2 (+20%): today + 13-14 days (medium cost)
             const tier2StartDate = new Date(today);
             tier2StartDate.setDate(today.getDate() + 13);
             const tier2EndDate = new Date(today);
             tier2EndDate.setDate(today.getDate() + 14);
-            
+
             // Tier 3 (+30%): today + 11-12 days (closest to today, highest cost)
             const tier3StartDate = new Date(today);
             tier3StartDate.setDate(today.getDate() + 11);
             const tier3EndDate = new Date(today);
             tier3EndDate.setDate(today.getDate() + 12);
-            
+
             // Helper functions for date comparisons
             const isDateBetween = (date, startDate, endDate) => {
                 return date >= startDate && date <= endDate;
             };
-            
+
             // Add days from previous month to fill first row
             const prevMonthLastDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
             for (let i = 0; i < firstDayOfWeek; i++) {
@@ -540,16 +538,16 @@ const createShippingForm = () => {
                 dayDiv.textContent = prevMonthLastDay - firstDayOfWeek + i + 1;
                 daysContainer.appendChild(dayDiv);
             }
-            
+
             // Add days for current month
             for (let i = 1; i <= totalDays; i++) {
                 const dayDiv = document.createElement('div');
                 dayDiv.className = 'date-picker-day';
                 dayDiv.textContent = i;
-                
+
                 // Check if day is before minimum shipping date
                 const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-                
+
                 if (dayDate < today || dayDate < minShippingDate) {
                     dayDiv.className += ' disabled';
                     dayDiv.title = 'Delivery not available for this date';
@@ -557,11 +555,11 @@ const createShippingForm = () => {
                     // Normalize date to midnight for comparison
                     const normalizedDayDate = new Date(dayDate);
                     normalizedDayDate.setHours(0, 0, 0, 0);
-                    
+
                     // Check which shipping tier this date falls into
                     let costIndicator = '';
                     let shippingTitle = '';
-                    
+
                     // Check if this is the free shipping date (17+ days)
                     if (normalizedDayDate >= freeShippingDate) {
                         dayDiv.style.border = '2px solid #4CAF50'; // Green border for free shipping
@@ -589,7 +587,7 @@ const createShippingForm = () => {
                         dayDiv.style.border = '1px solid #FF4500'; // Red-orange border
                         dayDiv.style.backgroundColor = 'rgba(255, 69, 0, 0.1)'; // Light red-orange background
                     }
-                    
+
                     // Add cost indicator
                     if (costIndicator) {
                         const costSpan = document.createElement('div');
@@ -601,26 +599,26 @@ const createShippingForm = () => {
                         dayDiv.appendChild(costSpan);
                         dayDiv.title = shippingTitle;
                     }
-                    
+
                     // Check if this is the selected date
-                    if (selectedDate && 
-                        selectedDate.getDate() === i && 
-                        selectedDate.getMonth() === currentDate.getMonth() && 
+                    if (selectedDate &&
+                        selectedDate.getDate() === i &&
+                        selectedDate.getMonth() === currentDate.getMonth() &&
                         selectedDate.getFullYear() === currentDate.getFullYear()) {
                         dayDiv.className += ' active';
                     }
-                    
+
                     // Add click event to selectable days
                     dayDiv.addEventListener('click', () => {
                         // Update selected date
                         selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-                        
+
                         // Update input value
                         dateInput.value = formatDate(selectedDate);
-                        
+
                         // Hide date picker
                         datePickerContainer.style.display = 'none';
-                        
+
                         // Show express shipping alert if applicable
                         if (costIndicator) {
                             showExpressShippingAlert(costIndicator, shippingTitle);
@@ -631,27 +629,36 @@ const createShippingForm = () => {
                                 existingAlert.remove();
                             }
                         }
-                        
+
                         // Re-render to update active state
                         renderCalendar();
                     });
                 }
-                
+
                 daysContainer.appendChild(dayDiv);
             }
-            
+
             // Fill remaining cells with next month's days
             const totalCellsUsed = firstDayOfWeek + totalDays;
             const cellsToFill = Math.ceil(totalCellsUsed / 7) * 7 - totalCellsUsed;
-            
+
             for (let i = 1; i <= cellsToFill; i++) {
                 const dayDiv = document.createElement('div');
                 dayDiv.className = 'date-picker-day other-month';
                 dayDiv.textContent = i;
                 daysContainer.appendChild(dayDiv);
             }
+
+            // Add debugging information
+            console.log(`Date picker debug info: 
+                Today's reference date: ${today} (using exactly the same calculation as backend)
+                Free shipping date: ${freeShippingDate} (today + 17 days)
+                Tier 1 range (+10%): ${tier1StartDate} to ${tier1EndDate}
+                Tier 2 range (+20%): ${tier2StartDate} to ${tier2EndDate}
+                Tier 3 range (+30%): ${tier3StartDate} to ${tier3EndDate}
+                Selected date: ${selectedDate}`);
         };
-        
+
         // Helper function to show express shipping alert when date is selected
         const showExpressShippingAlert = (costIndicator, shippingTitle) => {
             // Remove any existing alert
@@ -659,7 +666,7 @@ const createShippingForm = () => {
             if (existingAlert) {
                 existingAlert.remove();
             }
-            
+
             // Create the alert element
             const alertElement = document.createElement('div');
             alertElement.className = 'express-shipping-alert';
@@ -673,10 +680,10 @@ const createShippingForm = () => {
                 color: white;
                 text-align: center;
             `;
-            
+
             // Extract percentage from the cost indicator
             const percentage = costIndicator.match(/\d+/)[0]; // Extract the number
-            
+
             // Calculate the actual cost if we have order details
             let costMessage = '';
             if (orderDetails && orderDetails.total) {
@@ -685,20 +692,20 @@ const createShippingForm = () => {
                 const newTotal = orderTotal + expressCharge;
                 costMessage = ` (approximately $${expressCharge.toFixed(2)}, making the new total $${newTotal.toFixed(2)})`;
             }
-            
+
             alertElement.innerHTML = `
                 <strong>Express Shipping Selected</strong><br>
                 This delivery date adds ${costIndicator} to your order total${costMessage}.<br>
                 <span style="font-size: 12px;">The additional charge covers expedited manufacturing and shipping.</span>
             `;
-            
+
             // Insert after the date picker field
             const dateGroup = form.querySelector('.shipping-form-group:nth-child(4)');
             if (dateGroup) {
                 dateGroup.appendChild(alertElement);
             }
         };
-        
+
         // Navigate to previous month
         const prevMonthBtn = datePickerContainer.querySelector('.date-picker-nav.prev');
         if (prevMonthBtn) {
@@ -709,7 +716,7 @@ const createShippingForm = () => {
                 renderCalendar();
             });
         }
-        
+
         // Navigate to next month
         const nextMonthBtn = datePickerContainer.querySelector('.date-picker-nav.next');
         if (nextMonthBtn) {
@@ -720,13 +727,13 @@ const createShippingForm = () => {
                 renderCalendar();
             });
         }
-        
+
         // Show/hide date picker when clicking on the input
         dateInput.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent click from propagating to document
-            
+
             const currentDisplay = window.getComputedStyle(datePickerContainer).display;
-            
+
             if (currentDisplay === 'block') {
                 datePickerContainer.style.display = 'none';
             } else {
@@ -736,7 +743,7 @@ const createShippingForm = () => {
                 datePickerContainer.style.left = '0';
                 datePickerContainer.style.zIndex = '9999';
                 datePickerContainer.style.display = 'block';
-                
+
                 // If no date is selected, set to current date
                 if (!selectedDate) {
                     const today = new Date();
@@ -745,18 +752,18 @@ const createShippingForm = () => {
                     // Ensure we're showing the month of the selected date
                     currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
                 }
-                
+
                 renderCalendar();
             }
         });
-        
+
         // Add click handler for calendar icon
         if (calendarIcon) {
             calendarIcon.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent click from propagating to document
-                
+
                 const currentDisplay = window.getComputedStyle(datePickerContainer).display;
-                
+
                 if (currentDisplay === 'block') {
                     datePickerContainer.style.display = 'none';
                 } else {
@@ -766,7 +773,7 @@ const createShippingForm = () => {
                     datePickerContainer.style.left = '0';
                     datePickerContainer.style.zIndex = '9999';
                     datePickerContainer.style.display = 'block';
-                    
+
                     // If no date is selected, set to current date
                     if (!selectedDate) {
                         const today = new Date();
@@ -775,23 +782,23 @@ const createShippingForm = () => {
                         // Ensure we're showing the month of the selected date
                         currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
                     }
-                    
+
                     renderCalendar();
                 }
             });
         }
-        
+
         // Close date picker when clicking outside
         document.addEventListener('click', (e) => {
             if (datePickerContainer.style.display === 'block') {
-                if (!e.target.closest('#received-by-date') && 
-                    !e.target.closest('#date-picker-container') && 
+                if (!e.target.closest('#received-by-date') &&
+                    !e.target.closest('#date-picker-container') &&
                     !e.target.closest('.calendar-icon')) {
                     datePickerContainer.style.display = 'none';
                 }
             }
         });
-        
+
         // Initial render
         renderCalendar();
     };
@@ -801,22 +808,22 @@ const createShippingForm = () => {
         console.log('Setting up address autocomplete...');
         const addressInput = form.querySelector('#customer-address');
         const suggestionsContainer = form.querySelector('#address-suggestions');
-        
+
         if (!addressInput || !suggestionsContainer) {
             console.error('Address autocomplete elements not found!');
             return;
         }
-        
+
         // Function to fetch autocomplete suggestions
         let debounceTimer;
         addressInput.addEventListener('input', function() {
             clearTimeout(debounceTimer);
-            
+
             if (this.value.length < 3) {
                 suggestionsContainer.style.display = 'none';
                 return;
             }
-            
+
             debounceTimer = setTimeout(() => {
                 console.log(`Fetching address suggestions for: ${this.value}`);
                 fetch('https://places.googleapis.com/v1/places:autocomplete', {
@@ -833,21 +840,21 @@ const createShippingForm = () => {
                 .then(response => response.json())
                 .then(data => {
                     suggestionsContainer.innerHTML = '';
-                    
+
                     if (data.suggestions && data.suggestions.length > 0) {
                         console.log(`Received ${data.suggestions.length} address suggestions`);
                         suggestionsContainer.style.display = 'block';
-                        
+
                         data.suggestions.forEach(suggestion => {
                             const div = document.createElement('div');
                             div.className = 'suggestion-item';
                             div.textContent = suggestion.placePrediction.text.text;
-                            
+
                             div.addEventListener('click', function() {
                                 addressInput.value = suggestion.placePrediction.text.text;
                                 suggestionsContainer.style.display = 'none';
                             });
-                            
+
                             suggestionsContainer.appendChild(div);
                         });
                     } else {
@@ -861,7 +868,7 @@ const createShippingForm = () => {
                 });
             }, 300); // Debounce time in milliseconds
         });
-        
+
         // Close suggestions when clicking outside
         document.addEventListener('click', function(e) {
             if (suggestionsContainer.style.display === 'block') {
@@ -870,22 +877,22 @@ const createShippingForm = () => {
                 }
             }
         });
-        
+
         // Allow keyboard navigation through suggestions
         addressInput.addEventListener('keydown', function(e) {
             if (suggestionsContainer.style.display !== 'block') {
                 return;
             }
-            
+
             const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
             if (suggestions.length === 0) {
                 return;
             }
-            
+
             // Find currently focused suggestion
             const focused = suggestionsContainer.querySelector('.suggestion-item.focused');
             const focusedIndex = focused ? Array.from(suggestions).indexOf(focused) : -1;
-            
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (focused) {
@@ -922,17 +929,17 @@ const createShippingForm = () => {
     // Main function to inject the shipping form into a message
     const injectShippingForm = (messageElement, orderDetails) => {
         console.log('Injecting shipping form into message:', messageElement);
-        
+
         // Don't inject if already done
         if (messageElement.querySelector('.shipping-form-container')) {
             console.log('Shipping form already injected, skipping');
             return;
         }
-        
+
         // Create and append the form
         const { container, form } = createShippingForm(orderDetails);
         messageElement.appendChild(container);
-        
+
         // Setup form components with slight delay to ensure DOM is ready
         setTimeout(() => {
             setupDatePicker(form);
@@ -947,16 +954,16 @@ const createShippingForm = () => {
             console.error('Chat messages container not found');
             return;
         }
-        
+
         // Create a MutationObserver to watch for new messages
         const observer = new MutationObserver(mutations => {
             mutations.forEach(mutation => {
                 if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
                     mutation.addedNodes.forEach(node => {
-                        if (node.nodeType === Node.ELEMENT_NODE && 
-                            node.classList.contains('message') && 
+                        if (node.nodeType === Node.ELEMENT_NODE &&
+                            node.classList.contains('message') &&
                             node.classList.contains('bot')) {
-                            
+
                             // Try to extract data from the node's dataset
                             if (node.dataset && node.dataset.action) {
                                 try {
@@ -974,17 +981,17 @@ const createShippingForm = () => {
                 }
             });
         });
-        
+
         // Start observing
         observer.observe(chatMessages, { childList: true });
-        
+
         return observer;
     };
 
     // Initialize by adding styles and setting up the observer
     addStyles();
     const observer = observeMessages();
-    
+
     // Return public API
     return {
         injectIntoMessage: injectShippingForm,
