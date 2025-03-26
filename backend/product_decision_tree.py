@@ -1897,7 +1897,7 @@ class ProductDecisionTree:
                 'product_name': 'Gildan - DryBlend Pique Polo',
                 'color': color.replace("_", " "),
                 'price': '$18.99',
-                'material': '50/50 Cotton/Poly Blend',
+                'material': 'Cotton/Poly Blend',
                 'weight': 'midweight',
                 'fit': 'classic',
                 'has_youth_sizes': True,
