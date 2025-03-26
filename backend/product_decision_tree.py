@@ -12,21 +12,21 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 SEMANTIC_COLOR_MAP = {
     # Blues
-    "blue": ["Carolina Blue", "Light Blue", "Atomic Blue", "Tropic Blue", "Royal", "True Royal", "True Royal Heather", "True Navy", "Navy", "Columbia Blue", "Blue Jean", "Washed Denim", "Vintage Heather Blue", "Chambray", "Topaz Blue", "Denim", "Royal Caribe", "China Blue", "Flo Blue", "Ice Blue", "Scuba Blue", "Aquatic Blue", "California Blue"],
+    "blue": ["Carolina Blue", "Light Blue", "Atomic Blue", "Tropic Blue", "Royal", "True Royal", "True Royal Heather", "Heather_Navy", "Pacific_Blue", "True Navy", "Navy", "Columbia Blue", "Blue Jean", "Washed Denim", "Vintage Heather Blue", "Chambray", "Topaz Blue", "Denim", "Royal Caribe", "China Blue", "Flo Blue", "Ice Blue", "Scuba Blue", "Aquatic Blue", "California Blue"],
     "light blue": ["Carolina Blue", "Light Blue", "Chambray", "Ice Blue"],
-    "sky blue": ["Carolina Blue", "Columbia Blue"],
-    "baby blue": ["Carolina Blue", "Light Blue"],
+    "sky blue": ["Carolina Blue", "Columbia Blue", "Pacific_Blue",],
+    "baby blue": ["Carolina Blue", "Light Blue", "Pacific_Blue",],
     "bright blue": ["Atomic Blue", "Royal Caribe", "Scuba Blue"],
-    "medium blue": ["Royal", "True Royal", "True Royal Heather", "Blue Jean", "Flo Blue"],
+    "medium blue": ["Royal", "True Royal", "True Royal Heather", "Blue Jean", "Pacific_Blue", "Flo Blue"],
     "deep blue": ["True Navy", "Navy", "China Blue", "Denim"],
-    "dark blue": ["True Navy", "Navy", "Denim"],
-    "navy": ["True Navy", "Navy", "J Navy"],
-    "navy blue": ["True Navy", "Navy", "J Navy"],
+    "dark blue": ["True Navy", "Navy", "Heather_Navy", "Denim"],
+    "navy": ["True Navy", "Navy", "Heather_Navy", "J Navy"],
+    "navy blue": ["True Navy", "Navy", "Heather_Navy", "J Navy"],
     "royal blue": ["Royal", "True Royal", "Royal Caribe"],
     "teal": ["Tropic Blue", "Teal", "Topaz Blue", "California Blue", "Scuba Blue"],
     "turquoise": ["Atomic Blue", "Tropic Blue", "Teal", "Scuba Blue", "California Blue"],
-    "aqua": ["Atomic Blue", "Tropic Blue", "Aquatic Blue", "Scuba Blue"],
-    "azure": ["Carolina Blue", "Columbia Blue"],
+    "aqua": ["Atomic Blue", "Tropic Blue", "Aquatic Blue", "Pacific_Blue","Scuba Blue"],
+    "azure": ["Carolina Blue", "Columbia Blue", "Pacific_Blue"],
     
     # Reds
     "red": ["True Red", "Red", "Cardinal", "Maroon", "Burgundy", "Deep Red", "Crimson", "Poppy", "Watermelon", "Crunchberry", "Vintage Heather Red", "Vintage Heather Maroon"],
@@ -88,12 +88,12 @@ SEMANTIC_COLOR_MAP = {
     "magenta": ["Cyber Pink", "Berry", "Power Pink"],
     
     # Grays
-    "gray": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
-    "grey": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
-    "light gray": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Solid Athletic Grey"],
-    "medium gray": ["Grey Concrete", "Grey Concrete Heather", "Iron Grey Heather", "Sport Grey", "Grey", "Storm", "Oxford"],
+    "gray": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather", "Greystone", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Heather_Steel", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
+    "grey": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather","Greystone", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Heather_Steel", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
+    "light gray": ["Silver", "Ash", "Light Steel", "Heather_Steel", "Athletic Heather", "Greystone", "Solid Athletic Grey"],
+    "medium gray": ["Grey Concrete", "Grey Concrete Heather", "Heather_Steel", "Iron Grey Heather", "Sport Grey", "Greystone", "Grey", "Storm", "Oxford"],
     "dark gray": ["Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Pepper", "Asphalt", "Dark Heather"],
-    "silver": ["Silver"],
+    "silver": ["Silver, Greystone", "Heather_Steel"],
     "charcoal": ["Charcoal Grey", "Graphite", "Iron Grey", "Carbon Heather", "Smoke Grey"],
     "slate": ["Steel Blue", "Blue Storm"],
     
@@ -624,6 +624,32 @@ class ProductDecisionTree:
          "purple": "#523C91",
          "silver": "#D5DBDB",
          "white": "#E8E8E8",
+
+        
+        # AllPro Polo Colors (41800)
+        "Black": "#222222",
+        "Carolina_Blue": "#8BBAD8",
+        "Forest_Green": "#314838",
+        "Greystone": "#92938B",
+        "Heather_Navy": "#6D7C93",
+        "Heather_Steel": "#6F747A",
+        "Maroon": "#5E2A36",
+        "Navy": "#232C3D",
+        "Pacific_Blue": "#2E718E",
+        "Red": "#BC2430",
+        "Royal": "#1E388C",
+        "White": "#E8ECEF",
+
+        # Gildan Polo Colors (8800)
+        "Black": "#202123",
+        "Gold": "#F4A73B",
+        "Light_Blue": "#C2D3E3", 
+        "Maroon": "#692C3C",
+        "Navy": "#2E354F",
+        "Red": "#E9283D",
+        "Royal": "#285DA9",
+        "Sport_Grey": "#C4C3CB",
+        "White": "#EDEEF3",
         
         # Basic color families (fallbacks)
         "blue": "#0000FF",
@@ -636,6 +662,8 @@ class ProductDecisionTree:
         "gray": "#808080",
         "brown": "#A52A2A",
         "pink": "#FFC0CB"
+
+
     }
     
     def __init__(self, claude_client=None):
@@ -678,7 +706,8 @@ class ProductDecisionTree:
             'sweatshirt': 'hoodie',
             'long sleeve shirt': 'long-sleeve',
             'crewneck': 'crewneck',
-            'sweatpants': 'sweatpants'
+            'sweatpants': 'sweatpants',
+            'polo' :'polo'
         }
         for key, value in category_map.items():
             if key in category:
@@ -1853,7 +1882,72 @@ class ProductDecisionTree:
                     'back': f'/productimages/973M/JERZEES_973MR_{color}_Back_High.jpg'
                 }
             })
-        
+
+        # Polos category
+        self.categories['polo'] = ProductCategory('Polos', claude_client=self.claude_client)
+
+        # Gildan DryBlend Polo (8800)
+        gildan_polo_colors = [
+            "Black", "Gold", "Light_Blue", "Maroon", "Navy", 
+            "Red", "Royal", "Sport_Grey", "White"
+        ]
+        for color in gildan_polo_colors:
+            self.categories['polo'].add_product({
+                'style_number': '8800',
+                'product_name': 'Gildan - DryBlend Pique Polo',
+                'color': color.replace("_", " "),
+                'price': '$18.99',
+                'material': '50/50 Cotton/Poly Blend',
+                'weight': 'midweight',
+                'fit': 'classic',
+                'has_youth_sizes': True,
+                'has_adult_sizes': True,
+                'youth_sizes': 'S-XL',
+                'adult_sizes': 'S-5XL',
+                'features': [
+                'DryBlend moisture-wicking technology',
+                'Three-button placket',
+                'Contoured welt collar and cuffs',
+                'Tear away label'
+            ],
+                'images': {
+                'front': f'/productimages/8800/Gildan_8800_{color}_Front_High.jpg',
+                'back': f'/productimages/8800/Gildan_8800_{color}_Back_High.jpg'
+            }
+        })
+
+
+# AllPro Performance Polo (41800)
+        allpro_polo_colors = [
+            "Black", "Carolina_Blue", "Forest_Green", "Greystone", "Heather_Navy",
+            "Heather_Steel", "Maroon", "Navy", "Pacific_Blue", "Red", "Royal", "White"
+            ]
+        for color in allpro_polo_colors:
+            self.categories['polo'].add_product({
+                'style_number': '41800',
+                'product_name': 'AllPro - Performance Polo',
+                'color': color.replace("_", " "),
+                'price': '$21.99',
+                'material': '100% Polyester',
+                'weight': 'lightweight',
+                'fit': 'standard',
+                'has_youth_sizes': True,
+                'has_adult_sizes': True,
+                'youth_sizes': 'S-XL',
+                'adult_sizes': 'S-3XL',
+                'features': [
+                    'Moisture-management properties',
+                    'Snag resistant',
+                    'Three-button placket',
+                    'UPF rating of 50',
+                    'Tear away label'
+                ],
+                'images': {
+                    'front': f'/productimages/41800/AllPro_41800_{color}_Front_High.jpg',
+                    'back': f'/productimages/41800/AllPro_41800_{color}_Back_High.jpg'
+                }
+            })
+
         # Map all products to make lookup easier by style number and color
         for category in self.categories.values():
             for product in category.products:

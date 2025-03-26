@@ -57,6 +57,7 @@ MOST IMPORTANT: Categorize the garment into EXACTLY ONE of these predefined cate
 - Long Sleeve Shirt
 - Crewneck
 - Sweatpants
+- Polos
 
 For material, ONLY use one of these categories if mentioned:
 - 100% Cotton (soft, natural fabric)
