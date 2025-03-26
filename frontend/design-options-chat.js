@@ -76,6 +76,34 @@ const createDesignOptionsIntegration = () => {
     // Store a reference to the active design options container
     let activeContainer = null;
 
+    // Function to hide product buttons when design options are shown
+    const hideProductButtons = () => {
+        // Find all product button containers in the chat
+        const productButtonContainers = document.querySelectorAll('.product-buttons-container');
+        
+        productButtonContainers.forEach(container => {
+            // Add transition for smoother disappearance
+            container.style.transition = 'opacity 0.3s, height 0.5s, margin 0.5s, padding 0.5s';
+            // First fade it out
+            container.style.opacity = '0';
+            
+            // Then collapse it after a short delay
+            setTimeout(() => {
+                container.style.height = '0';
+                container.style.margin = '0';
+                container.style.padding = '0';
+                container.style.overflow = 'hidden';
+                
+                // Disable all buttons
+                const buttons = container.querySelectorAll('button');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.style.pointerEvents = 'none';
+                });
+            }, 300);
+        });
+    };
+
     // Function to inject design options directly into chat message
     const injectDesignOptions = (messageElement, compositeUrl, wasBackImage) => {
         console.log('Injecting design options into chat message');
@@ -137,6 +165,9 @@ const createDesignOptionsIntegration = () => {
         
         // Save reference to the active container
         activeContainer = container;
+        
+        // Hide product buttons when design options are shown
+        hideProductButtons();
         
         // Button event handlers (same as the original showDesignOptionsDialog function)
         addMoreBtn.addEventListener('click', () => {
