@@ -277,7 +277,7 @@ Create a natural, friendly response that:
 3. Highlights how this product matches what they're looking for
 4. Always present the price to the customer as "Plato's Price of "x"" 
 5. Refer to the product using its correct category: "{category}" (not just "shirt" or "t-shirt")
-6. Add this additional note at the end: "P.S I saw your mention of size requirements. Don't worry we'll handle that after we finalize your product."
+6. Add this additional note at the end: "P.S I saw your mention of quanities. Don't worry we'll handle that after we finalize your product."
 
 IMPORTANT: 
 - Keep your response to 2 sentences + the final note

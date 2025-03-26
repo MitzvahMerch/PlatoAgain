@@ -632,7 +632,7 @@ const handleSave = () => {
             cursor: 'pointer',
             zIndex: 3000
         }
-    }, showBackImage ? 'Show Front' : 'Show Back');
+    }, showBackImage ? 'Front' : 'Back');
 
     // Save button
     const saveButton = React.createElement('button', {

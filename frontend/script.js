@@ -55,7 +55,7 @@ let currentProductBackImageUrl = null;
 let designsAdded = 0; // Track how many designs have been added
 
 // DOM Elements
-const chatMessages = document.getElementById('chat-messages');
+const chatMessages = documexnt.getElementById('chat-messages');
 const chatInput = document.getElementById('chat-input');
 const sendButton = document.getElementById('send-button');
 const imageUploadButton = document.getElementById('image-upload');
