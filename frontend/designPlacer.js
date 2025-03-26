@@ -419,6 +419,9 @@ const DesignPlacer = ({ frontImage, backImage, designUrl, onSave }) => {
 
     // Save the placement by capturing the SVG coordinates
     // Save the placement by capturing the SVG coordinates
+// Only modify the handleSave function in designPlacer.js
+// This is the function that needs to be updated
+
 const handleSave = () => {
     if (!designRef.current || !svgRef.current || !productImageRef.current) {
         console.error('Required elements not found');
@@ -471,6 +474,12 @@ const handleSave = () => {
         showBackImage,
         designUrl
     });
+    
+    // ADDED: Trigger callback to hide design options once design is placed
+    if (typeof window.onDesignPlacementSaved === 'function') {
+        console.log('Calling onDesignPlacementSaved callback');
+        window.onDesignPlacementSaved();
+    }
     
     // We don't need to re-enable the button since the whole component 
     // will be unmounted or replaced after the save operation completes

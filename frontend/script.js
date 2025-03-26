@@ -411,6 +411,7 @@ function initiateNextDesignUpload(previousDesignUrl, wasBackImage) {
 }
 
 // SVG-based composite renderer function
+// SVG-based composite renderer function (modified for bug fix)
 async function svgBasedCompositeRenderer(placement) {
     try {
         // Extract SVG coordinates from the placement data
@@ -518,6 +519,11 @@ async function svgBasedCompositeRenderer(placement) {
         const compositeRef = window.storage.ref(compositePath);
         await compositeRef.put(blob);
         const compositeUrl = await compositeRef.getDownloadURL();
+        
+        // ADDED: Let the modal know this was saved, not cancelled
+        if (window.placementModal && typeof window.placementModal.confirmSave === 'function') {
+            window.placementModal.confirmSave();
+        }
         
         // Close modal and show result
         window.placementModal.hide();

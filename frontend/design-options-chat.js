@@ -73,6 +73,9 @@ const createDesignOptionsIntegration = () => {
         document.head.appendChild(styleElement);
     };
 
+    // Store a reference to the active design options container
+    let activeContainer = null;
+
     // Function to inject design options directly into chat message
     const injectDesignOptions = (messageElement, compositeUrl, wasBackImage) => {
         console.log('Injecting design options into chat message');
@@ -132,6 +135,9 @@ const createDesignOptionsIntegration = () => {
         // Add the container to the message
         messageElement.appendChild(container);
         
+        // Save reference to the active container
+        activeContainer = container;
+        
         // Button event handlers (same as the original showDesignOptionsDialog function)
         addMoreBtn.addEventListener('click', () => {
             // Mark this component as selected
@@ -139,8 +145,30 @@ const createDesignOptionsIntegration = () => {
                 window.chatPermissions.markButtonSelected('designOptions');
             }
             
-            // Hide the options after selection to avoid confusion
-            container.style.display = 'none';
+            // FIXED: Don't hide the options yet - we'll only hide them after a successful placement
+            // container.style.display = 'none';
+            
+            // Store a reference to the placement modal
+            const origModalOnHide = window.placementModal.onHide;
+            
+            // Override the onHide method to detect if the placement was canceled
+            window.placementModal.onHide = () => {
+                // Restore the original onHide handler
+                window.placementModal.onHide = origModalOnHide;
+                
+                // If there's a save in progress, the original event will handle this
+                // Don't do anything here - let the design placer's save button handle it
+                if (origModalOnHide) origModalOnHide();
+            };
+            
+            // Register a callback that will be called when the design is successfully placed
+            window.onDesignPlacementSaved = () => {
+                // Once design is successfully placed, hide the options
+                container.style.display = 'none';
+                
+                // Clean up the callback to avoid memory leaks
+                window.onDesignPlacementSaved = null;
+            };
             
             // Call the existing function to initiate next design upload
             initiateNextDesignUpload(compositeUrl, wasBackImage);
