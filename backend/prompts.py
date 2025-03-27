@@ -221,7 +221,7 @@ IMPORTANT: In your response, make sure to pluralize the product category to foll
 
 Generate a confirmation with the EXACT following format, maintaining these markers and structure:
 
-Dear {customer_name}, Thank you for your order totaling {total_price}. Should you have any questions about your order, please don't hesitate to contact us at platosprints@gmail.com. Warm regards, Plato
+Dear {customer_name}, Thank you for your order of {quantities}  Custom {product_details}, totaling {total_price}. We confirm your order will be delivered to {shipping_address} by {received_by_date}, as requested. Should you have any questions about your order, please don't hesitate to contact us at platosprints@gmail.com. Warm regards, Plato
 
 """
 
