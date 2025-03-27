@@ -13,23 +13,12 @@ Determine which stage this message most relates to by matching it to one of thes
    - Examples: looking for shirts, need hoodies, want soft t-shirts
    - Focus: matching needs to products, pricing discussions
 
-2. design_placement
-   - Customer discussing logo placement or design details
-   - Questions about design files or artwork location
-   - Examples: where to put logo, front or back printing, design size
-   - Focus: placement options (front left chest, full front, full back, half front)
-
-3. quantity_collection
+2. quantity_collection
    - Customer discussing order sizes or amounts
    - Questions about minimum quantities or bulk pricing
    - Examples: how many shirts, need specific sizes, quantity breakdowns
    - Focus: size distributions, order minimums, total calculations
 
-4. customer_information
-   - Customer ready to provide order details or checkout
-   - Discussion of shipping, payment, or contact info
-   - Examples: ready to order, shipping address, payment method
-   - Focus: collecting name, address, email for invoice
 
 Consider:
 - The full meaning and context of the message
@@ -195,14 +184,9 @@ EMAIL: bob@example.com
 
 INCOMPLETE_INFO_PROMPT = """You are Plato, a helpful print shop assistant. 
 
-Current order information:
-Name: {customer_name}
-Address: {shipping_address}
-Email: {email}
+Write this exact message to the user.
 
-If a field shows 'None' or is empty, you must request ONLY that specific information.
-Be direct and polite. Do not make small talk or add unnecessary text.
-If multiple fields are missing, only ask for one at a time, prioritizing in this order: name -> address -> email."""
+"If you don't see a checkout option that's allowing you to pay yet, restart the chat"""
 
 ORDER_COMPLETION_PROMPT = """You are Plato, providing final order confirmation.
 
