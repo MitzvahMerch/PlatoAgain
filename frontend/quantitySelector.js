@@ -368,6 +368,34 @@ const createSizeRow = (size, type) => {
         
         // Trigger the send button click to send the message
         document.getElementById('send-button').click();
+        
+        // Disable the submit button permanently to prevent multiple submissions
+        const submitBtn = document.querySelector('.quantity-submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.classList.remove('quantity-submit-btn-active');
+            submitBtn.classList.add('quantity-submit-btn-completed');
+            submitBtn.textContent = 'Quantities Confirmed';
+            submitBtn.style.backgroundColor = '#4CAF50'; // Success color (green)
+            submitBtn.style.cursor = 'default';
+            
+            // Optional: Disable all quantity inputs to prevent changes
+            const inputs = document.querySelectorAll('.quantity-input');
+            inputs.forEach(input => {
+                input.disabled = true;
+                input.style.opacity = '0.6';
+            });
+            
+            // Optional: Disable all plus/minus buttons
+            const buttons = document.querySelectorAll('.quantity-btn');
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.style.opacity = '0.6';
+                button.style.cursor = 'default';
+            });
+            
+            console.log('Quantity submission completed - controls disabled');
+        }
     }
     
     // Show error for minimum quantity
@@ -485,40 +513,39 @@ function showMinimumQuantityError() {
                 -webkit-appearance: none;
                 margin: 0;
             }
-
+    
             .quantity-section-header-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    padding: 5px 0;
-}
-
-.quantity-section-header {
-    margin: 0;
-}
-
-.dropdown-icon {
-    font-size: 10px;
-    transition: transform 0.2s ease;
-}
-
-.show-more-btn {
-    background: transparent;
-    border: none;
-    color: var(--secondary-color);
-    cursor: pointer;
-    font-size: 12px;
-    padding: 5px 0;
-    text-align: left;
-    width: 100%;
-    margin-top: 5px;
-}
-
-.show-more-btn:hover {
-    text-decoration: underline;
-}
-
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                cursor: pointer;
+                padding: 5px 0;
+            }
+    
+            .quantity-section-header {
+                margin: 0;
+            }
+    
+            .dropdown-icon {
+                font-size: 10px;
+                transition: transform 0.2s ease;
+            }
+    
+            .show-more-btn {
+                background: transparent;
+                border: none;
+                color: var(--secondary-color);
+                cursor: pointer;
+                font-size: 12px;
+                padding: 5px 0;
+                text-align: left;
+                width: 100%;
+                margin-top: 5px;
+            }
+    
+            .show-more-btn:hover {
+                text-decoration: underline;
+            }
             
             .quantity-footer {
                 display: flex;
@@ -544,15 +571,14 @@ function showMinimumQuantityError() {
                 font-size: 14px;
                 cursor: pointer;
                 opacity: 0.7;
-                transition: opacity 0.2s;
+                transition: all 0.3s;
             }
-
+    
             @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-    20%, 40%, 60%, 80% { transform: translateX(5px); }
-}
-            
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+                20%, 40%, 60%, 80% { transform: translateX(5px); }
+            }
             
             .quantity-submit-btn:disabled {
                 cursor: not-allowed;
@@ -561,6 +587,21 @@ function showMinimumQuantityError() {
             
             .quantity-submit-btn-active {
                 opacity: 1;
+            }
+            
+            /* New styles for completed state */
+            .quantity-submit-btn-completed {
+                background-color: #4CAF50 !important;
+                opacity: 0.8 !important;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+                pointer-events: none;
+            }
+            
+            /* Style for disabled inputs after submission */
+            .quantity-input:disabled,
+            .quantity-btn:disabled {
+                opacity: 0.6;
+                cursor: default;
             }
         `;
         
