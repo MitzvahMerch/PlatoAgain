@@ -513,7 +513,9 @@ const createChatPermissionManager = () => {
         disableChat,
         enableChat,
         registerInteraction,
-        markInteractionComplete: markInteractionComplete,
+        registerButtonComponent: registerInteraction, // Alias for backward compatibility
+        markInteractionComplete,
+        markButtonSelected: markInteractionComplete, // Alias for backward compatibility
         handleUploadButtonClick,
         isChatEnabled: () => chatEnabled,
         getActiveInteractions,
