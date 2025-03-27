@@ -3,7 +3,7 @@
 // Based on similar patterns used in shippingFormInChat.js and quantitySelector.js
 
 const createPayPalIntegration = () => {
-    console.log('Initializing PayPal SDK integration...');
+    console.log('Initializing PayPal SDK integration with Venmo support for all devices...');
 
     // Add the CSS styles for the PayPal integration
     const addStyles = () => {
@@ -41,6 +41,12 @@ const createPayPalIntegration = () => {
             
             .paypal-button-container {
                 width: 100%;
+                transition: opacity 0.3s;
+            }
+            
+            .venmo-button-container {
+                width: 100%;
+                margin-top: 10px;
                 transition: opacity 0.3s;
             }
             
@@ -89,6 +95,33 @@ const createPayPalIntegration = () => {
                 margin-bottom: 10px;
             }
             
+            .payment-options-divider {
+                text-align: center;
+                margin: 15px 0;
+                color: var(--secondary-color);
+                font-size: 14px;
+                position: relative;
+            }
+            
+            .payment-options-divider:before,
+            .payment-options-divider:after {
+                content: "";
+                display: inline-block;
+                width: 40%;
+                height: 1px;
+                background: rgba(255, 255, 255, 0.2);
+                position: absolute;
+                top: 50%;
+            }
+            
+            .payment-options-divider:before {
+                left: 0;
+            }
+            
+            .payment-options-divider:after {
+                right: 0;
+            }
+            
             @keyframes spin {
                 to { transform: rotate(360deg); }
             }
@@ -97,7 +130,7 @@ const createPayPalIntegration = () => {
         document.head.appendChild(styleElement);
     };
 
-    // Load the PayPal SDK
+    // Load the PayPal SDK with Venmo support
     const loadPayPalSDK = (clientId) => {
         return new Promise((resolve, reject) => {
             // Check if SDK is already loaded
@@ -106,14 +139,14 @@ const createPayPalIntegration = () => {
                 return;
             }
             
-            // Create script element for PayPal SDK
+            // Create script element for PayPal SDK with Venmo enabled
             const script = document.createElement('script');
-            script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&components=buttons&intent=capture`;
+            script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&components=buttons,funding-eligibility&intent=capture&enable-funding=venmo`;
             script.async = true;
             
             // Handle script load events
             script.onload = () => {
-                console.log('PayPal SDK loaded successfully');
+                console.log('PayPal SDK loaded successfully with Venmo support');
                 resolve(window.paypal);
             };
             
@@ -176,7 +209,7 @@ const createPayPalIntegration = () => {
         };
     };
 
-    // Create the PayPal button component
+    // Create the PayPal button component with Venmo support
     const createPayPalButton = async (container, invoiceDetails, orderDetails) => {
         try {
             // Add loading indicator while we initialize PayPal
@@ -217,8 +250,8 @@ const createPayPalIntegration = () => {
             errorMessage.innerHTML = '<strong>Payment Error</strong><p>There was a problem processing your payment. Please try again or contact support.</p>';
             container.appendChild(errorMessage);
             
-            // Render the PayPal button
-            paypal.Buttons({
+            // Common configuration for all payment methods
+            const commonConfig = {
                 // Set up the transaction
                 createOrder: (data, actions) => {
                     // Extract the amount from the order details
@@ -247,6 +280,13 @@ const createPayPalIntegration = () => {
                         
                         // Update UI to show success
                         buttonContainer.style.opacity = '0.5';
+                        
+                        // If we have a Venmo container, also reduce its opacity
+                        const venmoContainer = container.querySelector('.venmo-button-container');
+                        if (venmoContainer) {
+                            venmoContainer.style.opacity = '0.5';
+                        }
+                        
                         successMessage.classList.add('visible');
                         
                         // Notify the backend about the successful payment
@@ -259,7 +299,8 @@ const createPayPalIntegration = () => {
                                 user_id: userId,
                                 invoice_id: invoiceDetails.invoiceId,
                                 payment_id: data.orderID,
-                                payment_details: orderData
+                                payment_details: orderData,
+                                payment_method: orderData.payment_source || 'unknown'
                             }),
                         });
                         
@@ -290,7 +331,52 @@ const createPayPalIntegration = () => {
                     console.error('PayPal Error:', err);
                     errorMessage.classList.add('visible');
                 }
+            };
+            
+            // Render standard PayPal button (includes credit/debit options)
+            paypal.Buttons({
+                ...commonConfig,
+                style: {
+                    layout: 'vertical',
+                    color: 'blue',
+                    shape: 'rect',
+                    label: 'pay'
+                }
             }).render(buttonContainer);
+            
+            // Check if Venmo is available in the PayPal SDK
+            if (paypal.FUNDING.VENMO) {
+                try {
+                    console.log('Adding Venmo payment option');
+                    
+                    // Add a divider between payment options
+                    const divider = document.createElement('div');
+                    divider.className = 'payment-options-divider';
+                    divider.textContent = 'or';
+                    container.appendChild(divider);
+                    
+                    // Create a separate container for Venmo
+                    const venmoContainer = document.createElement('div');
+                    venmoContainer.className = 'venmo-button-container';
+                    container.appendChild(venmoContainer);
+                    
+                    // Render Venmo-specific button
+                    paypal.Buttons({
+                        ...commonConfig,
+                        fundingSource: paypal.FUNDING.VENMO,
+                        style: {
+                            color: 'blue',
+                            shape: 'rect'
+                        }
+                    }).render(venmoContainer);
+                    
+                    console.log('Venmo payment option added successfully');
+                } catch (error) {
+                    console.warn('Error rendering Venmo button:', error);
+                }
+            } else {
+                console.log('Venmo funding option not available in this PayPal SDK instance');
+            }
             
         } catch (error) {
             console.error('Error creating PayPal button:', error);
@@ -323,22 +409,21 @@ const createPayPalIntegration = () => {
         
         // Order summary
         const orderSummary = document.createElement('div');
-orderSummary.className = 'order-summary';
-orderSummary.innerHTML = `
-    <h3>Order Summary</h3>
-    <p><strong>Items:</strong> ${orderDetails.quantityInfo} Custom ${orderDetails.productInfo}</p>
-    <p><strong>Receive By:</strong> ${orderDetails.receivedByDate || 'Standard delivery timeframe'}</p>
-    <p><strong>Total:</strong> $${orderDetails.totalPrice}</p>
-`;
+        orderSummary.className = 'order-summary';
+        orderSummary.innerHTML = `
+            <h3>Order Summary</h3>
+            <p><strong>Items:</strong> ${orderDetails.quantityInfo} Custom ${orderDetails.productInfo}</p>
+            <p><strong>Receive By:</strong> ${orderDetails.receivedByDate || 'Standard delivery timeframe'}</p>
+            <p><strong>Total:</strong> $${orderDetails.totalPrice}</p>
+        `;
         container.appendChild(orderSummary);
         
-        // Initialize the PayPal button
+        // Initialize the PayPal button with Venmo support
         createPayPalButton(container, invoiceDetails, orderDetails);
         
         return container;
     };
 
-    // Main function to inject the PayPal integration into a message
     // Main function to inject the PayPal integration into a message
     const injectPayPalIntegration = (messageElement) => {
         console.log('Injecting PayPal integration into message:', messageElement);
@@ -427,6 +512,6 @@ orderSummary.innerHTML = `
 };
 
 // Initialize and export the PayPal integration
-console.log('Creating PayPal integration...');
+console.log('Creating PayPal integration with Venmo support for all devices...');
 window.paypalIntegration = createPayPalIntegration();
 console.log('PayPal integration created and assigned to window.paypalIntegration');
