@@ -189,8 +189,18 @@ const createSizeRow = (size, type) => {
         // Enable/disable the submit button based on whether any quantities are selected
         const submitBtn = container.querySelector('.quantity-submit-btn');
         if (submitBtn) {
-            submitBtn.disabled = totalQuantity === 0;
+            const wasDisabled = submitBtn.disabled;
+            const newDisabled = totalQuantity === 0;
+            
+            submitBtn.disabled = newDisabled;
             submitBtn.classList.toggle('quantity-submit-btn-active', totalQuantity > 0);
+            
+            // If the button has become active (was disabled, now enabled), make sure chat is disabled
+            if (wasDisabled && !newDisabled) {
+                if (window.chatPermissions) {
+                    window.chatPermissions.disableChat('Please confirm your quantities to continue');
+                }
+            }
         }
     }
 
@@ -627,6 +637,26 @@ function showMinimumQuantityError() {
         
         // Initialize totals
         updateTotals();
+        
+        // ADDED: Disable chat when quantity selector is active
+        if (window.chatPermissions) {
+            window.chatPermissions.disableChat('Please confirm your quantities to continue');
+        }
+        
+        // Find the submit button
+        const submitBtn = selector.querySelector('.quantity-submit-btn');
+        if (submitBtn) {
+            // Add event listener to re-enable chat when quantities are confirmed
+            submitBtn.addEventListener('click', () => {
+                if (window.chatPermissions) {
+                    setTimeout(() => {
+                        // Wait a short moment for the message to be sent
+                        window.chatPermissions.enableChat();
+                        console.log('Chat re-enabled after quantities confirmed');
+                    }, 300);
+                }
+            });
+        }
     };
 
     // Main function to monitor messages and detect quantity prompts
