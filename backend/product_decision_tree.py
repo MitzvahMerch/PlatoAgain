@@ -12,26 +12,26 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 SEMANTIC_COLOR_MAP = {
     # Blues
-    "blue": ["Carolina Blue", "Light Blue", "Atomic Blue", "Tropic Blue", "Royal", "True Royal", "True Royal Heather", "Heather_Navy", "Pacific_Blue", "True Navy", "Navy", "Columbia Blue", "Blue Jean", "Washed Denim", "Vintage Heather Blue", "Chambray", "Topaz Blue", "Denim", "Royal Caribe", "China Blue", "Flo Blue", "Ice Blue", "Scuba Blue", "Aquatic Blue", "California Blue"],
-    "light blue": ["Carolina Blue", "Light Blue", "Chambray", "Ice Blue"],
-    "sky blue": ["Carolina Blue", "Columbia Blue", "Pacific_Blue",],
+    "blue": ["Carolina Blue", "Light Blue", "Atomic Blue", "Tropic Blue", "Royal", "True Royal", "True Royal Heather", "Heather_Navy", "Pacific_Blue", "True Navy", "Navy", "Columbia Blue", "Blue Jean", "Washed Denim", "Power Blue", "Vintage Heather Blue", "Chambray", "Topaz Blue", "Denim", "Vintage Heather Navy", "Royal Caribe", "China Blue", "Flo Blue", "Ice Blue", "Scuba Blue", "Aquatic Blue", "California Blue"],
+    "light blue": ["Carolina Blue", "Light Blue", "Power Blue", "Chambray", "Ice Blue"],
+    "sky blue": ["Carolina Blue", "Columbia Blue", "Pacific_Blue", "Power Blue"],
     "baby blue": ["Carolina Blue", "Light Blue", "Pacific_Blue",],
-    "bright blue": ["Atomic Blue", "Royal Caribe", "Scuba Blue"],
+    "bright blue": ["Atomic Blue", "Royal Caribe", "Scuba Blue", "Power Blue"],
     "medium blue": ["Royal", "True Royal", "True Royal Heather", "Blue Jean", "Pacific_Blue", "Flo Blue"],
     "deep blue": ["True Navy", "Navy", "China Blue", "Denim"],
     "dark blue": ["True Navy", "Navy", "Heather_Navy", "Denim"],
-    "navy": ["True Navy", "Navy", "Heather_Navy", "J Navy"],
-    "navy blue": ["True Navy", "Navy", "Heather_Navy", "J Navy"],
+    "navy": ["True Navy", "Navy", "Heather_Navy", "J Navy", "Vintage Heather Navy"],
+    "navy blue": ["True Navy", "Navy", "Heather_Navy", "J Navy", "Vintage Heather Navy"],
     "royal blue": ["Royal", "True Royal", "Royal Caribe"],
     "teal": ["Tropic Blue", "Teal", "Topaz Blue", "California Blue", "Scuba Blue"],
     "turquoise": ["Atomic Blue", "Tropic Blue", "Teal", "Scuba Blue", "California Blue"],
-    "aqua": ["Atomic Blue", "Tropic Blue", "Aquatic Blue", "Pacific_Blue","Scuba Blue"],
+    "aqua": ["Atomic Blue", "Tropic Blue", "Aquatic Blue", "Pacific_Blue","Scuba Blue", "Power Blue"],
     "azure": ["Carolina Blue", "Columbia Blue", "Pacific_Blue"],
     
     # Reds
-    "red": ["True Red", "Red", "Cardinal", "Maroon", "Burgundy", "Deep Red", "Crimson", "Poppy", "Watermelon", "Crunchberry", "Vintage Heather Red", "Vintage Heather Maroon"],
+    "red": ["True Red", "Red", "Cardinal", "Maroon", "Burgundy", "Deep Red", "Crimson", "Cardinal", "Poppy", "Watermelon", "Crunchberry", "Vintage Heather Red", "Vintage Heather Maroon"],
     "light red": ["True Red", "Red", "Watermelon", "Crunchberry"],
-    "bright red": ["True Red", "Red"],
+    "bright red": ["True Red", "Red", "Cardinal"],
     "dark red": ["Maroon", "Cardinal", "Burgundy", "Deep Red"],
     "maroon": ["Maroon"],
     "burgundy": ["Burgundy", "Deep Red"],
@@ -54,9 +54,9 @@ SEMANTIC_COLOR_MAP = {
     "seafoam": ["Seafoam", "Island Reef"],
     
     # Yellows
-    "yellow": ["Butter", "Neon Yellow", "Gold", "Vegas Gold", "Mustard", "Island Yellow"],
+    "yellow": ["Butter", "Neon Yellow", "Gold", "Power Yellow", "Vegas Gold", "Mustard", "Island Yellow"],
     "light yellow": ["Butter", "Neon Yellow"],
-    "bright yellow": ["Neon Yellow", "Island Yellow"],
+    "bright yellow": ["Neon Yellow", "Island Yellow", "Power Yellow"],
     "gold": ["Gold", "Vegas Gold"],
     "mustard": ["Mustard", "Gold"],
     
@@ -88,20 +88,20 @@ SEMANTIC_COLOR_MAP = {
     "magenta": ["Cyber Pink", "Berry", "Power Pink"],
     
     # Grays
-    "gray": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather", "Greystone", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Heather_Steel", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
-    "grey": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Grey Concrete Heather","Greystone", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Heather_Steel", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
-    "light gray": ["Silver", "Ash", "Light Steel", "Heather_Steel", "Athletic Heather", "Greystone", "Solid Athletic Grey"],
-    "medium gray": ["Grey Concrete", "Grey Concrete Heather", "Heather_Steel", "Iron Grey Heather", "Sport Grey", "Greystone", "Grey", "Storm", "Oxford"],
+    "gray": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Silver_Grey", "Grey Concrete Heather", "Greystone", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Heather_Steel", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
+    "grey": ["Silver", "Ash", "Light Steel", "Athletic Heather", "Grey Concrete", "Silver_Grey", "Grey Concrete Heather","Greystone", "Iron Grey Heather", "Sport Grey", "Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Heather_Steel", "Granite", "Grey", "Pepper", "Asphalt", "Oxford", "Storm", "Dark Heather"],
+    "light gray": ["Silver", "Ash", "Light Steel", "Heather_Steel", "Athletic Heather", "Silver_Grey", "Greystone", "Solid Athletic Grey"],
+    "medium gray": ["Grey Concrete", "Grey Concrete Heather", "Heather_Steel", "Silver_Grey", "Iron Grey Heather", "Sport Grey", "Greystone", "Grey", "Storm", "Oxford"],
     "dark gray": ["Charcoal Grey", "Iron Grey", "Carbon Heather", "Smoke Grey", "Graphite", "Dark Grey", "Pepper", "Asphalt", "Dark Heather"],
-    "silver": ["Silver, Greystone", "Heather_Steel"],
+    "silver": ["Silver, Greystone", "Heather_Steel", "Power Yellow", "Silver_Grey"],
     "charcoal": ["Charcoal Grey", "Graphite", "Iron Grey", "Carbon Heather", "Smoke Grey"],
     "slate": ["Steel Blue", "Blue Storm"],
     
     # Browns
-    "brown": ["Tan", "Toast", "Soft Cream", "Saddle", "Nut Brown", "Chocolate", "Dark Brown", "Coffee"],
-    "light brown": ["Tan", "Toast", "Soft Cream"],
-    "medium brown": ["Saddle", "Nut Brown"],
-    "dark brown": ["Chocolate", "Dark Brown", "Coffee"],
+    "brown": ["Tan", "Toast", "Soft Cream", "Saddle", "Nut Brown", "Brown", "Chocolate", "Dark Brown", "Coffee"],
+    "light brown": ["Tan", "Toast", "Soft Cream", "Brown"],
+    "medium brown": ["Saddle", "Nut Brown", "Brown"],
+    "dark brown": ["Chocolate", "Dark Brown", "Coffee", "Brown"],
     "tan": ["Tan", "Soft Cream"],
     "beige": ["Natural", "Soft Cream", "Tan"],
     
@@ -494,7 +494,7 @@ class ProductDecisionTree:
         "Vintage_White": "#EEE6E3",
         "White": "#F0EFF4",
         
-             # Comfort Colors T-Shirt (1717)
+        # Comfort Colors T-Shirt (1717)
          "Black": "#232323",
          "Blossom": "#F7D5E5",
          "Blue_Jean": "#64738A",
@@ -650,6 +650,66 @@ class ProductDecisionTree:
         "Royal": "#285DA9",
         "Sport_Grey": "#C4C3CB",
         "White": "#EDEEF3",
+
+        # JERZEES Hoodie Colors (996MR)
+        "Ash": "#E2DDE3",
+        "Athletic_Heather": "#BCBCC4",
+        "Black": "#242328",
+        "Black_Heather": "#525055",
+        "Burnt_Orange": "#E44B22",
+        "Charcoal_Grey": "#4A484D",
+        "Cyber_Pink": "#C2316C",
+        "Deep_Purple": "#473064",
+        "Forest_Green": "#24352D",
+        "J._Navy": "#333649",
+        "Kelly": "#0D8F5F",
+        "Maroon": "#5B1D32",
+        "Neon_Green": "#C9FBA4",
+        "Neon_Pink": "#FF76A2",
+        "Royal": "#0D50A9",
+        "Safety_Green": "#CCFF62",
+        "Scuba_Blue": "#55D0D5",
+        "True_Red": "#AF1632",
+        "Vintage_Heather_Blue": "#63769E",
+        "Vintage_Heather_Navy": "#515463",
+        "Vintage_Heather_Red": "#AD535C",
+        "White": "#EEEEE2",
+
+        # Augusta Sportswear Tank Top Colors (703)
+        "Black": "#252525",
+        "Columbia_Blue": "#639CD3",
+        "Gold": "#FDB417",
+        "Graphite": "#73737B",
+        "Kelly": "#028654",
+        "Lime": "#BFD630",
+        "Navy": "#023054",
+        "Orange": "#E25623",
+        "Power_Blue": "#0195DB",
+        "Power_Yellow": "#FCEB05",
+        "Purple": "#433584",
+        "Red": "#CA1D39",
+        "Royal": "#025797",
+        "Silver_Grey": "#CECABE",
+        "White": "#E3E3E3",
+
+        # Badger Shorts Colors (7207)
+        "Black": "#151517",
+        "Brown": "#26211E",
+        "Burnt_Orange": "#9F3211",
+        "Cardinal": "#4B111D",
+        "Columbia_Blue": "#557BAC",
+        "Forest": "#232E2A",
+        "Gold": "#B27502",
+        "Graphite": "#2A2A2C",
+        "Kelly": "#124323",
+        "Maroon": "#230C14",
+        "Navy": "#232531",
+        "Purple": "#2D224C",
+        "Red": "#9D0117",
+        "Royal": "#17265D",
+        "Silver": "#908C8B",
+        "Vegas_Gold": "#8D7C50",
+        "White": "#B1AFB2",
         
         # Basic color families (fallbacks)
         "blue": "#0000FF",
@@ -707,7 +767,9 @@ class ProductDecisionTree:
             'long sleeve shirt': 'long-sleeve',
             'crewneck': 'crewneck',
             'sweatpants': 'sweatpants',
-            'polo' :'polo'
+            'polo' :'polo',
+            'tank top' : 'tank-top',
+            'shorts' : 'shorts'
         }
         for key, value in category_map.items():
             if key in category:
@@ -1822,6 +1884,104 @@ class ProductDecisionTree:
                     'back': f'/productimages/5414/Augusta_Sportswear_5414_{color}_Back_High.jpg'
                 }
             })
+
+        # Hoodies category - add JERZEES NuBlend Hoodie to existing hoodie category
+        jerzees_hoodie_colors = [
+            "Ash", "Athletic_Heather", "Black", "Black_Heather", "Burnt_Orange", 
+            "Charcoal_Grey", "Cyber_Pink", "Deep_Purple", "Forest_Green", "J._Navy", 
+            "Kelly", "Maroon", "Neon_Green", "Neon_Pink", "Royal", "Safety_Green", 
+            "Scuba_Blue", "True_Red", "Vintage_Heather_Blue", "Vintage_Heather_Navy", 
+            "Vintage_Heather_Red", "White"
+        ]
+        for color in jerzees_hoodie_colors:
+            self.categories['hoodie'].add_product({
+        'style_number': '996',
+        'product_name': 'JERZEES - NuBlend Hooded Sweatshirt',
+        'color': color.replace("_", " "),
+        'price': '$21.99',
+        'material': 'Cotton/Poly Blend',
+        'weight': 'midweight',
+        'fit': 'standard',
+        'has_youth_sizes': True,
+        'has_adult_sizes': True,
+        'youth_sizes': 'S-XL',
+        'adult_sizes': 'S-5XL',
+        'features': [
+            'NuBlend pill-resistant fleece',
+            'High-stitch density for smooth printing',
+            '2-ply hood with grommets and drawcord',
+            'Pouch pocket',
+            'Ribbed cuffs and waistband'
+        ],
+        'images': {
+            'front': f'/productimages/996/JERZEES_996MR_{color}_Front_High.jpg',
+            'back': f'/productimages/996/JERZEES_996MR_{color}_Back_High.jpg'
+        }
+        })
+
+            # Tank Top category (new)
+        self.categories['tank-top'] = ProductCategory('Tank Tops', claude_client=self.claude_client)
+        augusta_tank_colors = [
+            "Black", "Columbia_Blue", "Gold", "Graphite", "Kelly", "Lime", "Navy", 
+            "Orange", "Power_Blue", "Power_Yellow", "Purple", "Red", "Royal", 
+            "Silver_Grey", "White"
+        ]
+        for color in augusta_tank_colors:
+            self.categories['tank-top'].add_product({
+            'style_number': '703',
+            'product_name': 'Augusta Sportswear - Wicking Tank Top',
+        'color': color.replace("_", " "),
+        'price': '$15.99',
+        'material': '100% Polyester',
+        'weight': 'lightweight',
+        'fit': 'athletic',
+        'has_youth_sizes': True,
+        'has_adult_sizes': True,
+        'youth_sizes': 'S-L',
+        'adult_sizes': 'S-3XL',
+        'features': [
+            'Moisture-wicking performance fabric',
+            'Self-fabric binding at neck and armholes',
+            'Double-needle hemmed bottom',
+            'Tear away label'
+        ],
+        'images': {
+            'front': f'/productimages/703/Augusta_Sportswear_703_{color}_Front_High.jpg',
+            'back': f'/productimages/703/Augusta_Sportswear_703_{color}_Back_High.jpg'
+        }
+        })
+
+            # Shorts category (new)
+        self.categories['shorts'] = ProductCategory('Shorts', claude_client=self.claude_client)
+        badger_shorts_colors = [
+            "Black", "Brown", "Burnt_Orange", "Cardinal", "Columbia_Blue", "Forest", 
+            "Gold", "Graphite", "Kelly", "Maroon", "Navy", "Purple", "Red", "Royal", 
+            "Silver", "Vegas_Gold", "White"
+        ]
+        for color in badger_shorts_colors:
+            self.categories['shorts'].add_product({
+        'style_number': '7207',
+        'product_name': 'Badger - Mesh Athletic Shorts',
+        'color': color.replace("_", " "),
+        'price': '$16.99',
+        'material': '100% Polyester',
+        'weight': 'lightweight',
+        'fit': 'athletic',
+        'has_youth_sizes': True,
+        'has_adult_sizes': True,
+        'youth_sizes': 'S-L',
+        'adult_sizes': 'S-3XL',
+        'features': [
+            '100% polyester mesh',
+            'Polyester tricot liner',
+            'Athletic cut for superior fit',
+            'Covered elastic waistband with drawcord'
+        ],
+        'images': {
+            'front': f'/productimages/7207/Badger_7207_{color}_Front_High.jpg',
+            'back': f'/productimages/7207/Badger_7207_{color}_Back_High.jpg'
+        }
+        })    
         
         # Crewneck sweatshirts
         self.categories['crewneck'] = ProductCategory('Crewneck Sweatshirts', claude_client=self.claude_client)

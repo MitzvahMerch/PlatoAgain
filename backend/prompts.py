@@ -58,6 +58,8 @@ MOST IMPORTANT: Categorize the garment into EXACTLY ONE of these predefined cate
 - Crewneck
 - Sweatpants
 - Polo
+- Tank Top
+- Shorts
 
 For material, ONLY use one of these categories if mentioned:
 - 100% Cotton (soft, natural fabric)
