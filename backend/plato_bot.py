@@ -1235,13 +1235,18 @@ class PlatoBot:
         
         # Check if order is now complete
         if order_state.is_complete():
-            logger.info("Form submission: Order state is complete, proceeding to PayPal invoice creation")
+            logger.info("Form submission: Order state is complete, proceeding with order processing")
             try:
-                # Create PayPal invoice
-                logger.info("Form submission: Attempting to create PayPal invoice...")
-                invoice_data = self.paypal.create_invoice(order_state)
-                logger.info(f"Form submission: PayPal invoice created successfully: {invoice_data}")
-
+                # Skip PayPal invoice email, just update order status
+                logger.info("Form submission: Skipping PayPal invoice email creation (using PayPal SDK in chat instead)")
+                # Create dummy invoice data
+                invoice_data = {
+                    "invoice_id": f"PLATO-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    "status": "PENDING",
+                    "invoice_number": f"PLATO-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    "payment_url": "#" # Placeholder URL since we're using in-chat PayPal SDK
+                }
+                
                 # Update OrderState with payment info
                 logger.info("Form submission: Updating order state with payment info")
                 order_state.update_payment_info(invoice_data)
@@ -1368,13 +1373,18 @@ class PlatoBot:
             
             # Check if order is now complete
             if order_state.is_complete():
-                logger.info("Order state is complete, proceeding to PayPal invoice creation")
+                logger.info("Order state is complete, proceeding with order processing")
                 try:
-                    # Create PayPal invoice
-                    logger.info("Attempting to create PayPal invoice...")
-                    invoice_data = self.paypal.create_invoice(order_state)
-                    logger.info(f"PayPal invoice created successfully: {invoice_data}")
-
+                    # Skip PayPal invoice email, just update order status
+                    logger.info("Skipping PayPal invoice email creation (using PayPal SDK in chat instead)")
+                    # Create dummy invoice data
+                    invoice_data = {
+                        "invoice_id": f"PLATO-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                        "status": "PENDING",
+                        "invoice_number": f"PLATO-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                        "payment_url": "#" # Placeholder URL since we're using in-chat PayPal SDK
+                    }
+                    
                     # Update OrderState with payment info
                     logger.info("Updating order state with payment info")
                     order_state.update_payment_info(invoice_data)
