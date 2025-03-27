@@ -237,7 +237,7 @@ const createShippingForm = () => {
                 color: rgba(255, 255, 255, 0.6);
             }
             
-            .shipping-form-container.submitted .shipping-form-submit {
+            .shipping-form-container.submitted .shipping-form-submit 
                 background-color: #4CAF50;
             }
         `;
@@ -247,16 +247,16 @@ const createShippingForm = () => {
     // Create the form elements
     const createShippingForm = (orderDetails) => {
         console.log('Creating shipping form with order details:', orderDetails);
-
+        
         const container = document.createElement('div');
         container.className = 'shipping-form-container';
-
+        
         // Header
         const header = document.createElement('div');
         header.className = 'shipping-form-header';
         header.textContent = 'Complete Your Order';
         container.appendChild(header);
-
+        
         // Form
         const form = document.createElement('form');
         form.className = 'shipping-form';
@@ -276,7 +276,7 @@ const createShippingForm = () => {
                 <label class="shipping-form-label" for="customer-email">Email for Invoice</label>
                 <input type="email" id="customer-email" class="shipping-form-input" placeholder="Your email address" required>
             </div>
-
+    
             <div class="shipping-form-group">
                 <label class="shipping-form-label" for="received-by-date">Receive By Date</label>
                 <div class="date-input-container">
@@ -287,40 +287,93 @@ const createShippingForm = () => {
             </div>
         `;
         container.appendChild(form);
-
+        
         // Footer with buttons
         const footer = document.createElement('div');
         footer.className = 'shipping-form-footer';
-
+        
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'shipping-form-cancel';
         cancelBtn.textContent = 'Cancel';
-
+        
         const submitBtn = document.createElement('button');
         submitBtn.type = 'submit';
         submitBtn.className = 'shipping-form-submit';
         submitBtn.textContent = 'Complete Order';
-
+        
         footer.appendChild(cancelBtn);
         footer.appendChild(submitBtn);
         form.appendChild(footer);
-
+        
         // Add event handlers
         cancelBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             container.remove();
+            
+            // Re-enable chat if form is removed
+            if (window.chatPermissions) {
+                window.chatPermissions.enableChat();
+            }
         });
-
+        
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             e.stopPropagation();
             handleFormSubmission(form, orderDetails);
+            
+            // Re-enable chat after form submission
+            if (window.chatPermissions) {
+                setTimeout(() => {
+                    window.chatPermissions.enableChat();
+                }, 300);
+            }
         });
-
+        
+        // Setup form validation to manage chat permissions
+        setupFormValidation(form);
+        
         return { container, form };
     };
+    
+    // Add this new function to check the form validity and manage chat permissions
+    function setupFormValidation(form) {
+        // Get all required inputs
+        const requiredInputs = form.querySelectorAll('input[required]');
+        
+        // Initial validity check
+        checkFormValidity();
+        
+        // Add event listeners to all required fields
+        requiredInputs.forEach(input => {
+            input.addEventListener('input', checkFormValidity);
+            input.addEventListener('change', checkFormValidity);
+        });
+        
+        // Function to check the overall form validity
+        function checkFormValidity() {
+            let isValid = true;
+            
+            // Check each required input
+            requiredInputs.forEach(input => {
+                if (!input.value.trim()) {
+                    isValid = false;
+                }
+            });
+            
+            // Get the submit button
+            const submitBtn = form.querySelector('.shipping-form-submit');
+            
+            // If form is valid, disable chat to force completion
+            if (isValid && submitBtn) {
+                // Disable chat when form is valid (submit button is active)
+                if (window.chatPermissions) {
+                    window.chatPermissions.disableChat('Please complete your order information');
+                }
+            }
+        }
+    }
 
     // Handle form submission
     const handleFormSubmission = async (form, orderDetails) => {
@@ -929,17 +982,22 @@ const createShippingForm = () => {
     // Main function to inject the shipping form into a message
     const injectShippingForm = (messageElement, orderDetails) => {
         console.log('Injecting shipping form into message:', messageElement);
-
+        
         // Don't inject if already done
         if (messageElement.querySelector('.shipping-form-container')) {
             console.log('Shipping form already injected, skipping');
             return;
         }
-
+        
+        // Disable chat when shipping form is injected
+        if (window.chatPermissions) {
+            window.chatPermissions.disableChat('Please complete your order information');
+        }
+        
         // Create and append the form
         const { container, form } = createShippingForm(orderDetails);
         messageElement.appendChild(container);
-
+        
         // Setup form components with slight delay to ensure DOM is ready
         setTimeout(() => {
             setupDatePicker(form);

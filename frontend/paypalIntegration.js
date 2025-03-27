@@ -340,32 +340,37 @@ orderSummary.innerHTML = `
 
     // Main function to inject the PayPal integration into a message
     // Main function to inject the PayPal integration into a message
-const injectPayPalIntegration = (messageElement) => {
-    console.log('Injecting PayPal integration into message:', messageElement);
-    
-    // Don't inject if already done
-    if (messageElement.querySelector('.paypal-container')) {
-        console.log('PayPal integration already injected, skipping');
-        return;
-    }
-    
-    // Get the message text
-    const messageText = messageElement.textContent;
-    
-    // Extract order details from the message
-    const orderDetails = extractOrderDetails(messageText);
-    console.log('Extracted order details:', orderDetails);
-    
-    // Create a dummy invoice details object since we're not using actual PayPal URLs anymore
-    const dummyInvoiceDetails = {
-        fullUrl: "#",
-        invoiceId: "ORDER" + Date.now() // Generate a random ID
+    const injectPayPalIntegration = (messageElement) => {
+        console.log('Injecting PayPal integration into message:', messageElement);
+        
+        // Don't inject if already done
+        if (messageElement.querySelector('.paypal-container')) {
+            console.log('PayPal integration already injected, skipping');
+            return;
+        }
+        
+        // Get the message text
+        const messageText = messageElement.textContent;
+        
+        // Extract order details from the message
+        const orderDetails = extractOrderDetails(messageText);
+        console.log('Extracted order details:', orderDetails);
+        
+        // Create a dummy invoice details object since we're not using actual PayPal URLs anymore
+        const dummyInvoiceDetails = {
+            fullUrl: "#",
+            invoiceId: "ORDER" + Date.now() // Generate a random ID
+        };
+        
+        // Create and append the PayPal integration
+        const paypalComponent = createPayPalComponent(orderDetails, dummyInvoiceDetails);
+        messageElement.appendChild(paypalComponent);
+        
+        // Permanently disable chat for the rest of the conversation once PayPal is shown
+        if (window.chatPermissions) {
+            window.chatPermissions.disableChat('Your order is being processed. Payment required to continue.');
+        }
     };
-    
-    // Create and append the PayPal integration
-    const paypalComponent = createPayPalComponent(orderDetails, dummyInvoiceDetails);
-    messageElement.appendChild(paypalComponent);
-};
 
     // Monitor for messages with PayPal invoice links
     const observeMessages = () => {
