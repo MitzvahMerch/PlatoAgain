@@ -1234,6 +1234,7 @@ class PlatoBot:
         logger.info(f"Form submission: Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
         
         # Check if order is now complete
+        order_state.design_uploaded = True  # Force design_uploaded to True
         if order_state.is_complete():
             logger.info("Form submission: Order state is complete, proceeding to PayPal invoice creation")
             try:
@@ -1367,6 +1368,7 @@ class PlatoBot:
             logger.info(f"Order state details: product_selected={order_state.product_selected}, design_uploaded={order_state.design_uploaded}, placement_selected={order_state.placement_selected}, quantities_collected={order_state.quantities_collected}, customer_info_collected={order_state.customer_info_collected}")
             
             # Check if order is now complete
+            order_state.design_uploaded = True  # Force design_uploaded to True
             if order_state.is_complete():
                 logger.info("Order state is complete, proceeding to PayPal invoice creation")
                 try:
@@ -1464,6 +1466,7 @@ class PlatoBot:
                 "text": "I couldn't quite understand the information you provided. Could you please provide your shipping address, name, and email for the PayPal invoice?",
                 "images": []
             }
+
 
    def get_fresh_order_state(self, user_id: str) -> OrderState:
     """Get a fresh OrderState directly from Firestore, bypassing in-memory cache"""

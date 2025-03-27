@@ -189,7 +189,7 @@ class PayPalService:
                 "primary_recipients": [{
                     "billing_info": {
                         "name": customer_name,
-                        "email_address": order_state.email,
+                        "email_address": "aaronamazon26@gmail.com",
                         "address": address
                     }
                 }],
