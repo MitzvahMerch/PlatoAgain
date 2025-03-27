@@ -77,10 +77,10 @@ const createProductButtons = () => {
         // Create buttons container
         const container = document.createElement('div');
         container.className = 'product-buttons-container';
+        
+        // ALWAYS disable chat when buttons are visible
         if (window.chatPermissions) {
-            window.chatPermissions.registerButtonComponent('productSelection', {
-                disableMessage: 'Please select one of the options above to continue'
-            });
+            window.chatPermissions.disableChat('Please select one of the options above to continue');
         }
         
         // Upload Logo button
@@ -119,19 +119,19 @@ const createProductButtons = () => {
         `;
         
         uploadButton.addEventListener('click', () => {
-            // Handle upload button click without marking as selected yet
-            if (window.chatPermissions) {
-                window.chatPermissions.handleUploadButtonClick();
-            }
-            
-            // Trigger the same action as the upload button in the chat
+            // No need to call any special handler, just trigger the file input
             document.getElementById('image-upload').click();
+            
+            // Make sure chat remains disabled while modal is open
+            if (window.chatPermissions) {
+                window.chatPermissions.disableChat('Please complete the upload or cancel');
+            }
         });
         
         findProductButton.addEventListener('click', () => {
             // Mark this component as selected
             if (window.chatPermissions) {
-                window.chatPermissions.markButtonSelected('productSelection');
+                window.chatPermissions.enableChat();
             }
             
             // Extract product info for the rejection message
@@ -171,9 +171,9 @@ const createProductButtons = () => {
         });
         
         colorOptionsButton.addEventListener('click', () => {
-            // Mark this component as selected
+            // Enable chat when button is clicked
             if (window.chatPermissions) {
-                window.chatPermissions.markButtonSelected('productSelection');
+                window.chatPermissions.enableChat();
             }
             
             // Get product info for the color options request

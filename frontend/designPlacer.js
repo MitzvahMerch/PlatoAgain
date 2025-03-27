@@ -661,34 +661,43 @@ const handleSave = () => {
     }, 'Save Placement');
 
     // Close button
+    // Close button
     const closeButton = React.createElement('button', {
-        onClick: () => {
-            window.placementModal.hide();
-            const fileInput = document.getElementById('image-upload');
-            if (fileInput) fileInput.value = '';
-            const uploadButton = document.querySelector('.chat-upload-button svg');
-            if (uploadButton) {
-                uploadButton.innerHTML = `
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                    <polyline points="21 15 16 10 5 21"/>
-                `;
-                uploadButton.style.color = 'var(--secondary-color)';
-            }
-        },
-        style: {
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            padding: '5px 10px',
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            zIndex: 3000
+    onClick: () => {
+        // Hide the modal
+        window.placementModal.hide();
+        
+        // Reset the file input
+        const fileInput = document.getElementById('image-upload');
+        if (fileInput) fileInput.value = '';
+        
+        // Reset the upload button appearance
+        const uploadButton = document.querySelector('.chat-upload-button svg');
+        if (uploadButton) {
+            uploadButton.innerHTML = `
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+            `;
+            uploadButton.style.color = 'var(--secondary-color)';
         }
-    }, 'X');
+        
+        // Do NOT re-enable chat when modal is closed - the product buttons are still visible
+        // and according to our rule, chat should remain disabled
+    },
+    style: {
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        padding: '5px 10px',
+        backgroundColor: '#dc3545',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        zIndex: 3000
+    }
+}, 'X');
 
     // Main container with adjusted layout for mobile
     const container = React.createElement('div', {
