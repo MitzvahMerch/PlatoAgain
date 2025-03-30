@@ -31,9 +31,7 @@ Consider:
 
 Output ONLY ONE of these four stage names with no additional text:
 - product_selection
-- design_placement
 - quantity_collection
-- customer_information
 """
 
 
