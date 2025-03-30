@@ -41,11 +41,11 @@ SEMANTIC_COLOR_MAP = {
     "ruby": ["Deep Red", "Maroon", "Burgundy"],
     
     # Greens
-    "green": ["Mint", "Kelly Green", "Kelly", "Lime Shock", "Neon Green", "Forest Green", "Dark Green", "Deep Forest", "Chalky Mint", "Irish Green", "Military Green", "Island Green", "Island Reef", "Kiwi", "Seafoam", "Cool Mint", "Jade"],
+    "green": ["Mint", "Kelly Green", "Kelly", "Lime Shock", "Neon Green", "Forest", "Forest Green", "Dark Green", "Deep Forest", "Chalky Mint", "Irish Green", "Military Green", "Island Green", "Island Reef", "Kiwi", "Seafoam", "Cool Mint", "Jade"],
     "light green": ["Mint", "Chalky Mint", "Cool Mint", "Island Reef", "Seafoam"],
     "bright green": ["Kelly Green", "Kelly", "Lime Shock", "Neon Green", "Kiwi", "Island Green"],
-    "dark green": ["Forest Green", "Dark Green", "Deep Forest"],
-    "forest green": ["Forest Green", "Deep Forest"],
+    "dark green": ["Forest Green", "Dark Green", "Deep Forest", "Forest"],
+    "forest green": ["Forest Green", "Forest" "Deep Forest"],
     "mint": ["Mint", "Chalky Mint", "Cool Mint"],
     "kelly green": ["Kelly Green", "Kelly", "Irish Green"],
     "lime": ["Lime Shock", "Neon Green", "Safety Green"],
