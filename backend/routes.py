@@ -262,7 +262,7 @@ def init_routes(app, plato_bot):
             
             # Execute the transaction
             db = plato_bot.firebase_service.db
-            updated_state = db.transaction(update_in_transaction)
+            updated_state = db.transaction(lambda tx: update_in_transaction(tx))
             
             # Update the in-memory cache if applicable
             if hasattr(plato_bot.conversation_manager, 'conversations') and user_id in plato_bot.conversation_manager.conversations:
