@@ -10,9 +10,9 @@ const createChatPermissionManager = () => {
     const chatInput = document.getElementById('chat-input');
     const sendButton = document.getElementById('send-button');
     
-    // Setup DOM elements for permission UI - MUCH SIMPLER NOW
+    // Setup DOM elements for permission UI
     const setupUI = () => {
-        // Add the CSS styles for the permission indicator - with chat input styles
+        // Add the CSS styles for the permission indicator
         const styleElement = document.createElement('style');
         styleElement.textContent = `
             /* Style the send button when disabled */
@@ -26,6 +26,7 @@ const createChatPermissionManager = () => {
                 opacity: 0.7;
                 background-color: rgba(200, 200, 200, 0.1);
                 cursor: pointer;
+                pointer-events: none; /* Add this to block all input events */
             }
             
             /* Create a relative positioning context for the tooltip */
@@ -70,16 +71,18 @@ const createChatPermissionManager = () => {
         });
     };
     
-    // Update the UI based on permission state - now handles both elements
+    // Update the UI based on permission state
     const updateUI = () => {
         if (!sendButton || !chatInput) return;
         
         if (!chatEnabled) {
             sendButton.classList.add('chat-disabled');
             chatInput.classList.add('chat-disabled');
+            chatInput.disabled = true; // Actually disable the input
         } else {
             sendButton.classList.remove('chat-disabled');
             chatInput.classList.remove('chat-disabled');
+            chatInput.disabled = false; // Enable the input
             if (tooltipEl) {
                 tooltipEl.style.opacity = '0';
             }
@@ -102,12 +105,14 @@ const createChatPermissionManager = () => {
     
     // Override the sendMessage function to check permissions
     const overrideSendMessage = () => {
-        // Store the original sendMessage function
-        const originalSendMessage = window.sendMessage;
+        // Store the original event handlers
+        const originalSendFunction = window.sendMessage;
         
-        // Replace with our permission-aware version
+        // Create our interceptor function
         window.sendMessage = function() {
             if (!chatEnabled) {
+                console.log('Chat is disabled, preventing message send');
+                
                 // Just a subtle flash of the button to indicate it's disabled
                 const originalColor = sendButton.style.backgroundColor;
                 sendButton.style.backgroundColor = 'rgba(255, 59, 48, 0.3)';
@@ -118,8 +123,24 @@ const createChatPermissionManager = () => {
             }
             
             // If chat is enabled, call the original function
-            return originalSendMessage.apply(this, arguments);
+            return originalSendFunction.apply(this, arguments);
         };
+        
+        // Replace the send button click event
+        // Remove existing event listener
+        const oldSendButton = sendButton.cloneNode(true);
+        sendButton.parentNode.replaceChild(oldSendButton, sendButton);
+        
+        // Add our own event handler that checks permissions first
+        oldSendButton.addEventListener('click', (e) => {
+            if (!chatEnabled) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Chat send blocked: ' + disabledReason);
+                return false;
+            }
+            window.sendMessage();
+        });
     };
     
     // Register a component that will disable chat when it shows buttons
@@ -186,6 +207,16 @@ const createChatPermissionManager = () => {
         
         // Initial state is enabled
         enableChat();
+        
+        // Override Enter key handling on textarea to prevent send when disabled
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !chatEnabled) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Chat send via Enter key blocked: ' + disabledReason);
+                return false;
+            }
+        }, true); // Use capture phase to intercept before other handlers
     };
     
     // Initialize

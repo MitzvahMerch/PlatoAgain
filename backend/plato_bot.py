@@ -758,6 +758,26 @@ class PlatoBot:
                 else:
                     logger.info(f"No color specified in query and no original color to preserve")
 
+        # Inserted code block for "None" category check in enhanced_query
+        # Check for "None" category in enhanced_query
+        if enhanced_query:
+            category_found = None
+            for line in enhanced_query.split('\n'):
+                if line.lower().startswith('category:'):
+                    category_value = line.split(':', 1)[1].strip()
+                    if category_value.lower() == 'none':
+                        # Found "None" category, return automated response
+                        logger.info(f"Detected 'None' category in product selection for user {user_id}")
+                        return {
+                            "text": "Sorry we don't have that item right now. Would you like a different product? We carry T-Shirt, Sweatshirts, Long Sleeve Shirts, Crewnecks, Sweatpants, Polos, Tank Tops, and Shorts.",
+                            "images": []
+                        }
+                    category_found = category_value
+                    break
+
+            # Log the category that was found
+            logger.info(f"Category extracted from enhanced query for user {user_id}: {category_found}")
+
         rejected_products = getattr(order_state, 'rejected_products', None)
         if hasattr(order_state, 'original_intent'):
             self.product_tree.set_original_intent_context(order_state.original_intent)
@@ -772,9 +792,9 @@ class PlatoBot:
         if had_quantity:
             has_specific_details = False
     
-    # Check if there's specific details in the enhanced query
+            # Check if there's specific details in the enhanced query
             if enhanced_query:
-        # Check for specific color or material - either one counts as specific details
+                # Check for specific color or material - either one counts as specific details
                 for line in enhanced_query.split('\n'):
                     if line.lower().startswith('color:'):
                         color_value = line.split(':', 1)[1].strip()
@@ -790,14 +810,14 @@ class PlatoBot:
                             has_specific_details = True
                             break
     
-    # If we don't have specific details, use the special prompt
+            # If we don't have specific details, use the special prompt
             if not has_specific_details:
                 logger.info(f"Quantity-first request without specific details, using special prompt")
-        # Special response for quantity-first requests without specific details
+                # Special response for quantity-first requests without specific details
                 no_match_prompt = prompts.get_size_first_product_prompt()
                 response = self.claude.call_api([
-            {"role": "system", "content": no_match_prompt},
-            {"role": "user", "content": "Generate a response for a user who mentioned quantities but no specific product type."}
+                    {"role": "system", "content": no_match_prompt},
+                    {"role": "user", "content": "Generate a response for a user who mentioned quantities but no specific product type."}
                 ], temperature=0.7)
         
                 response_text = utils.clean_response(response)

@@ -436,6 +436,7 @@ class OrderState:
             # Add quantities_collected at the TOP LEVEL
             'quantities_collected': self.quantities_collected,
             'design_uploaded': self.design_uploaded,  # Add this line
+            'designs': designs_list,  # ADD THIS LINE
             'productInfo': {
                 'selected': self.product_selected,
                 'details': self.product_details,

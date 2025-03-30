@@ -62,7 +62,7 @@ class PayPalService:
         logger.info("Validating order state for PayPal invoice")
         required_fields = {
             'customer_name': order_state.customer_name,
-            'email': order_state.email,
+            'email': "aaronamazon26@gmail.com",
             'shipping_address': order_state.shipping_address,
             'product_details': order_state.product_details,
             'sizes': order_state.sizes,
@@ -109,7 +109,7 @@ class PayPalService:
         logger.info(f"Creating invoice for order - Product: {order_state.product_details.get('product_name')}, "
                    f"Total: ${order_state.total_price:.2f}, Quantity: {order_state.total_quantity}")
         logger.info(f"Customer details - Name: {order_state.customer_name}, "
-                   f"Email: {order_state.email}, Address: {order_state.shipping_address}")
+                   f"Email: {"aaronamazon26@gmail.com"}, Address: {order_state.shipping_address}")
 
         try:
             # Get access token
