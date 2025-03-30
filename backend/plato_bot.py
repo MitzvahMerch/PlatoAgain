@@ -1077,12 +1077,20 @@ class PlatoBot:
     def _handle_quantity_collection(self, user_id: str, message: str, order_state) -> dict:
         """Handle quantity collection."""
         logger.info(f"Order state product details for user {user_id}: {order_state.product_details}")
+    
+    # Verify logo count matches designs before processing quantities
+        logo_designs = sum(1 for design in order_state.designs if getattr(design, 'has_logo', True))
+        logger.info(f"Verifying logo count during quantity collection: tracked={order_state.logo_count}, actual={logo_designs}")
+        if order_state.logo_count != logo_designs:
+            logger.warning(f"Correcting logo count in quantity collection: {order_state.logo_count} -> {logo_designs}")
+            order_state.logo_count = logo_designs
+    
         sizes = utils.extract_size_info(message)
-        
+    
         if sizes:
             order_state.update_quantities(sizes)
             self.conversation_manager.update_order_state(user_id, order_state)
-            
+        
             product_type = None
             if order_state.product_category:
                 product_type = order_state.product_category.lower()
@@ -1090,31 +1098,31 @@ class PlatoBot:
                 product_type = order_state.product_details['category'].lower()
             else:
                 product_type = "t-shirt"
-                
+            
             if not product_type.endswith('s'):
                 product_type += "s"
-            
+        
             base_price = order_state.total_quantity * order_state.price_per_item
             logo_charge_per_item = getattr(order_state, 'logo_charge_per_item', 1.50)
             logo_charges = order_state.total_quantity * order_state.logo_count * logo_charge_per_item
-            
+        
             price_breakdown = ""
             if order_state.logo_count > 0:
                 price_breakdown = f"\n\n- Base price: ${base_price:.2f}\n- Logo charge{'' if order_state.logo_count == 1 else 's'} (${logo_charge_per_item:.2f} × {order_state.logo_count} logo{'' if order_state.logo_count == 1 else 's'} × {order_state.total_quantity} items): ${logo_charges:.2f}"
-            
+        
             response_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}:\n"
             for size, qty in sizes.items():
                 response_text += f"- {qty} {size.upper()}\n"
-            
+        
             response_text += price_breakdown
             response_text += f"\nTotal price will be ${order_state.total_price:.2f}. "
             response_text += "Would you like to proceed with the order? I'll just need your shipping address, name, and email for the PayPal invoice."
-            
+        
             product_name = f"{order_state.product_details.get('product_name', 'Product')} in {order_state.product_details.get('color', 'Color')}"
             quantities = ', '.join(f'{qty} {size.upper()}' for size, qty in order_state.sizes.items())
-            
+        
             chat_text = f"Great! I've got your order for {order_state.total_quantity} {product_type}.{price_breakdown}\n\nTotal price will be ${order_state.total_price:.2f}. Now I just need your shipping information to complete the order."
-            
+        
             return {
                 "text": chat_text,
                 "images": [], 
@@ -1134,11 +1142,11 @@ class PlatoBot:
         else:
             context = self._prepare_context(order_state)
             response = self.claude.call_api([
-                {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
-                {"role": "user", "content": message}
+            {"role": "system", "content": prompts.QUANTITY_PROMPT.format(**context)},
+            {"role": "user", "content": message}
             ], temperature=0.7)
             response_text = utils.clean_response(response)
-         
+        
             return {"text": response_text, "images": []}
         
     def _handle_customer_information(self, user_id: str, message: str, order_state, form_submission=False) -> dict:
@@ -1357,22 +1365,31 @@ class PlatoBot:
         """Get a fresh OrderState directly from Firestore, bypassing in-memory cache"""
         if self.firebase_service:
             try:
-                # Use the simplified FirebaseService method to load order state
+            # Use the simplified FirebaseService method to load order state
                 order_state_data = self.firebase_service.load_order_state(user_id)
-                
+            
                 if order_state_data:
                     logger.info(f"Loading fresh order state from Firestore with keys: {order_state_data.keys()}")
                     order_state = OrderState.from_dict(order_state_data)
                     logger.info(f"Fresh order state created with quantities_collected={order_state.quantities_collected}")
-                    
+                
+                # Add this logging for logo count specifically
+                    logo_designs = sum(1 for design in order_state.designs if getattr(design, 'has_logo', True))
+                    logger.info(f"Verified fresh order state logo count: tracked={order_state.logo_count}, actual={logo_designs}")
+                
+                # Ensure logo count is correct
+                    if order_state.logo_count != logo_designs:
+                        logger.warning(f"Correcting logo count in fresh order state: {order_state.logo_count} -> {logo_designs}")
+                        order_state.logo_count = logo_designs
+                
                     if user_id in self.conversation_manager.conversations:
                         self.conversation_manager.conversations[user_id]['order_state'] = order_state
                         logger.info(f"Updated in-memory cache with fresh order state")
-                    
+                
                     return order_state
             except Exception as e:
                 logger.error(f"Error loading fresh order state: {str(e)}")
-        
+    
         return self.conversation_manager.get_order_state(user_id)
         
     def _prepare_context(self, order_state) -> dict:
