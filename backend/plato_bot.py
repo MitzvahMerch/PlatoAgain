@@ -675,16 +675,20 @@ class PlatoBot:
                     logger.error(f"Error applying original intent: {str(e)}")
 
             # Override category in modification flow if needed
+            # Override category in modification flow ONLY IF the new category is None
             if hasattr(order_state, 'in_product_modification_flow') and order_state.in_product_modification_flow:
                 if hasattr(order_state, 'original_intent') and order_state.original_intent['category']:
                     original_category = order_state.original_intent['category']
                     query_lines = enhanced_query.split('\n')
                     for i, line in enumerate(query_lines):
                         if line.lower().startswith('category:'):
-                            query_lines[i] = f"Category: {original_category}"
+                            category_value = line.split(':', 1)[1].strip()
+                            # Only restore original category if the new one is None or empty
+                            if category_value.lower() == 'none' or not category_value:
+                                query_lines[i] = f"Category: {original_category}"
+                                enhanced_query = '\n'.join(query_lines)
+                                logger.info(f"Restored missing category to original: {original_category}")
                             break
-                    enhanced_query = '\n'.join(query_lines)
-                    logger.info(f"Modified query to maintain original category: {enhanced_query}")
 
                 if hasattr(order_state, 'original_intent') and order_state.original_intent['general_color']:
                     original_color = order_state.original_intent['general_color']
