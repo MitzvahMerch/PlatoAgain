@@ -1394,6 +1394,8 @@ class ProductDecisionTree:
                 if brand_matched_products:
                     candidate_products = brand_matched_products
                     logger.info(f"Brand filter: {before_count} → {len(candidate_products)} products")
+            
+            color_filtered_copy = None
         
         # Step 5: Filter by color - CRITICAL PART
             if 'color' in preferences and candidate_products:
