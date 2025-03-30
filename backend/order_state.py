@@ -407,108 +407,8 @@ class OrderState:
         
         return is_complete
     
-    def to_firestore_dict(self) -> Dict:
-        """Convert the order state to a dictionary for Firestore storage"""
-        logger.debug("Converting order state to Firestore dictionary")
-        logger.info(f"to_firestore_dict called with quantities_collected={self.quantities_collected}")
-        
-        # Calculate total logo charges
-        logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
-        
-        # Convert the designs list to a list of dictionaries
-        designs_list = []
-        for idx, design in enumerate(self.designs):
-            designs_list.append({
-                'designPath': design.design_path,
-                'filename': design.design_filename,
-                'fileType': design.design_file_type,
-                'fileSize': design.design_file_size,
-                'uploadDate': design.upload_date,
-                'placement': design.placement,
-                'previewUrl': design.preview_url,
-                'side': design.side,
-                'hasLogo': getattr(design, 'has_logo', True),
-                'index': idx
-            })
-        
-        result = {
-            'userId': self.user_id,
-            # Add quantities_collected at the TOP LEVEL
-            'quantities_collected': self.quantities_collected,
-            'design_uploaded': self.design_uploaded,  # Add this line
-            'designs': designs_list,  # ADD THIS LINE
-            'productInfo': {
-                'selected': self.product_selected,
-                'details': self.product_details,
-                'category': self.product_category,
-                'pricePerItem': self.price_per_item
-            },
-            'originalIntent': {
-                'category': self.original_intent.get('category'),
-                'generalColor': self.original_intent.get('general_color'),
-                'requestedChanges': self.original_intent.get('requested_changes', [])
-            },
-            'inProductModificationFlow': self.in_product_modification_flow,
-            'designInfo': {
-                'uploaded': self.design_uploaded,
-                'designs': designs_list,
-                'logoCount': self.logo_count,
-                # Include the legacy fields for backward compatibility
-                'url': self.design_path,
-                'filename': self.design_filename,
-                'fileType': self.design_file_type,
-                'fileSize': self.design_file_size,
-                'uploadDate': self.upload_date
-            },
-            'placementInfo': {
-                'selected': self.placement_selected,
-                'placement': self.placement,
-                'previewUrl': self.preview_url
-            },
-            'quantityInfo': {
-                # REMOVE 'collected' from here since it's now at top level
-                'sizes': self.sizes,
-                'totalQuantity': self.total_quantity,
-                'totalPrice': self.total_price,
-                'logoCharges': logo_charges,
-                'logoChargePerItem': self.logo_charge_per_item
-            },
-            'expressShippingInfo': {
-                'percentage': self.express_shipping_percentage,
-                'charge': self.express_shipping_charge
-            },
-            'customerInfo': {
-                'collected': self.customer_info_collected,
-                'name': self.customer_name,
-                'address': self.shipping_address,
-                'email': self.email,
-                'receivedByDate': self.received_by_date
-            },
-            'paymentInfo': {
-                'collected': self.payment_info_collected,
-                'paymentUrl': self.payment_url,
-                'invoiceId': self.invoice_id,
-                'invoiceNumber': self.invoice_number,
-                'status': self.payment_status
-            },
-            'status': self.status,
-            'lastActive': self.last_active,
-            'colorOptionsShown': self.color_options_shown,
-            'colorOptionsStyle': self.color_options_style,
-            'colorOptionsProductName': self.color_options_product_name,
-            'lastStyleNumber': self.last_style_number
-        }
-        
-        # Log payment URL specifically since it's causing issues
-        logger.info(f"Payment URL in Firestore dict: {result['paymentInfo']['paymentUrl']}")
-        logger.info(f"Result of to_firestore_dict has keys: {result.keys()}")
-        logger.info(f"Top-level quantities_collected in result: {result.get('quantities_collected')}")
-        logger.info(f"Nested quantities_collected in result: {result.get('quantityInfo', {}).get('collected')}")
-        
-        return result
-    
     def to_dict(self) -> Dict:
-        """Convert the order state to a flat dictionary for internal use"""
+        """Convert the order state to a standardized dictionary format for all persistence needs"""
         # Log the start of the method
         logger.info(f"to_dict called with quantities_collected={self.quantities_collected}")
         
@@ -531,159 +431,194 @@ class OrderState:
                 'index': idx
             })
         
+        # Create a flat dictionary with all properties
         result = {
             "user_id": self.user_id,
+            "last_active": self.last_active,
+            
+            # Product Selection
             "product_selected": self.product_selected,
             "product_details": self.product_details,
             "product_category": self.product_category,
+            "youth_sizes": self.youth_sizes,
+            "adult_sizes": self.adult_sizes,
             "price_per_item": self.price_per_item,
+            
+            # Design Info
             "design_uploaded": self.design_uploaded,
             "designs": designs_list,
-            "logo_count": self.logo_count,
-            # Include legacy fields for backward compatibility
             "design_path": self.design_path,
             "design_filename": self.design_filename,
             "design_file_type": self.design_file_type,
             "design_file_size": self.design_file_size,
             "upload_date": self.upload_date,
+            
+            # Placement Info
             "placement_selected": self.placement_selected,
             "placement": self.placement,
             "preview_url": self.preview_url,
-            "quantities_collected": self.quantities_collected,  # Ensure this is at top level, matching to_firestore_dict
+            "rejected_products": self.rejected_products,
+            
+            # Intent Info
             "original_intent": self.original_intent,
             "in_product_modification_flow": self.in_product_modification_flow,
+            
+            # Quantity Info
+            "quantities_collected": self.quantities_collected, 
             "sizes": self.sizes,
             "total_quantity": self.total_quantity,
             "total_price": self.total_price,
-            "logo_charges": logo_charges,
+            "logo_count": self.logo_count,
             "logo_charge_per_item": self.logo_charge_per_item,
+            
+            # UI state
+            "color_options_shown": self.color_options_shown,
+            "color_options_style": self.color_options_style,
+            "color_options_product_name": self.color_options_product_name,
+            "last_style_number": self.last_style_number,
+            
+            # Shipping Info
             "express_shipping_percentage": self.express_shipping_percentage,
             "express_shipping_charge": self.express_shipping_charge,
+            
+            # Customer Info
             "customer_info_collected": self.customer_info_collected,
-            "last_style_number": self.last_style_number,
             "customer_name": self.customer_name,
             "shipping_address": self.shipping_address,
             "email": self.email,
             "received_by_date": self.received_by_date,
+            
+            # Payment Info
             "payment_info_collected": self.payment_info_collected,
-            "color_options_style": self.color_options_style,
-            "color_options_product_name": self.color_options_product_name,
             "payment_url": self.payment_url,
             "invoice_id": self.invoice_id,
             "invoice_number": self.invoice_number,
             "payment_status": self.payment_status,
-            "status": self.status,
-            "last_active": self.last_active,
-            "color_options_shown": self.color_options_shown
+            
+            # Other
+            "status": self.status
         }
         
-        # Log the result
+        # Log key fields for debugging
         logger.info(f"Result of to_dict has quantities_collected={result['quantities_collected']}")
+        if 'payment_url' in result and result['payment_url']:
+            logger.info(f"Payment URL in dict: {result['payment_url']}")
         
         return result
     
+    # Remove to_firestore_dict() completely - we'll now use to_dict() for all persistence
+    
     @classmethod
     def from_dict(cls, data: Dict) -> 'OrderState':
-        """Create an OrderState instance from a dictionary"""
+        """Create an OrderState instance from a dictionary with simplified logic"""
         order = cls()
-
+        
         # Log the input data structure
-        logger.info(f"from_dict called with data keys: {data.keys()}")
-        if 'quantities_collected' in data:
-            logger.info(f"Top-level quantities_collected found: {data['quantities_collected']}")
-        if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict) and 'collected' in data['quantityInfo']:
-            logger.info(f"Nested quantities_collected found: {data['quantityInfo']['collected']}")
-
-        # Keep track of fields we've already processed
-        processed_fields = set()
-
-        # Handle the designs list separately if it exists
-        if 'designs' in data:
-            designs_data = data.pop('designs')
-            processed_fields.add('designs')
-            for design_data in designs_data:
+        logger.info(f"from_dict called with data keys: {list(data.keys())}")
+        
+        # Handle designs list specially
+        if 'designs' in data and isinstance(data['designs'], list):
+            for design_data in data['designs']:
+                # Handle both flattened and nested design formats
                 design = DesignInfo(
-                    design_path=design_data.get('design_path'),
-                    design_filename=design_data.get('design_filename'),
-                    design_file_type=design_data.get('design_file_type'),
-                    design_file_size=design_data.get('design_file_size'),
-                    upload_date=design_data.get('upload_date'),
+                    design_path=design_data.get('design_path') or design_data.get('designPath'),
+                    design_filename=design_data.get('design_filename') or design_data.get('filename'),
+                    design_file_type=design_data.get('design_file_type') or design_data.get('fileType'),
+                    design_file_size=design_data.get('design_file_size') or design_data.get('fileSize'),
+                    upload_date=design_data.get('upload_date') or design_data.get('uploadDate'),
                     placement=design_data.get('placement'),
-                    preview_url=design_data.get('preview_url'),
+                    preview_url=design_data.get('preview_url') or design_data.get('previewUrl'),
                     side=design_data.get('side'),
-                    has_logo=design_data.get('has_logo', True)  # Default to True for backward compatibility
+                    has_logo=design_data.get('has_logo', True) or design_data.get('hasLogo', True)
                 )
                 order.designs.append(design)
-
-        # Handle quantities_collected from both places for backward compatibility
-        if 'quantities_collected' in data:
-            # New flattened structure - directly use the top-level value
-            order.quantities_collected = data['quantities_collected']
-            logger.info(f"Setting quantities_collected to {data['quantities_collected']} from top-level")
-            processed_fields.add('quantities_collected')  # Mark as processed
-        elif 'quantityInfo' in data and isinstance(data['quantityInfo'], dict) and 'collected' in data['quantityInfo']:
-            # Old nested structure - extract from quantityInfo.collected
-            order.quantities_collected = data['quantityInfo']['collected']
-            logger.info(f"Setting quantities_collected to {data['quantityInfo']['collected']} from quantityInfo.collected")
-        else:
-            logger.warning("No quantities_collected found in either location!")
-
-        if 'design_uploaded' in data:
-        # New flattened structure - directly use the top-level value
-            order.design_uploaded = data['design_uploaded']
-            logger.info(f"Setting design_uploaded to {data['design_uploaded']} from top-level")
-            processed_fields.add('design_uploaded')  # Mark as processed
-        elif 'designInfo' in data and isinstance(data['designInfo'], dict) and 'uploaded' in data['designInfo']:
-            # Old nested structure - extract from designInfo.uploaded
-            order.design_uploaded = data['designInfo']['uploaded']
-            logger.info(f"Setting design_uploaded to {data['designInfo']['uploaded']} from designInfo.uploaded")
-        else:
-            logger.warning("No design_uploaded found in either location!")    
-
-        # Check for nested quantityInfo structure from Firestore
+        
+        # Handle old nested structure (transitional code)
+        if 'designInfo' in data and isinstance(data['designInfo'], dict):
+            # Extract design_uploaded from nested structure
+            if 'uploaded' in data['designInfo'] and not order.design_uploaded:
+                order.design_uploaded = data['designInfo']['uploaded']
+            
+            # Extract nested designs if not already handled above
+            if 'designs' in data['designInfo'] and not order.designs:
+                for design_data in data['designInfo']['designs']:
+                    design = DesignInfo(
+                        design_path=design_data.get('designPath'),
+                        design_filename=design_data.get('filename'),
+                        design_file_type=design_data.get('fileType'),
+                        design_file_size=design_data.get('fileSize'),
+                        upload_date=design_data.get('uploadDate'),
+                        placement=design_data.get('placement'),
+                        preview_url=design_data.get('previewUrl'),
+                        side=design_data.get('side'),
+                        has_logo=design_data.get('hasLogo', True)
+                    )
+                    order.designs.append(design)
+                    
+            # Extract logo count if available
+            if 'logoCount' in data['designInfo']:
+                order.logo_count = data['designInfo']['logoCount']
+        
+        # Handle old product info structure (transitional code)
+        if 'productInfo' in data and isinstance(data['productInfo'], dict):
+            product_info = data['productInfo']
+            if 'selected' in product_info and not order.product_selected:
+                order.product_selected = product_info['selected']
+            if 'details' in product_info and not order.product_details:
+                order.product_details = product_info['details']
+            if 'category' in product_info and not order.product_category:
+                order.product_category = product_info['category']
+            if 'pricePerItem' in product_info and order.price_per_item == 0:
+                order.price_per_item = product_info['pricePerItem']
+        
+        # Handle old quantity info structure (transitional code)
         if 'quantityInfo' in data and isinstance(data['quantityInfo'], dict):
             quantity_info = data['quantityInfo']
-            if 'sizes' in quantity_info:
+            if 'collected' in quantity_info and not order.quantities_collected:
+                order.quantities_collected = quantity_info['collected']
+            if 'sizes' in quantity_info and not order.sizes:
                 order.sizes = quantity_info['sizes']
-            if 'totalQuantity' in quantity_info:
+            if 'totalQuantity' in quantity_info and order.total_quantity == 0:
                 order.total_quantity = quantity_info['totalQuantity']
-            if 'totalPrice' in quantity_info:
+            if 'totalPrice' in quantity_info and order.total_price == 0:
                 order.total_price = quantity_info['totalPrice']
-            if 'logoChargePerItem' in quantity_info:
+            if 'logoChargePerItem' in quantity_info and order.logo_charge_per_item == 1.5:
                 order.logo_charge_per_item = quantity_info['logoChargePerItem']
-
-        logger.info(f"quantities_collected before setting other fields: {order.quantities_collected}")
         
-        # Set all the other fields EXCEPT ones we've already processed
+        # Handle other flattened fields directly
         for key, value in data.items():
-            if key not in processed_fields and hasattr(order, key):
-                setattr(order, key, value)
+            # Skip already processed or non-existent fields
+            if key in ('designs', 'designInfo', 'productInfo', 'quantityInfo', 'placementInfo', 
+                       'customerInfo', 'paymentInfo', 'expressShippingInfo', 'originalIntent') or not hasattr(order, key):
+                continue
+                
+            # Set the attribute if it exists in the class
+            setattr(order, key, value)
         
-        logger.info(f"quantities_collected after setting all fields: {order.quantities_collected}")
-
-        # Handle original_intent if it exists
+        # Handle original intent data from both structures
         if 'original_intent' in data:
             order.original_intent = data['original_intent']
-        else:
-            order.original_intent = {"category": None, "general_color": None, "requested_changes": []}
-
-        # Handle in_product_modification_flow if it exists
-        if 'in_product_modification_flow' in data:
-            order.in_product_modification_flow = data['in_product_modification_flow']
-        else:
-            order.in_product_modification_flow = False
-
-        # Ensure express shipping fields are present
+        elif 'originalIntent' in data:
+            # Map from camelCase to snake_case
+            intent_data = data['originalIntent']
+            order.original_intent = {
+                "category": intent_data.get('category'),
+                "general_color": intent_data.get('generalColor'),
+                "requested_changes": intent_data.get('requestedChanges', [])
+            }
+        
+        # Verify logo count matches designs
+        if order.designs:
+            logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
+            if order.logo_count != logo_designs:
+                logger.warning(f"Correcting logo count in from_dict: {order.logo_count} -> {logo_designs}")
+                order.logo_count = logo_designs
+        
+        # Ensure essential fields have proper defaults
         if not hasattr(order, 'express_shipping_percentage') or order.express_shipping_percentage is None:
             order.express_shipping_percentage = 0
         if not hasattr(order, 'express_shipping_charge') or order.express_shipping_charge is None:
             order.express_shipping_charge = 0
-
-        # Ensure logo_count is always set correctly based on designs
-        if order.designs:
-            logo_designs = sum(1 for design in order.designs if getattr(design, 'has_logo', True))
-            if order.logo_count != logo_designs:
-                order.logo_count = logo_designs
-            
-        logger.info(f"Final quantities_collected value after from_dict: {order.quantities_collected}")
+        
+        logger.info(f"Successfully created OrderState from dictionary, quantities_collected={order.quantities_collected}")
         return order

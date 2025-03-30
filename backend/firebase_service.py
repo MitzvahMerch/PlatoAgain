@@ -26,6 +26,53 @@ class FirebaseService:
             logger.error(f"Failed to initialize Firebase: {str(e)}")
             raise
 
+    def save_order_state(self, user_id: str, order_state_dict: dict) -> bool:
+        """
+        Save order state to Firestore
+        
+        Args:
+            user_id: User identifier
+            order_state_dict: OrderState converted to dictionary
+        
+        Returns:
+            bool: Success or failure
+        """
+        try:
+            # Save to active_conversations collection
+            self.db.collection('active_conversations').document(user_id).set({
+                'order_state': order_state_dict,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            }, merge=True)
+            
+            logger.info(f"Saved order state to Firestore for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving order state to Firestore: {str(e)}")
+            return False
+    
+    def save_completed_order(self, user_id: str, order_state_dict: dict) -> bool:
+        """
+        Save completed order to designs collection
+        
+        Args:
+            user_id: User identifier
+            order_state_dict: OrderState converted to dictionary
+        
+        Returns:
+            bool: Success or failure
+        """
+        try:
+            # Save to designs collection
+            self.db.collection('designs').document(user_id).set(
+                order_state_dict, merge=True
+            )
+            
+            logger.info(f"Saved completed order to designs collection for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving completed order to Firestore: {str(e)}")
+            return False
+
     def update_customer_info(self, user_id: str, customer_info: dict) -> bool:
         """
         Update customer information in Firestore using the user ID as document ID.
@@ -45,79 +92,52 @@ class FirebaseService:
         """
         try:
             logger.info(f"Starting update_customer_info for user {user_id}")
-            logger.info(f"Received customer_info: {customer_info}")
             
             # Get direct reference to the document using user_id
             design_ref = self.db.collection('designs').document(user_id)
-            logger.info(f"Got Firestore reference for document: {user_id}")
             
-            # Separate customer info and PayPal info
-            customer_data = {
-                'name': customer_info.get('name'),
-                'address': customer_info.get('address'),
-                'email': customer_info.get('email'),
-                'updatedAt': firestore.SERVER_TIMESTAMP
-            }
-            logger.info(f"Created customer_data structure: {customer_data}")
-            
-            # Create PayPal data if present
-            paypal_data = {}
-            paypal_fields = ['invoice_id', 'invoice_number', 'status', 'payment_url']
-            logger.info(f"PayPal fields to check: {paypal_fields}")
-            logger.info(f"Keys present in customer_info: {customer_info.keys()}")
-            
-            # Log which PayPal fields are present
-            for field in paypal_fields:
-                logger.info(f"Checking field '{field}': {'present' if field in customer_info else 'absent'}")
-            
-            if any(field in customer_info for field in paypal_fields):
-                logger.info("Found PayPal fields in customer_info, processing...")
-                paypal_data = {}
-                for field in paypal_fields:
-                    if field in customer_info:
-                        paypal_data[field] = customer_info[field]
-                        logger.info(f"Added PayPal field {field} with value: {customer_info[field]}")
-                    else:
-                        logger.warning(f"PayPal field {field} not found in customer_info")
-                
-                logger.info(f"Final PayPal data structure: {paypal_data}")
-            else:
-                logger.info("No PayPal fields found in customer_info")
-            
-            # Prepare update data
+            # Simplified structure - directly use the customer_info fields
+            # with minimal transformation to reduce potential bugs
             update_data = {}
-            logger.info("Preparing final update_data structure")
             
-            # Only include customerInfo if we have customer data
-            if any(v for k, v in customer_data.items() if k != 'updatedAt'):
-                update_data['customerInfo'] = customer_data
-                logger.info(f"Added customerInfo to update_data: {customer_data}")
+            # Customer data fields
+            customer_fields = ['name', 'address', 'email']
+            if any(field in customer_info for field in customer_fields):
+                customer_data = {
+                    'customerInfo': {
+                        'name': customer_info.get('name'),
+                        'address': customer_info.get('address'),
+                        'email': customer_info.get('email'),
+                        'updatedAt': firestore.SERVER_TIMESTAMP
+                    }
+                }
+                update_data.update(customer_data)
+            
+            # Payment data fields
+            payment_fields = ['invoice_id', 'invoice_number', 'status', 'payment_url']
+            if any(field in customer_info for field in payment_fields):
+                payment_data = {
+                    'paymentInfo': {
+                        'invoiceId': customer_info.get('invoice_id'),
+                        'invoiceNumber': customer_info.get('invoice_number'),
+                        'status': customer_info.get('status'),
+                        'paymentUrl': customer_info.get('payment_url')
+                    }
+                }
+                update_data.update(payment_data)
+            
+            # Update the document if we have data to update
+            if update_data:
+                design_ref.update(update_data)
+                logger.info(f"Successfully updated customer info for user {user_id}")
+                return True
             else:
-                logger.info("No customer data to add to update_data")
-            
-            # Add PayPal data if present
-            if paypal_data:
-                update_data['paypalInfo'] = paypal_data
-                logger.info(f"Added paypalInfo to update_data: {paypal_data}")
-            else:
-                logger.info("No PayPal data to add to update_data")
-            
-            logger.info(f"Final update_data structure: {update_data}")
-
-            # Update the document
-            logger.info("Attempting Firestore update...")
-            design_ref.update(update_data)
-            logger.info(f"Successfully updated customer info for user {user_id}")
-            return True
+                logger.warning(f"No data to update for user {user_id}")
+                return False
             
         except Exception as e:
             logger.error(f"Error updating customer info for user {user_id}: {str(e)}")
-            logger.error(f"Full customer_info that caused error: {customer_info}")
-            if 'paypal_data' in locals():
-                logger.error(f"PayPal data at time of error: {paypal_data}")
-            if 'update_data' in locals():
-                logger.error(f"Update data at time of error: {update_data}")
-            raise
+            return False
 
     async def upload_design(self, user_id: str, design_file, filename: str):
         """
@@ -171,7 +191,8 @@ class FirebaseService:
                 'fileType': 'image/png',
                 'status': 'pending_review',
                 'uploadDate': firestore.SERVER_TIMESTAMP,
-                'userId': user_id
+                'userId': user_id,
+                'designPath': download_url  # Add this field for consistency with OrderState
             }
             
             # Use set with merge=True to update or create the document
@@ -191,3 +212,37 @@ class FirebaseService:
         except Exception as e:
             logger.error(f"Error uploading design: {str(e)}")
             raise
+    
+    def load_order_state(self, user_id: str) -> dict:
+        """
+        Load order state from Firestore
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            dict: Order state dictionary or empty dict if not found
+        """
+        try:
+            # Try active_conversations first
+            doc_ref = self.db.collection('active_conversations').document(user_id)
+            doc = doc_ref.get()
+            
+            if doc.exists and 'order_state' in doc.to_dict():
+                logger.info(f"Loaded order state from active_conversations for user {user_id}")
+                return doc.to_dict().get('order_state', {})
+            
+            # If not found, try designs collection
+            doc_ref = self.db.collection('designs').document(user_id)
+            doc = doc_ref.get()
+            
+            if doc.exists:
+                logger.info(f"Loaded order state from designs collection for user {user_id}")
+                return doc.to_dict()
+            
+            logger.info(f"No order state found for user {user_id}")
+            return {}
+            
+        except Exception as e:
+            logger.error(f"Error loading order state from Firestore: {str(e)}")
+            return {}

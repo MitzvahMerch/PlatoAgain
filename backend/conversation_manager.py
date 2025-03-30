@@ -33,16 +33,8 @@ class ConversationManager:
         if len(self.conversations[user_id]['messages']) > self.max_history:
             self.conversations[user_id]['messages'] = self.conversations[user_id]['messages'][-self.max_history:]
         
-        # Persist to Firestore if available
-        if self.firebase_service:
-            try:
-                self.firebase_service.db.collection('active_conversations').document(user_id).set({
-                    'messages': self.conversations[user_id]['messages'],
-                    'last_active': firestore.SERVER_TIMESTAMP
-                }, merge=True)
-                logger.debug(f"Persisted message to Firestore for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error persisting message to Firestore: {str(e)}")
+        # Persist to Firestore using centralized method
+        self._save_to_firestore(user_id)
 
     def get_messages_for_goal_context(self, user_id: str, current_goal: str) -> List[Dict]:
         """Get relevant conversation history based on the current goal."""
@@ -66,16 +58,13 @@ class ConversationManager:
 
     def get_order_state(self, user_id: str) -> OrderState:
         """Get or create OrderState for a user with Firestore persistence."""
-    # Check if conversation exists in memory first
+        # Check if conversation exists in memory first
         if user_id in self.conversations:
             order_state = self.conversations[user_id]['order_state']
-        
-        # Add logging for debugging
             logger.info(f"Found in-memory order state for user {user_id}, product: {order_state.product_details.get('product_name') if order_state.product_details else 'None'}")
-        
             return order_state
         
-    # Try to load from Firestore before creating new
+        # Try to load from Firestore before creating new
         if self.firebase_service:
             try:
                 doc_ref = self.firebase_service.db.collection('active_conversations').document(user_id)
@@ -84,97 +73,67 @@ class ConversationManager:
                     data = doc.to_dict()
                     logger.info(f"Found active conversation in Firestore for user {user_id}")
                 
-                # IMPORTANT: Check if this is a valid conversation with the expected data
+                    # Check if this is a valid conversation with the expected data
                     if 'order_state' in data and 'messages' in data:
-                    # Protect against loading partial conversations
                         order_state_data = data.get('order_state', {})
-                    
-                    # Create a new OrderState from the Firestore data
+                        
+                        # Create OrderState using the simplified from_dict method
                         order_state = OrderState.from_dict(order_state_data)
-
-                        logger.info(f"Recreating OrderState from Firestore - input data has keys: {order_state_data.keys()}")
-                    if 'quantities_collected' in order_state_data:
-                        logger.info(f"Firestore data has top-level quantities_collected={order_state_data['quantities_collected']}")
-                    if 'quantityInfo' in order_state_data and isinstance(order_state_data['quantityInfo'], dict):
-                        logger.info(f"Firestore data has nested quantities_collected={order_state_data['quantityInfo'].get('collected')}")
-                        logger.info(f"After OrderState.from_dict, quantities_collected={order_state.quantities_collected}")    
-                    
-                    # Initialize the conversation with loaded state
+                        
+                        # Initialize the conversation with loaded state
                         self.conversations[user_id] = {
-                        'messages': data.get('messages', []),
-                        'last_active': datetime.now(),
-                        'order_state': order_state,
-                        'current_goal': data.get('current_goal')
+                            'messages': data.get('messages', []),
+                            'last_active': datetime.now(),
+                            'order_state': order_state,
+                            'current_goal': data.get('current_goal')
                         }
-                    
-                    # Add extra logging about the loaded state
+                        
+                        # Log successful load
                         product_name = order_state.product_details.get('product_name') if order_state.product_details else 'None'
                         logger.info(f"Loaded order state from Firestore for user {user_id}, product_selected={order_state.product_selected}, product={product_name}, quantities_collected={order_state.quantities_collected}")
-                    
-                    return order_state
+                        
+                        return order_state
             except Exception as e:
                 logger.error(f"Error loading from Firestore: {str(e)}", exc_info=True)
     
-    # If no data in Firestore or error loading, initialize new conversation
+        # If no data in Firestore or error loading, initialize new conversation
         logger.info(f"No existing conversation found for user {user_id}, initializing new conversation")
         self._initialize_conversation(user_id)
         return self.conversations[user_id]['order_state']
 
     def update_order_state(self, user_id: str, order_state: OrderState) -> None:
         """Update the entire OrderState object with Firestore persistence."""
-        # Initialize conversation if it doesn't exist in memory
-        if user_id not in self.conversations:
-            self.conversations[user_id] = {
-            'messages': [],
-            'last_active': datetime.now(),
-            'order_state': order_state,
-            'current_goal': None
-        }
-            logger.info(f"Created new in-memory conversation entry for user {user_id} during update_order_state")
-            quantities_flag_before = False  # New conversation, so previous flag was False
-        else:
-            # Add specific logging for quantities_collected flag
+        # Track critical state changes for logging
+        if user_id in self.conversations:
             old_state = self.conversations[user_id]['order_state']
             had_product_details = old_state.product_details is not None
             quantities_flag_before = old_state.quantities_collected
-        
-            # Update the in-memory conversation
-            self.conversations[user_id]['order_state'] = order_state
-            self.conversations[user_id]['last_active'] = datetime.now()
-        
-            # Log changes in critical properties
+            
+            # Log critical state changes
             if had_product_details and order_state.product_details is None:
                 logger.warning(f"Product details were LOST during update for user {user_id}")
-    
-        # Log quantities_collected flag state change
-        quantities_flag_after = order_state.quantities_collected
-        if quantities_flag_before != quantities_flag_after:
-            logger.info(f"Quantities collected flag changed: {quantities_flag_before} -> {quantities_flag_after}")
-    
-    # Persist to Firestore if available
-        if self.firebase_service:
-            try:
-            # Get conversation data to store
-                messages = self.conversations[user_id].get('messages', [])
-                current_goal = self.conversations[user_id].get('current_goal')
+                
+            # Log quantities_collected flag state change
+            quantities_flag_after = order_state.quantities_collected
+            if quantities_flag_before != quantities_flag_after:
+                logger.info(f"Quantities collected flag changed: {quantities_flag_before} -> {quantities_flag_after}")
+        else:
+            # New conversation
+            logger.info(f"Created new in-memory conversation entry for user {user_id} during update_order_state")
+            self.conversations[user_id] = {
+                'messages': [],
+                'last_active': datetime.now(),
+                'order_state': order_state,
+                'current_goal': None
+            }
             
-            # Convert OrderState to dict for Firestore
-                order_dict = order_state.to_dict() if hasattr(order_state, 'to_dict') else {}
-            
-            # Log Firestore conversion of quantities_collected flag
-                logger.info(f"OrderState quantities_collected={order_state.quantities_collected}, in Firestore dict: {order_dict.get('quantities_collected', 'NOT PRESENT')}")
-            
-            # Store in Firestore with merge=True to avoid overwriting other fields
-                self.firebase_service.db.collection('active_conversations').document(user_id).set({
-                'order_state': order_dict,
-                'messages': messages[-self.max_history:] if len(messages) > self.max_history else messages,
-                'current_goal': current_goal,
-                'last_active': firestore.SERVER_TIMESTAMP
-                }, merge=True)
-                logger.info(f"Persisted order state to Firestore for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error persisting to Firestore: {str(e)}", exc_info=True)
-    
+        # Update the in-memory conversation
+        self.conversations[user_id]['order_state'] = order_state
+        self.conversations[user_id]['last_active'] = datetime.now()
+        
+        # Save to Firestore using centralized method
+        self._save_to_firestore(user_id)
+        
         logger.info(f"Updated order state for user {user_id}")
 
     def get_conversation_messages(self, user_id: str) -> List[Dict]:
@@ -232,19 +191,8 @@ class ConversationManager:
             'current_goal': None
         }
         
-        # Persist to Firestore if available
-        if self.firebase_service:
-            try:
-                order_state = self.conversations[user_id]['order_state']
-                self.firebase_service.db.collection('active_conversations').document(user_id).set({
-                    'messages': [],
-                    'order_state': order_state.to_dict(),
-                    'current_goal': None,
-                    'last_active': firestore.SERVER_TIMESTAMP
-                })
-                logger.info(f"Initialized new conversation in Firestore for user {user_id}")
-            except Exception as e:
-                logger.error(f"Error initializing conversation in Firestore: {str(e)}")
+        # Save to Firestore using centralized method
+        self._save_to_firestore(user_id)
 
     def _is_conversation_timed_out(self, user_id: str) -> bool:
         """Check if the conversation has timed out."""
@@ -260,6 +208,43 @@ class ConversationManager:
         if user_id in self.conversations:
             logger.info(f"Resetting conversation for user {user_id} due to timeout")
             self._initialize_conversation(user_id)
+
+    def _save_to_firestore(self, user_id: str) -> None:
+        """Centralized method to save conversation state to Firestore."""
+        if not self.firebase_service:
+            return
+            
+        try:
+            # Get conversation data
+            conversation = self.conversations[user_id]
+            order_state = conversation['order_state']
+            messages = conversation.get('messages', [])
+            
+            # Get messages while respecting max_history
+            trimmed_messages = messages[-self.max_history:] if len(messages) > self.max_history else messages
+            
+            # Convert OrderState to dict using the single standardized method
+            order_dict = order_state.to_dict()
+            
+            # Log key data points for debugging
+            logger.debug(f"Saving order state to Firestore with quantities_collected={order_state.quantities_collected}")
+            
+            # Save to active_conversations collection
+            self.firebase_service.db.collection('active_conversations').document(user_id).set({
+                'order_state': order_dict,
+                'messages': trimmed_messages,
+                'current_goal': conversation.get('current_goal'),
+                'last_active': firestore.SERVER_TIMESTAMP
+            })
+            
+            # If order is complete, also save to designs collection
+            if order_state.is_complete():
+                self.firebase_service.db.collection('designs').document(user_id).set(order_dict)
+                logger.info(f"Saved completed order to designs collection for user {user_id}")
+                
+            logger.debug(f"Saved conversation to Firestore for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error saving to Firestore: {str(e)}", exc_info=True)
 
     def cleanup_old_conversations(self) -> None:
         """Remove timed-out conversations to free up memory and Firestore space."""

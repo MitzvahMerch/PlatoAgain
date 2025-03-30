@@ -209,21 +209,14 @@ def init_routes(app, plato_bot):
             if filename:
                 file_type = filename.split('.')[-1] if '.' in filename else None
         
-            # Call update_design with the logo information
+            # Pass the has_logo parameter directly to update_design
             order_state.update_design(
                 design_path=design_url,
                 filename=filename,
                 file_type=file_type,
-                side="front"  # Default to front
+                side="front",  # Default to front
+                has_logo=has_logo  # This is the key change - let OrderState handle logo count
             )
-        
-            # If has_logo is True, explicitly increment logo count (as a safety measure)
-            if has_logo and hasattr(order_state, 'logo_count'):
-                # We already increment in update_design, but we're making sure it happened
-                # If logo_count is still 0, set it to 1
-                if order_state.logo_count == 0:
-                    order_state.logo_count = 1
-                    logger.info(f"Explicitly set logo count to 1 for user {user_id}")
         
             # Update the order state in the conversation manager
             plato_bot.conversation_manager.update_order_state(user_id, order_state)
@@ -318,6 +311,7 @@ def init_routes(app, plato_bot):
                     "product_selected": order_data.get('product_selected', False),
                     "has_product_details": 'product_details' in order_data and order_data['product_details'] is not None,
                     "design_uploaded": order_data.get('design_uploaded', False),
+                    "quantities_collected": order_data.get('quantities_collected', False),
                     "message_count": len(data.get('messages', [])),
                     "last_active": str(data.get('last_active'))
                 }
