@@ -1,12 +1,13 @@
 import logging
 from flask import jsonify, request, send_from_directory, send_file
-from plato_bot import PlatoBot
+from plato_bot import PlatoBot  # Assumes PlatoBot encapsulates OrderState and other dependencies
 import asyncio
 from flask_cors import CORS  # Add CORS support
 import requests
 from io import BytesIO
 import os
 import base64
+from google.cloud import firestore  # Needed for firestore.SERVER_TIMESTAMP
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +18,15 @@ def init_routes(app, plato_bot):
     @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
         try:
-        # Split the path into directory and file components
+            # Split the path into directory and file components
             parts = filename.split('/')
             if len(parts) > 1:
-            # If there are subdirectories in the path
+                # If there are subdirectories in the path
                 subdir = parts[0]
                 file = '/'.join(parts[1:])
                 return send_from_directory(os.path.join('productimages', subdir), file)
             else:
-            # If the file is directly in productimages
+                # If the file is directly in productimages
                 return send_from_directory('productimages', filename)
         except Exception as e:
             logger.error(f"Error serving product image {filename}: {str(e)}")
@@ -95,20 +96,20 @@ def init_routes(app, plato_bot):
         
             # Parameters for automatic background removal
             params = {
-            'format': 'result',
-            'quality': 'high',
-            'scale': 'original',
-            'crop': 'false',
+                'format': 'result',
+                'quality': 'high',
+                'scale': 'original',
+                'crop': 'false',
             }
         
             logger.info(f"Calling Clipping Magic API with params: {params}")
         
             # Call the Clipping Magic API
             response = requests.post(
-            url,
-            headers=headers,
-            files=files,
-            params=params
+                url,
+                headers=headers,
+                files=files,
+                params=params
             )
         
             logger.info(f"Clipping Magic API response: {response.status_code} {response.reason}")
@@ -118,18 +119,18 @@ def init_routes(app, plato_bot):
                 return jsonify({'error': f'Clipping Magic API error: {response.text}'}), response.status_code
         
             logger.info("Successfully removed background with Clipping Magic")
-        # Return the processed image
+            # Return the processed image
             img_bytes = BytesIO(response.content)
             img_bytes.seek(0)
         
-        # Make sure to include CORS headers
-            response = send_file(img_bytes, mimetype='image/png')
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            return response
+            # Make sure to include CORS headers
+            resp = send_file(img_bytes, mimetype='image/png')
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+            return resp
         
         except Exception as e:
             logger.exception("Error in background removal")
-        return jsonify({'error': str(e)}), 500
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/chat/reset', methods=['POST'])
     def reset_conversation():
@@ -185,42 +186,43 @@ def init_routes(app, plato_bot):
         except Exception as e:
             logger.exception("Error getting product context")
             return jsonify({'error': str(e)}), 500
-        
+
     # In routes.py - update_design function
     @app.route('/update-design', methods=['POST'])
     def update_design():
         """Update design information using Firestore transaction for concurrency safety"""
         try:
             logger.info("-------------- DESIGN UPDATE START --------------")
-        # Log request information as before...
-        
-        # Extract required fields
+            # Log request information as before...
+            data = request.json
+
+            # Extract required fields
             user_id = data.get('user_id')
             design_url = data.get('design_url')
             filename = data.get('filename')
             has_logo = data.get('has_logo', False)
-        
+            
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
-        
-        # Use Firestore transaction to ensure atomic updates
+            
+            # Use Firestore transaction to ensure atomic updates
             @plato_bot.firebase_service.db.transaction()
             def update_in_transaction(transaction):
-            # Get latest doc from Firestore within transaction
+                # Get latest doc from Firestore within transaction
                 doc_ref = plato_bot.firebase_service.db.collection('active_conversations').document(user_id)
                 doc = doc_ref.get(transaction=transaction)
-            
+                
                 if not doc.exists:
-                # Initialize new conversation if not exists
+                    # Initialize new conversation if not exists
                     order_state = OrderState(user_id=user_id)
                 else:
-                # Convert Firestore data to OrderState
+                    # Convert Firestore data to OrderState
                     order_data = doc.to_dict().get('order_state', {})
                     order_state = OrderState.from_dict(order_data)
-            
-            # Log the state before updating
+                
+                # Log the state before updating
                 logger.info(f"Transaction: Current logo count before update: {order_state.logo_count}")
-            
-            # Update the design in the order state
+                
+                # Update the design in the order state
                 file_type = filename.split('.')[-1] if '.' in filename else None
                 order_state.update_design(
                     design_path=design_url,
@@ -228,43 +230,42 @@ def init_routes(app, plato_bot):
                     file_type=file_type,
                     side="front",
                     has_logo=has_logo
-            )
-            
-            # Log the updated state
+                )
+                
+                # Log the updated state
                 logger.info(f"Transaction: After update - logo_count: {order_state.logo_count}")
-            
-            # Prepare the updated data
+                
+                # Prepare the updated data
                 conversation_data = {
-                'order_state': order_state.to_dict(),
-                'last_active': firestore.SERVER_TIMESTAMP
+                    'order_state': order_state.to_dict(),
+                    'last_active': firestore.SERVER_TIMESTAMP
                 }
-            
-            # Update the document in Firestore
+                
+                # Update the document in Firestore
                 transaction.set(doc_ref, conversation_data, merge=True)
-            
-            # Return the updated state for our response
+                
+                # Return the updated state for our response
                 return order_state
-        
-        # Execute the transaction
+            
+            # Execute the transaction
             updated_state = update_in_transaction()
             
-        # Log final state after transaction
+            # Log final state after transaction
             logger.info(f"Transaction complete: logo_count={updated_state.logo_count}, designs={len(updated_state.designs)}")
-        
-        # Update the in-memory cache with the latest state
+            
+            # Update the in-memory cache with the latest state
             if user_id in plato_bot.conversation_manager.conversations:
                 plato_bot.conversation_manager.conversations[user_id]['order_state'] = updated_state
                 logger.info("Updated in-memory conversation with transaction result")
-        
+            
             logger.info("-------------- DESIGN UPDATE COMPLETE --------------")
             return jsonify({'success': True})
-        
+            
         except Exception as e:
-            logger.error(f"-------------- DESIGN UPDATE ERROR --------------")
+            logger.error("-------------- DESIGN UPDATE ERROR --------------")
             logger.error(f"Error updating design: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
-        
-    # Updated submit_order route
+
     @app.route('/submit-order', methods=['POST'])
     def submit_order():
         try:
@@ -276,14 +277,13 @@ def init_routes(app, plato_bot):
         
             logger.info(f"Processing order submission for user {user_id}")
     
-        # Get the order state
             # Get the order state - use the fresh method that bypasses caching
             order_state = plato_bot.get_fresh_order_state(user_id)
         
-        # IMPORTANT: Log the state immediately after loading to see if it's correct
+            # IMPORTANT: Log the state immediately after loading to see if it's correct
             logger.info(f"Initial order state from get_order_state: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
         
-        # Update customer info with form data
+            # Update customer info with form data
             name = data.get('name')
             address = data.get('address')
             email = data.get('email')
@@ -292,25 +292,25 @@ def init_routes(app, plato_bot):
             if not all([name, address, email]):
                 return jsonify({"error": "Missing required fields"}), 400
         
-        # Use your existing method to update customer info
+            # Use your existing method to update customer info
             order_state.update_customer_info(name, address, email, received_by_date)
         
-        # IMPORTANT: Log the state after customer info update
+            # IMPORTANT: Log the state after customer info update
             logger.info(f"After customer info update: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
         
-        # Update the order state in conversation manager
+            # Update the order state in conversation manager
             plato_bot.conversation_manager.update_order_state(user_id, order_state)
         
-        # Log the state after update_order_state
+            # Log the state after update_order_state
             logger.info(f"After update_order_state: design_uploaded={order_state.design_uploaded}, quantities_collected={order_state.quantities_collected}")
         
-        # Now handle the order, indicating this is a form submission
+            # Now handle the order, indicating this is a form submission
             response = plato_bot._handle_customer_information(user_id, "", order_state, form_submission=True)
     
             return jsonify(response)
     
         except Exception as e:
-            logger.error(f"Error in submit_order: {str(e)}", exc_info=True)
+            logger.error(f"Error in submit-order: {str(e)}", exc_info=True)
             return jsonify({
                 "error": "Server error",
                 "message": "An unexpected error occurred. Please try again."
@@ -354,8 +354,8 @@ def init_routes(app, plato_bot):
             logger.error(f"Error checking Firestore state: {str(e)}")
     
         return jsonify({
-        "in_memory": in_memory,
-        "memory_state": memory_state,
-        "in_firestore": firestore_state is not None,
-        "firestore_state": firestore_state
+            "in_memory": in_memory,
+            "memory_state": memory_state,
+            "in_firestore": firestore_state is not None,
+            "firestore_state": firestore_state
         })
