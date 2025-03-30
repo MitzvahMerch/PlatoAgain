@@ -190,34 +190,24 @@ def init_routes(app, plato_bot):
 
     @app.route('/update-design', methods=['POST'])
     def update_design():
-        """Update design information without using transactions, with logo count verification"""
+        """Update design information with explicit logo count tracking"""
         try:
-            logger.info("-------------- DESIGN UPDATE START --------------")
-            logger.info("Request method: %s", request.method)
-            logger.info("Content-Type: %s", request.headers.get('Content-Type'))
-            logger.info("Request size: %s bytes", request.content_length)
-            
-            # Parse JSON data safely
-            try:
-                data = request.json
-                if not data:
-                    return jsonify({'success': False, 'error': 'No data provided'}), 400
-            except Exception as json_error:
-                return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
-            
-            # Extract required fields
+            data = request.json
             user_id = data.get('user_id')
             design_url = data.get('design_url')
             filename = data.get('filename')
             has_logo = data.get('has_logo', False)
-            
+        
+            if not user_id or not design_url:
+                return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
+        
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
             
-            # Get reference to the document
+            # Get reference to the document for direct read/write access
             db = plato_bot.firebase_service.db
             doc_ref = db.collection('active_conversations').document(user_id)
             
-            # Get the latest document
+            # Get the latest document directly from Firestore
             doc_snapshot = doc_ref.get()
             
             # Process the document
@@ -230,10 +220,11 @@ def init_routes(app, plato_bot):
                 order_state_data = doc_data.get('order_state', {})
                 order_state = OrderState.from_dict(order_state_data)
             
-            # Log state before update
+            # Log state before update for debugging
             logger.info(f"Current logo count before update: {order_state.logo_count}")
+            logger.info(f"Current design count before update: {len(order_state.designs) if hasattr(order_state, 'designs') else 0}")
             
-            # Create a file type based on filename
+            # Add file type from filename
             file_type = filename.split('.')[-1] if '.' in filename else None
             
             # Update the design
@@ -245,42 +236,55 @@ def init_routes(app, plato_bot):
                 has_logo=has_logo
             )
             
-            # Log updated state after design update
-            logger.info(f"After update - logo_count: {order_state.logo_count}")
-            
-            # Double-check the logo count is correct
+            # Extra verification step to ensure logo count accuracy
             if hasattr(order_state, 'designs'):
                 logo_designs = sum(1 for design in order_state.designs if getattr(design, 'has_logo', True))
                 if order_state.logo_count != logo_designs:
                     logger.warning(f"Logo count mismatch detected: tracked={order_state.logo_count}, actual={logo_designs}. Fixing...")
                     order_state.logo_count = logo_designs
-                    logger.info(f"Corrected logo count: {order_state.logo_count}")
             
-            # Prepare updated data with Firestore server timestamp
+            # Log updated state for debugging
+            logger.info(f"After update and verification - logo_count: {order_state.logo_count}")
+            logger.info(f"Design count after update: {len(order_state.designs) if hasattr(order_state, 'designs') else 0}")
+            
+            # Prepare updated data with Firestore SERVER_TIMESTAMP
             updated_data = {
                 'order_state': order_state.to_dict(),
                 'last_active': firestore.SERVER_TIMESTAMP
             }
             
-            # Update the document
+            # IMPORTANT: Save the corrected state back to Firestore
             doc_ref.set(updated_data, merge=True)
             
-            # Update the in-memory cache if applicable
+            # IMPORTANT: Also update the in-memory conversation cache
             if hasattr(plato_bot.conversation_manager, 'conversations') and user_id in plato_bot.conversation_manager.conversations:
                 plato_bot.conversation_manager.conversations[user_id]['order_state'] = order_state
-                logger.info(f"Updated in-memory conversation with result (logo_count={order_state.logo_count})")
+                logger.info(f"Updated in-memory conversation cache (logo_count={order_state.logo_count})")
             
-            # One final log to confirm everything
-            logger.info(f"Update complete: logo_count={order_state.logo_count}, designs={len(order_state.designs)}")
-            logger.info("-------------- DESIGN UPDATE COMPLETE --------------")
+            # Add a fix to the plato_bot._handle_quantity_collection method
+            # We need to patch it to double-check logo count before calculating prices
+            if hasattr(plato_bot, '_handle_quantity_collection'):
+                original_method = plato_bot._handle_quantity_collection
+                
+                def fixed_quantity_handler(user_id, message, order_state):
+                    # Force logo count verification before processing
+                    if hasattr(order_state, 'designs'):
+                        logo_designs = sum(1 for design in order_state.designs if getattr(design, 'has_logo', True))
+                        if order_state.logo_count != logo_designs:
+                            logger.warning(f"Quantity handler: Logo count mismatch detected: tracked={order_state.logo_count}, actual={logo_designs}. Fixing...")
+                            order_state.logo_count = logo_designs
+                    
+                    # Call the original method with corrected state
+                    return original_method(user_id, message, order_state)
+                
+                # Replace the method with our fixed version
+                plato_bot._handle_quantity_collection = fixed_quantity_handler
+                logger.info("Applied quantity collection handler patch for logo count verification")
             
             return jsonify({'success': True})
             
         except Exception as e:
-            logger.error("-------------- DESIGN UPDATE ERROR --------------")
             logger.error(f"Error updating design: {str(e)}", exc_info=True)
-            logger.error(f"Request data: {request.get_data()}")
-            logger.error("-------------- DESIGN UPDATE ERROR END --------------")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/submit-order', methods=['POST'])
