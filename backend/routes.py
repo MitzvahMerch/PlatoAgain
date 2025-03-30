@@ -5,9 +5,12 @@ import asyncio
 from flask_cors import CORS  # Add CORS support
 import requests
 from io import BytesIO
+from order_state import OrderState
 import os
 import base64
 from google.cloud import firestore  # Needed for SERVER_TIMESTAMP
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -223,12 +226,12 @@ def init_routes(app, plato_bot):
                 # Process the document
                 if not doc_snapshot.exists:
                     # Initialize new conversation if document does not exist
-                    order_state = order_state(user_id=user_id)
+                    order_state = OrderState(user_id=user_id)
                 else:
                     # Get existing data and convert to OrderState
                     doc_data = doc_snapshot.to_dict()
                     order_state_data = doc_data.get('order_state', {})
-                    order_state = order_state.from_dict(order_state_data)
+                    order_state = OrderState.from_dict(order_state_data)
                 
                 # Log state before update
                 logger.info(f"Transaction: Current logo count before update: {order_state.logo_count}")
