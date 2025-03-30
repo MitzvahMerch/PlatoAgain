@@ -1042,42 +1042,33 @@ class PlatoBot:
     def _handle_design_placement(self, user_id: str, message: str, order_state) -> dict:
         """Handle design placement conversation flow."""
         logger.info(f"Handling design placement for user {user_id}: {message}")
-        
+    
         message_lower = message.lower()
-        
-        # Check for the exact system-generated message
+    
+    # Check for the exact system-generated message
         if "i'd like to share this design with you" in message_lower:
             logger.info(f"Detected design placement confirmation from user {user_id}")
-            
-            # Mark design as uploaded
+        
+        # Mark design as uploaded
             order_state.design_uploaded = True
             logger.info(f"Set design_uploaded=True for user {user_id}")
-            
-            # Determine which design this is (initial or additional)
+        
+        # Determine which design this is (initial or additional)
             design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
-            
-            # Save the updated state
+        
+        # Save the updated state
             self.conversation_manager.update_order_state(user_id, order_state)
-            
+        
             logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}")
-        
+    
         context = self._prepare_context(order_state)
-        
+    
         response = self.claude.call_api([
-            {"role": "system", "content": prompts.DESIGN_PLACEMENT_PROMPT.format(**context)},
-            {"role": "user", "content": message}
+        {"role": "system", "content": prompts.DESIGN_PLACEMENT_PROMPT.format(**context)},
+        {"role": "user", "content": message}
         ], temperature=0.7)
         response_text = utils.clean_response(response)
-        
-        if order_state.design_path and order_state.product_details:
-            category = order_state.product_category or "T-Shirt"
-            design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
-            
-            if design_count > 0:
-                response_text += f"\n\nYou can adjust your design's position and size on the {category} using the placement tool. Once you're happy with the placement, save it and let me know."
-            else:
-                response_text += f"\n\nYou can adjust your design's position and size on the {category} using the placement tool. Once you're happy with the placement, save it and let me know."
-        
+    
         return {
             "text": response_text,
             "images": []
