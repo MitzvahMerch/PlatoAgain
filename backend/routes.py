@@ -190,26 +190,50 @@ def init_routes(app, plato_bot):
     def update_design():
         """Update design information including explicit logo tracking"""
         try:
+            logger.info("-------------- DESIGN UPDATE START --------------")
+            # Log request information
+            logger.info(f"Request method: {request.method}")
+            logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+            logger.info(f"Request size: {request.content_length} bytes")
+            
+            # Log raw request data for debugging
+            raw_data = request.get_data()
+            logger.info(f"Raw request data length: {len(raw_data)} bytes")
+            
+            # Parse JSON data
             data = request.json
+            logger.info(f"Parsed JSON data: {data}")
+            
+            # Extract required fields
             user_id = data.get('user_id')
             design_url = data.get('design_url')
             filename = data.get('filename')
             has_logo = data.get('has_logo', False)  # Default to False if not provided
-        
+            
+            logger.info(f"Extracted fields - user_id: {user_id}, filename: {filename}, has_logo: {has_logo}")
+            logger.info(f"Design URL length: {len(design_url) if design_url else 0} chars")
+            
+            # Validate required parameters
             if not user_id or not design_url:
+                logger.error(f"Missing required parameters - user_id: {bool(user_id)}, design_url: {bool(design_url)}")
                 return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
-        
+            
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
-        
+            
             # Get the current order state
+            logger.info(f"Getting fresh order state for user {user_id}")
             order_state = plato_bot.get_fresh_order_state(user_id)
-        
+            logger.info(f"Current logo count before update: {getattr(order_state, 'logo_count', 0)}")
+            logger.info(f"Current design count before update: {len(getattr(order_state, 'designs', []))}")
+            
             # Update the design in the order state
             file_type = None
             if filename:
                 file_type = filename.split('.')[-1] if '.' in filename else None
-        
+                logger.info(f"Determined file_type: {file_type}")
+            
             # Pass the has_logo parameter directly to update_design
+            logger.info(f"Calling update_design with params - design_path: (URL), filename: {filename}, file_type: {file_type}, side: front, has_logo: {has_logo}")
             order_state.update_design(
                 design_path=design_url,
                 filename=filename,
@@ -217,16 +241,31 @@ def init_routes(app, plato_bot):
                 side="front",  # Default to front
                 has_logo=has_logo  # This is the key change - let OrderState handle logo count
             )
-        
+            
+            # Log updated state
+            logger.info(f"After update_design - logo_count: {getattr(order_state, 'logo_count', 0)}")
+            logger.info(f"After update_design - design count: {len(getattr(order_state, 'designs', []))}")
+            
             # Update the order state in the conversation manager
+            logger.info(f"Calling update_order_state for user {user_id}")
             plato_bot.conversation_manager.update_order_state(user_id, order_state)
-        
+            
+            # Final verification
+            logger.info(f"Verifying order state after update")
+            current_state = plato_bot.get_fresh_order_state(user_id)
+            logger.info(f"Verified logo count: {getattr(current_state, 'logo_count', 0)}")
+            logger.info(f"Verified design count: {len(getattr(current_state, 'designs', []))}")
+            
             logger.info(f"Updated design and logo information for user {user_id}, logo_count={getattr(order_state, 'logo_count', 0)}")
-        
+            logger.info("-------------- DESIGN UPDATE COMPLETE --------------")
+            
             return jsonify({'success': True})
-    
+        
         except Exception as e:
+            logger.error(f"-------------- DESIGN UPDATE ERROR --------------")
             logger.error(f"Error updating design: {str(e)}", exc_info=True)
+            logger.error(f"Request data: {request.get_data()}")
+            logger.error(f"-------------- DESIGN UPDATE ERROR END --------------")
             return jsonify({'success': False, 'error': str(e)}), 500
         
     # Updated submit_order route
