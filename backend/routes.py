@@ -186,86 +186,82 @@ def init_routes(app, plato_bot):
             logger.exception("Error getting product context")
             return jsonify({'error': str(e)}), 500
         
+    # In routes.py - update_design function
     @app.route('/update-design', methods=['POST'])
     def update_design():
-        """Update design information including explicit logo tracking"""
+        """Update design information using Firestore transaction for concurrency safety"""
         try:
             logger.info("-------------- DESIGN UPDATE START --------------")
-            # Log request information
-            logger.info(f"Request method: {request.method}")
-            logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-            logger.info(f"Request size: {request.content_length} bytes")
-            
-            # Log raw request data for debugging
-            raw_data = request.get_data()
-            logger.info(f"Raw request data length: {len(raw_data)} bytes")
-            
-            # Parse JSON data
-            data = request.json
-            logger.info(f"Parsed JSON data: {data}")
-            
-            # Extract required fields
+        # Log request information as before...
+        
+        # Extract required fields
             user_id = data.get('user_id')
             design_url = data.get('design_url')
             filename = data.get('filename')
-            has_logo = data.get('has_logo', False)  # Default to False if not provided
-            
-            logger.info(f"Extracted fields - user_id: {user_id}, filename: {filename}, has_logo: {has_logo}")
-            logger.info(f"Design URL length: {len(design_url) if design_url else 0} chars")
-            
-            # Validate required parameters
-            if not user_id or not design_url:
-                logger.error(f"Missing required parameters - user_id: {bool(user_id)}, design_url: {bool(design_url)}")
-                return jsonify({'success': False, 'error': 'Missing required parameters'}), 400
-            
+            has_logo = data.get('has_logo', False)
+        
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
+        
+        # Use Firestore transaction to ensure atomic updates
+            @plato_bot.firebase_service.db.transaction()
+            def update_in_transaction(transaction):
+            # Get latest doc from Firestore within transaction
+                doc_ref = plato_bot.firebase_service.db.collection('active_conversations').document(user_id)
+                doc = doc_ref.get(transaction=transaction)
             
-            # Get the current order state
-            logger.info(f"Getting fresh order state for user {user_id}")
-            order_state = plato_bot.get_fresh_order_state(user_id)
-            logger.info(f"Current logo count before update: {getattr(order_state, 'logo_count', 0)}")
-            logger.info(f"Current design count before update: {len(getattr(order_state, 'designs', []))}")
+                if not doc.exists:
+                # Initialize new conversation if not exists
+                    order_state = OrderState(user_id=user_id)
+                else:
+                # Convert Firestore data to OrderState
+                    order_data = doc.to_dict().get('order_state', {})
+                    order_state = OrderState.from_dict(order_data)
+            
+            # Log the state before updating
+                logger.info(f"Transaction: Current logo count before update: {order_state.logo_count}")
             
             # Update the design in the order state
-            file_type = None
-            if filename:
                 file_type = filename.split('.')[-1] if '.' in filename else None
-                logger.info(f"Determined file_type: {file_type}")
-            
-            # Pass the has_logo parameter directly to update_design
-            logger.info(f"Calling update_design with params - design_path: (URL), filename: {filename}, file_type: {file_type}, side: front, has_logo: {has_logo}")
-            order_state.update_design(
-                design_path=design_url,
-                filename=filename,
-                file_type=file_type,
-                side="front",  # Default to front
-                has_logo=has_logo  # This is the key change - let OrderState handle logo count
+                order_state.update_design(
+                    design_path=design_url,
+                    filename=filename,
+                    file_type=file_type,
+                    side="front",
+                    has_logo=has_logo
             )
             
-            # Log updated state
-            logger.info(f"After update_design - logo_count: {getattr(order_state, 'logo_count', 0)}")
-            logger.info(f"After update_design - design count: {len(getattr(order_state, 'designs', []))}")
+            # Log the updated state
+                logger.info(f"Transaction: After update - logo_count: {order_state.logo_count}")
             
-            # Update the order state in the conversation manager
-            logger.info(f"Calling update_order_state for user {user_id}")
-            plato_bot.conversation_manager.update_order_state(user_id, order_state)
+            # Prepare the updated data
+                conversation_data = {
+                'order_state': order_state.to_dict(),
+                'last_active': firestore.SERVER_TIMESTAMP
+                }
             
-            # Final verification
-            logger.info(f"Verifying order state after update")
-            current_state = plato_bot.get_fresh_order_state(user_id)
-            logger.info(f"Verified logo count: {getattr(current_state, 'logo_count', 0)}")
-            logger.info(f"Verified design count: {len(getattr(current_state, 'designs', []))}")
+            # Update the document in Firestore
+                transaction.set(doc_ref, conversation_data, merge=True)
             
-            logger.info(f"Updated design and logo information for user {user_id}, logo_count={getattr(order_state, 'logo_count', 0)}")
+            # Return the updated state for our response
+                return order_state
+        
+        # Execute the transaction
+            updated_state = update_in_transaction()
+            
+        # Log final state after transaction
+            logger.info(f"Transaction complete: logo_count={updated_state.logo_count}, designs={len(updated_state.designs)}")
+        
+        # Update the in-memory cache with the latest state
+            if user_id in plato_bot.conversation_manager.conversations:
+                plato_bot.conversation_manager.conversations[user_id]['order_state'] = updated_state
+                logger.info("Updated in-memory conversation with transaction result")
+        
             logger.info("-------------- DESIGN UPDATE COMPLETE --------------")
-            
             return jsonify({'success': True})
         
         except Exception as e:
             logger.error(f"-------------- DESIGN UPDATE ERROR --------------")
             logger.error(f"Error updating design: {str(e)}", exc_info=True)
-            logger.error(f"Request data: {request.get_data()}")
-            logger.error(f"-------------- DESIGN UPDATE ERROR END --------------")
             return jsonify({'success': False, 'error': str(e)}), 500
         
     # Updated submit_order route
