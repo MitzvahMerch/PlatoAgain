@@ -92,11 +92,16 @@ class OrderState:
     last_style_number: Optional[str] = None
     
     def update_product(self, details: Dict):
-        """Update product selection details"""
+        """Update product selection details while preserving design information"""
+        # Store the current values to log them for debugging
+        previous_design_count = len(self.designs) if hasattr(self, 'designs') else 0
+        previous_logo_count = self.logo_count if hasattr(self, 'logo_count') else 0
+    
+    # Update product details
         self.product_selected = True
         self.product_details = details
-        
-        # Save the product category if provided
+    
+    # Save the product category if provided
         if 'category' in details:
             self.product_category = details['category']
         if 'youth_sizes' in details:
@@ -106,6 +111,16 @@ class OrderState:
         if 'price' in details:
             self.price_per_item = float(details['price'].replace('$', ''))
     
+    # Explicitly verify design information is intact after product update
+        current_design_count = len(self.designs) if hasattr(self, 'designs') else 0
+        current_logo_count = self.logo_count if hasattr(self, 'logo_count') else 0
+    
+    # Log whether design information was preserved
+        logger.info(f"Product updated: designs {previous_design_count}->{current_design_count}, logos {previous_logo_count}->{current_logo_count}")
+    
+    # If quantities are already collected, update the total price with the new product price
+        if self.quantities_collected and self.total_quantity > 0:
+            self.update_total_price()
     def update_original_intent(self, category: Optional[str] = None, general_color: Optional[str] = None):
         """Store or update the original user intent for product selection"""
         logger.info(f"Updating original intent: category='{category}', general_color='{general_color}'")
@@ -162,33 +177,42 @@ class OrderState:
     
     def update_total_price(self):
         """Calculate total price including base price, logo charges, and express shipping charges"""
-        # Verify logo count matches the number of designs with has_logo=True
+    # Verify logo count matches the number of designs with has_logo=True
         logo_designs = sum(1 for design in self.designs if getattr(design, 'has_logo', True))
-        
+    
         if self.logo_count != logo_designs:
             logger.warning(f"Logo count mismatch: tracked={self.logo_count}, actual={logo_designs}. Correcting...")
+        # Log each design to identify the problem
+            for i, design in enumerate(self.designs):
+                logger.warning(f"Design {i}: has_logo={getattr(design, 'has_logo', True)}")
+        
             self.logo_count = logo_designs
-        
-        # Calculate base product price
+    
+        old_total_price = self.total_price
+    
+    # Calculate base product price
         base_price = self.total_quantity * self.price_per_item
-        
-        # Calculate logo charges: $1.50 per logo PER ITEM
+    
+    # Calculate logo charges: $1.50 per logo PER ITEM
         logo_charges = self.total_quantity * self.logo_count * self.logo_charge_per_item
-        
-        # Calculate subtotal (before express shipping)
+    
+        logger.info(f"Calculating logo charges: {self.total_quantity} items × {self.logo_count} logos × ${self.logo_charge_per_item} = ${logo_charges:.2f}")
+    
+    # Calculate subtotal (before express shipping)
         subtotal = base_price + logo_charges
-        
-        # Apply express shipping percentage if applicable
+    
+    # Apply express shipping percentage if applicable
         if self.express_shipping_percentage > 0:
             self.express_shipping_charge = subtotal * (self.express_shipping_percentage / 100)
             logger.info(f"Applied {self.express_shipping_percentage}% express shipping charge: ${self.express_shipping_charge:.2f}")
         else:
             self.express_shipping_charge = 0
-            
-        # Calculate final total price
-        self.total_price = subtotal + self.express_shipping_charge
         
-        logger.info(f"Updated total price: ${self.total_price:.2f} (base: ${base_price:.2f}, logo charges: ${logo_charges:.2f}, express shipping: ${self.express_shipping_charge:.2f})")
+    # Calculate final total price
+        self.total_price = subtotal + self.express_shipping_charge
+    
+        logger.info(f"Updated total price from ${old_total_price:.2f} to ${self.total_price:.2f}")
+        logger.info(f"Price breakdown: base=${base_price:.2f}, logo charges=${logo_charges:.2f} ({self.logo_count} logos × {self.total_quantity} items × ${self.logo_charge_per_item}), express shipping=${self.express_shipping_charge:.2f}")
     
     def update_placement(self, placement: str, preview_url: Optional[str] = None, design_index: int = -1):
         """Update design placement and preview for a specific design"""
