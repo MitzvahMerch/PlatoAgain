@@ -1,13 +1,13 @@
 import logging
 from flask import jsonify, request, send_from_directory, send_file
-from plato_bot import PlatoBot  # Assumes PlatoBot encapsulates OrderState and other dependencies
+from plato_bot import PlatoBot
 import asyncio
 from flask_cors import CORS  # Add CORS support
 import requests
 from io import BytesIO
 import os
 import base64
-from google.cloud import firestore  # Needed for firestore.SERVER_TIMESTAMP
+from google.cloud import firestore  # Needed for SERVER_TIMESTAMP
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def init_routes(app, plato_bot):
             }
         
             # Log the headers (without the actual auth value for security)
-            logger.info(f"Using Authorization header: Basic ***")
+            logger.info("Using Authorization header: Basic ***")
         
             files = {
                 'image': (image_file.filename, image_data, image_file.content_type)
@@ -124,9 +124,9 @@ def init_routes(app, plato_bot):
             img_bytes.seek(0)
         
             # Make sure to include CORS headers
-            resp = send_file(img_bytes, mimetype='image/png')
-            resp.headers['Access-Control-Allow-Origin'] = '*'
-            return resp
+            response_file = send_file(img_bytes, mimetype='image/png')
+            response_file.headers['Access-Control-Allow-Origin'] = '*'
+            return response_file
         
         except Exception as e:
             logger.exception("Error in background removal")
@@ -187,15 +187,23 @@ def init_routes(app, plato_bot):
             logger.exception("Error getting product context")
             return jsonify({'error': str(e)}), 500
 
-    # In routes.py - update_design function
     @app.route('/update-design', methods=['POST'])
     def update_design():
         """Update design information using Firestore transaction for concurrency safety"""
         try:
             logger.info("-------------- DESIGN UPDATE START --------------")
-            # Log request information as before...
-            data = request.json
-
+            logger.info("Request method: %s", request.method)
+            logger.info("Content-Type: %s", request.headers.get('Content-Type'))
+            logger.info("Request size: %s bytes", request.content_length)
+            
+            # Parse JSON data safely
+            try:
+                data = request.json
+                if not data:
+                    return jsonify({'success': False, 'error': 'No data provided'}), 400
+            except Exception as json_error:
+                return jsonify({'success': False, 'error': 'Invalid JSON data'}), 400
+            
             # Extract required fields
             user_id = data.get('user_id')
             design_url = data.get('design_url')
@@ -204,25 +212,28 @@ def init_routes(app, plato_bot):
             
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
             
-            # Use Firestore transaction to ensure atomic updates
-            @plato_bot.firebase_service.db.transaction()
+            # Define transaction function properly
             def update_in_transaction(transaction):
-                # Get latest doc from Firestore within transaction
+                # Get reference to the document
                 doc_ref = plato_bot.firebase_service.db.collection('active_conversations').document(user_id)
-                doc = doc_ref.get(transaction=transaction)
                 
-                if not doc.exists:
-                    # Initialize new conversation if not exists
-                    order_state = OrderState(user_id=user_id)
+                # Get the document within the transaction
+                doc_snapshot = doc_ref.get(transaction=transaction)
+                
+                # Process the document
+                if not doc_snapshot.exists:
+                    # Initialize new conversation if document does not exist
+                    order_state = order_state(user_id=user_id)
                 else:
-                    # Convert Firestore data to OrderState
-                    order_data = doc.to_dict().get('order_state', {})
-                    order_state = OrderState.from_dict(order_data)
+                    # Get existing data and convert to OrderState
+                    doc_data = doc_snapshot.to_dict()
+                    order_state_data = doc_data.get('order_state', {})
+                    order_state = order_state.from_dict(order_state_data)
                 
-                # Log the state before updating
+                # Log state before update
                 logger.info(f"Transaction: Current logo count before update: {order_state.logo_count}")
                 
-                # Update the design in the order state
+                # Update the design
                 file_type = filename.split('.')[-1] if '.' in filename else None
                 order_state.update_design(
                     design_path=design_url,
@@ -232,38 +243,39 @@ def init_routes(app, plato_bot):
                     has_logo=has_logo
                 )
                 
-                # Log the updated state
+                # Log updated state
                 logger.info(f"Transaction: After update - logo_count: {order_state.logo_count}")
                 
-                # Prepare the updated data
-                conversation_data = {
+                # Prepare updated data with Firestore server timestamp for last_active
+                updated_data = {
                     'order_state': order_state.to_dict(),
                     'last_active': firestore.SERVER_TIMESTAMP
                 }
                 
-                # Update the document in Firestore
-                transaction.set(doc_ref, conversation_data, merge=True)
+                # Update the document within the transaction
+                transaction.set(doc_ref, updated_data, merge=True)
                 
-                # Return the updated state for our response
                 return order_state
             
             # Execute the transaction
-            updated_state = update_in_transaction()
+            db = plato_bot.firebase_service.db
+            updated_state = db.transaction(update_in_transaction)
             
-            # Log final state after transaction
-            logger.info(f"Transaction complete: logo_count={updated_state.logo_count}, designs={len(updated_state.designs)}")
-            
-            # Update the in-memory cache with the latest state
-            if user_id in plato_bot.conversation_manager.conversations:
+            # Update the in-memory cache if applicable
+            if hasattr(plato_bot.conversation_manager, 'conversations') and user_id in plato_bot.conversation_manager.conversations:
                 plato_bot.conversation_manager.conversations[user_id]['order_state'] = updated_state
                 logger.info("Updated in-memory conversation with transaction result")
             
+            logger.info(f"Transaction complete: logo_count={updated_state.logo_count}, designs={len(updated_state.designs)}")
             logger.info("-------------- DESIGN UPDATE COMPLETE --------------")
+            
             return jsonify({'success': True})
             
         except Exception as e:
             logger.error("-------------- DESIGN UPDATE ERROR --------------")
             logger.error(f"Error updating design: {str(e)}", exc_info=True)
+            logger.error(f"Request data: {request.get_data()}")
+            logger.error("-------------- DESIGN UPDATE ERROR END --------------")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/submit-order', methods=['POST'])
@@ -310,7 +322,7 @@ def init_routes(app, plato_bot):
             return jsonify(response)
     
         except Exception as e:
-            logger.error(f"Error in submit-order: {str(e)}", exc_info=True)
+            logger.error(f"Error in submit_order: {str(e)}", exc_info=True)
             return jsonify({
                 "error": "Server error",
                 "message": "An unexpected error occurred. Please try again."
