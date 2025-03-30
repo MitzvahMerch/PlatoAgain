@@ -85,8 +85,8 @@ class PlatoBot:
         # Check for "I'd like to share this design with you" message which indicates design upload
         if "I'd like to share this design with you" in message:
             logger.info(f"Detected design share confirmation message from user {user_id}")
-            
-            # Update order state flags
+            # If the message contains this text but no design_url was provided,
+            # the design might have been uploaded in a previous message
             if order_state.design_path and not order_state.design_uploaded:
                 logger.info(f"Setting design_uploaded=True for user {user_id} based on confirmation message")
                 order_state.design_uploaded = True
@@ -98,17 +98,6 @@ class PlatoBot:
                 self.conversation_manager.update_order_state(user_id, order_state)
                 design_count = len(order_state.designs) if hasattr(order_state, 'designs') else 0
                 logger.info(f"Updated order state after design confirmation - design_uploaded: {order_state.design_uploaded}, placement_selected: {order_state.placement_selected}, design_count: {design_count}")
-            
-            # CRITICAL CHANGE: Force transition to quantity_collection when receiving design confirmation
-            if order_state.product_selected:
-                logger.info(f"OVERRIDING GOAL: Forcing transition to quantity_collection after design confirmation")
-                # Skip the goal identification and directly use quantity_collection handler
-                self.conversation_manager.add_message(user_id, "user", message, "quantity_collection")
-                response = self._handle_quantity_collection(user_id, message, order_state)
-                self.conversation_manager.add_message(
-                    user_id, "assistant", response["text"], "quantity_collection"
-                )
-                return response
 
         # STEP 1: Intent Classification - Use a structured prompt to get ONLY the category
         intent_messages = [
