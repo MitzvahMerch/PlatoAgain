@@ -10,8 +10,6 @@ import os
 import base64
 from google.cloud import firestore  # Needed for SERVER_TIMESTAMP
 
-
-
 logger = logging.getLogger(__name__)
 
 def init_routes(app, plato_bot):
@@ -192,7 +190,7 @@ def init_routes(app, plato_bot):
 
     @app.route('/update-design', methods=['POST'])
     def update_design():
-        """Update design information using Firestore transaction for concurrency safety"""
+        """Update design information without using transactions, with logo count verification"""
         try:
             logger.info("-------------- DESIGN UPDATE START --------------")
             logger.info("Request method: %s", request.method)
@@ -215,63 +213,65 @@ def init_routes(app, plato_bot):
             
             logger.info(f"Updating design for user {user_id}, has_logo={has_logo}")
             
-            # Define transaction function properly
-            def update_in_transaction(transaction):
-                # Get reference to the document
-                doc_ref = plato_bot.firebase_service.db.collection('active_conversations').document(user_id)
-                
-                # Get the document within the transaction
-                doc_snapshot = doc_ref.get(transaction=transaction)
-                
-                # Process the document
-                if not doc_snapshot.exists:
-                    # Initialize new conversation if document does not exist
-                    order_state = OrderState(user_id=user_id)
-                else:
-                    # Get existing data and convert to OrderState
-                    doc_data = doc_snapshot.to_dict()
-                    order_state_data = doc_data.get('order_state', {})
-                    order_state = OrderState.from_dict(order_state_data)
-                
-                # Log state before update
-                logger.info(f"Transaction: Current logo count before update: {order_state.logo_count}")
-                
-                # Update the design
-                file_type = filename.split('.')[-1] if '.' in filename else None
-                order_state.update_design(
-                    design_path=design_url,
-                    filename=filename,
-                    file_type=file_type,
-                    side="front",
-                    has_logo=has_logo
-                )
-                
-                # Log updated state
-                logger.info(f"Transaction: After update - logo_count: {order_state.logo_count}")
-                
-                # Prepare updated data with Firestore server timestamp for last_active
-                updated_data = {
-                    'order_state': order_state.to_dict(),
-                    'last_active': firestore.SERVER_TIMESTAMP
-                }
-                
-                # Update the document within the transaction
-                transaction.set(doc_ref, updated_data, merge=True)
-                
-                return order_state
-            
-            # Execute the transaction
+            # Get reference to the document
             db = plato_bot.firebase_service.db
-            transaction = db.transaction()  # Create a transaction object
-            updated_state = update_in_transaction(transaction)  # Pass the transaction to your function
-        
+            doc_ref = db.collection('active_conversations').document(user_id)
+            
+            # Get the latest document
+            doc_snapshot = doc_ref.get()
+            
+            # Process the document
+            if not doc_snapshot.exists:
+                # Initialize new conversation if document does not exist
+                order_state = OrderState(user_id=user_id)
+            else:
+                # Get existing data and convert to OrderState
+                doc_data = doc_snapshot.to_dict()
+                order_state_data = doc_data.get('order_state', {})
+                order_state = OrderState.from_dict(order_state_data)
+            
+            # Log state before update
+            logger.info(f"Current logo count before update: {order_state.logo_count}")
+            
+            # Create a file type based on filename
+            file_type = filename.split('.')[-1] if '.' in filename else None
+            
+            # Update the design
+            order_state.update_design(
+                design_path=design_url,
+                filename=filename,
+                file_type=file_type,
+                side="front",
+                has_logo=has_logo
+            )
+            
+            # Log updated state after design update
+            logger.info(f"After update - logo_count: {order_state.logo_count}")
+            
+            # Double-check the logo count is correct
+            if hasattr(order_state, 'designs'):
+                logo_designs = sum(1 for design in order_state.designs if getattr(design, 'has_logo', True))
+                if order_state.logo_count != logo_designs:
+                    logger.warning(f"Logo count mismatch detected: tracked={order_state.logo_count}, actual={logo_designs}. Fixing...")
+                    order_state.logo_count = logo_designs
+                    logger.info(f"Corrected logo count: {order_state.logo_count}")
+            
+            # Prepare updated data with Firestore server timestamp
+            updated_data = {
+                'order_state': order_state.to_dict(),
+                'last_active': firestore.SERVER_TIMESTAMP
+            }
+            
+            # Update the document
+            doc_ref.set(updated_data, merge=True)
             
             # Update the in-memory cache if applicable
             if hasattr(plato_bot.conversation_manager, 'conversations') and user_id in plato_bot.conversation_manager.conversations:
-                plato_bot.conversation_manager.conversations[user_id]['order_state'] = updated_state
-                logger.info("Updated in-memory conversation with transaction result")
+                plato_bot.conversation_manager.conversations[user_id]['order_state'] = order_state
+                logger.info(f"Updated in-memory conversation with result (logo_count={order_state.logo_count})")
             
-            logger.info(f"Transaction complete: logo_count={updated_state.logo_count}, designs={len(updated_state.designs)}")
+            # One final log to confirm everything
+            logger.info(f"Update complete: logo_count={order_state.logo_count}, designs={len(order_state.designs)}")
             logger.info("-------------- DESIGN UPDATE COMPLETE --------------")
             
             return jsonify({'success': True})
