@@ -14,22 +14,13 @@ Determine which stage this message most relates to by matching it to one of thes
    - Focus: matching needs to products, pricing discussions
 
 2. design_placement
-   - Customer discussing logo placement or design details
-   - Questions about design files or artwork location
-   - Examples: where to put logo, front or back printing, design size
-   - Focus: placement options (front left chest, full front, full back, half front)
+   - Receive the message "I'd like to share this design with you"
+   - Don't select this if it dosen't follow the instance above
 
 3. quantity_collection
-   - Customer discussing order sizes or amounts
-   - Questions about minimum quantities or bulk pricing
-   - Examples: how many shirts, need specific sizes, quantity breakdowns
-   - Focus: size distributions, order minimums, total calculations
+   - Receiving Size Inputs in the Format "x "X"" Where x = a quanity and "X" Equals a Size. For example "30 L", or "10 M, 10 L, 10 XL"
+   - Don't select this if it dosen't follow the instance above
 
-4. customer_information
-   - Customer ready to provide order details or checkout
-   - Discussion of shipping, payment, or contact info
-   - Examples: ready to order, shipping address, payment method
-   - Focus: collecting name, address, email for invoice
 
 Consider:
 - The full meaning and context of the message
@@ -42,9 +33,8 @@ Consider:
 
 Output ONLY ONE of these four stage names with no additional text:
 - product_selection
-- design_placement
 - quantity_collection
-- customer_information
+- design_placement
 """
 
 
