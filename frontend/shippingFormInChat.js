@@ -3,6 +3,9 @@
 
 const createShippingForm = () => {
     console.log('Initializing in-chat shipping form...');
+    // Add these variables to track address validation
+    let validAddresses = [];
+    let hasValidAddress = false;
 
     // Add the CSS styles for the shipping form
     const addStyles = () => {
@@ -237,15 +240,15 @@ const createShippingForm = () => {
                 color: rgba(255, 255, 255, 0.6);
             }
             
-            .shipping-form-container.submitted .shipping-form-submit 
+            .shipping-form-container.submitted .shipping-form-submit {
                 background-color: #4CAF50;
             }
         `;
         document.head.appendChild(styleElement);
     };
 
-    // Create the form elements
-    const createShippingForm = (orderDetails) => {
+    // Create the form elements (renamed from createShippingForm for clarity)
+    const createShippingFormElements = (orderDetails) => {
         console.log('Creating shipping form with order details:', orderDetails);
         
         const container = document.createElement('div');
@@ -337,53 +340,56 @@ const createShippingForm = () => {
         return { container, form };
     };
     
-    // Add this new function to check the form validity and manage chat permissions
+    // 3. Replace the setupFormValidation function with an updated version
     function setupFormValidation(form) {
-        // Get all required inputs
-        const requiredInputs = form.querySelectorAll('input[required]');
-        
-        // Initial validity check
-        checkFormValidity();
-        
-        // Add event listeners to all required fields
-        requiredInputs.forEach(input => {
-            input.addEventListener('input', checkFormValidity);
-            input.addEventListener('change', checkFormValidity);
-        });
-        
-        // Function to check the overall form validity
-        function checkFormValidity() {
-            let isValid = true;
-            
-            // Check each required input
-            requiredInputs.forEach(input => {
-                if (!input.value.trim()) {
-                    isValid = false;
-                }
-            });
-            
-            // Get the submit button
-            const submitBtn = form.querySelector('.shipping-form-submit');
-            
-            // If form is valid, disable chat to force completion
-            if (isValid && submitBtn) {
-                // Disable chat when form is valid (submit button is active)
-                if (window.chatPermissions) {
-                    window.chatPermissions.disableChat('Please complete your order information');
-                }
-            }
-        }
+        // This functionality is now handled directly in setupAddressAutocomplete
+        // No further code needed here, but we're keeping the function for compatibility
     }
-
-    // Handle form submission
+    
+    // 4. Update the handleFormSubmission function to add a final address verification
     const handleFormSubmission = async (form, orderDetails) => {
         try {
             console.log('Handling form submission...');
+            
+            // Final address verification
+            const addressInput = form.querySelector('#customer-address');
+            const addressValue = addressInput.value.trim();
+            const isValidAddress = validAddresses.includes(addressValue);
+            
+            if (!isValidAddress) {
+                // Add an error message but don't submit
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'shipping-form-error';
+                errorMsg.textContent = 'Please select a valid address from the suggestions list.';
+                errorMsg.style.cssText = `
+                    color: #f44336;
+                    margin-top: 5px;
+                    font-size: 14px;
+                    text-align: center;
+                    font-weight: bold;
+                `;
+                
+                // Insert after submit button
+                const footer = form.querySelector('.shipping-form-footer');
+                if (footer) {
+                    footer.parentNode.insertBefore(errorMsg, footer.nextSibling);
+                    
+                    // Scroll to make error visible
+                    errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    // Remove the error after 3 seconds
+                    setTimeout(() => {
+                        errorMsg.remove();
+                    }, 3000);
+                }
+                
+                return; // Don't proceed with submission
+            }
 
             // Get form data
             const formData = {
                 name: form.querySelector('#customer-name').value,
-                address: form.querySelector('#customer-address').value,
+                address: addressValue,
                 email: form.querySelector('#customer-email').value,
                 receivedByDate: form.querySelector('#received-by-date').value
             };
@@ -400,7 +406,7 @@ const createShippingForm = () => {
             const submitBtn = form.querySelector('.shipping-form-submit');
             if (submitBtn) {
                 submitBtn.textContent = 'Order Submitted';
-                submitBtn.style.backgroundColor = '#4CAF50'; // Green color
+                submitBtn.style.backgroundColor = '#4CAF50';
             }
 
             // Add a "submitted" class to the container for any additional styling
@@ -464,431 +470,401 @@ const createShippingForm = () => {
     };
 
     // Setup date picker
-    // Setup date picker
-const setupDatePicker = (form) => {
-    console.log('Setting up date picker...');
-    const dateInput = form.querySelector('#received-by-date');
-    const datePickerContainer = form.querySelector('#date-picker-container');
-    const calendarIcon = form.querySelector('.calendar-icon');
+    const setupDatePicker = (form) => {
+        console.log('Setting up date picker...');
+        const dateInput = form.querySelector('#received-by-date');
+        const datePickerContainer = form.querySelector('#date-picker-container');
+        const calendarIcon = form.querySelector('.calendar-icon');
 
-    if (!dateInput || !datePickerContainer) {
-        console.error('Date picker elements not found!');
-        return;
-    }
-
-    // Create date picker elements
-    datePickerContainer.innerHTML = `
-        <div class="date-picker-header">
-            <button type="button" class="date-picker-nav prev">&lt;</button>
-            <div class="date-picker-month">Month Year</div>
-            <button type="button" class="date-picker-nav next">&gt;</button>
-        </div>
-        <div class="date-picker-weekdays">
-            <div class="date-picker-weekday">Sun</div>
-            <div class="date-picker-weekday">Mon</div>
-            <div class="date-picker-weekday">Tue</div>
-            <div class="date-picker-weekday">Wed</div>
-            <div class="date-picker-weekday">Thu</div>
-            <div class="date-picker-weekday">Fri</div>
-            <div class="date-picker-weekday">Sat</div>
-        </div>
-        <div class="date-picker-days"></div>
-    `;
-
-    // Initialize variables
-    let currentDate = new Date();
-
-    // FIXED: Get today's date for comparison - EXACTLY matching backend's calculation
-    // In the backend: today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset to beginning of day for date comparisons
-
-    // Calculate standard free shipping date (today + 17 days) - MATCHING BACKEND EXACTLY
-    const freeShippingDate = new Date(today);
-    freeShippingDate.setDate(today.getDate() + 17);
-
-    // Set selected date to free shipping date by default
-    let selectedDate = new Date(freeShippingDate);
-    selectedDate.setHours(0, 0, 0, 0); // Normalize to midnight
-
-    // Format date as MM/DD/YYYY
-    const formatDate = (date) => {
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const year = date.getFullYear();
-        return `${month}/${day}/${year}`;
-    };
-
-    // Set default value to free shipping date
-    dateInput.value = formatDate(selectedDate);
-
-    // Function to render calendar
-    const renderCalendar = () => {
-        const daysContainer = datePickerContainer.querySelector('.date-picker-days');
-        const monthDisplay = datePickerContainer.querySelector('.date-picker-month');
-
-        if (!daysContainer || !monthDisplay) {
+        if (!dateInput || !datePickerContainer) {
             console.error('Date picker elements not found!');
             return;
         }
 
-        // Format month display
-        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                        'July', 'August', 'September', 'October', 'November', 'December'];
-        monthDisplay.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+        // Create date picker elements
+        datePickerContainer.innerHTML = `
+            <div class="date-picker-header">
+                <button type="button" class="date-picker-nav prev">&lt;</button>
+                <div class="date-picker-month">Month Year</div>
+                <button type="button" class="date-picker-nav next">&gt;</button>
+            </div>
+            <div class="date-picker-weekdays">
+                <div class="date-picker-weekday">Sun</div>
+                <div class="date-picker-weekday">Mon</div>
+                <div class="date-picker-weekday">Tue</div>
+                <div class="date-picker-weekday">Wed</div>
+                <div class="date-picker-weekday">Thu</div>
+                <div class="date-picker-weekday">Fri</div>
+                <div class="date-picker-weekday">Sat</div>
+            </div>
+            <div class="date-picker-days"></div>
+        `;
 
-        // Get first day of month and last day of month
-        const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-        const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        // Initialize variables
+        let currentDate = new Date();
 
-        // Get day of week for first day (0 = Sunday, 6 = Saturday)
-        const firstDayOfWeek = firstDay.getDay();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
-        // Get total days in month
-        const totalDays = lastDay.getDate();
+        const freeShippingDate = new Date(today);
+        freeShippingDate.setDate(today.getDate() + 17);
 
-        // Clear container
-        daysContainer.innerHTML = '';
+        let selectedDate = new Date(freeShippingDate);
+        selectedDate.setHours(0, 0, 0, 0);
 
-        // FIXED: Calculate minimum shipping date (today + 11 days) - MATCHING BACKEND EXACTLY
-        const minShippingDate = new Date(today);
-        minShippingDate.setDate(today.getDate() + 11);
-        minShippingDate.setHours(0, 0, 0, 0); // Normalize to midnight
-
-        // FIXED: Calculate pricing tiers EXACTLY matching backend calculation
-        // Tier 1 (+10%): today + 15-16 days (closest to free shipping, lowest cost)
-        const tier1StartDate = new Date(today);
-        tier1StartDate.setDate(today.getDate() + 15);
-        tier1StartDate.setHours(0, 0, 0, 0); // Normalize to midnight
-        
-        const tier1EndDate = new Date(today);
-        tier1EndDate.setDate(today.getDate() + 16);
-        tier1EndDate.setHours(0, 0, 0, 0); // Normalize to midnight
-
-        // Tier 2 (+20%): today + 13-14 days (medium cost)
-        const tier2StartDate = new Date(today);
-        tier2StartDate.setDate(today.getDate() + 13);
-        tier2StartDate.setHours(0, 0, 0, 0); // Normalize to midnight
-        
-        const tier2EndDate = new Date(today);
-        tier2EndDate.setDate(today.getDate() + 14);
-        tier2EndDate.setHours(0, 0, 0, 0); // Normalize to midnight
-
-        // Tier 3 (+30%): today + 11-12 days (closest to today, highest cost)
-        const tier3StartDate = new Date(today);
-        tier3StartDate.setDate(today.getDate() + 11);
-        tier3StartDate.setHours(0, 0, 0, 0); // Normalize to midnight
-        
-        const tier3EndDate = new Date(today);
-        tier3EndDate.setDate(today.getDate() + 12);
-        tier3EndDate.setHours(0, 0, 0, 0); // Normalize to midnight
-
-        // FIXED: Helper function for date comparisons with normalized dates
-        const isDateBetween = (date, startDate, endDate) => {
-            // FIXED: Normalize all dates to midnight for comparison
-            const normalizedDate = new Date(date);
-            normalizedDate.setHours(0, 0, 0, 0);
-            
-            const normalizedStartDate = new Date(startDate);
-            normalizedStartDate.setHours(0, 0, 0, 0);
-            
-            const normalizedEndDate = new Date(endDate);
-            normalizedEndDate.setHours(0, 0, 0, 0);
-            
-            return normalizedDate >= normalizedStartDate && normalizedDate <= normalizedEndDate;
+        const formatDate = (date) => {
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const year = date.getFullYear();
+            return `${month}/${day}/${year}`;
         };
 
-        // Add days from previous month to fill first row
-        const prevMonthLastDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
-        for (let i = 0; i < firstDayOfWeek; i++) {
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'date-picker-day other-month';
-            dayDiv.textContent = prevMonthLastDay - firstDayOfWeek + i + 1;
-            daysContainer.appendChild(dayDiv);
-        }
+        dateInput.value = formatDate(selectedDate);
 
-        // Add days for current month
-        for (let i = 1; i <= totalDays; i++) {
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'date-picker-day';
-            dayDiv.textContent = i;
+        const renderCalendar = () => {
+            const daysContainer = datePickerContainer.querySelector('.date-picker-days');
+            const monthDisplay = datePickerContainer.querySelector('.date-picker-month');
 
-            // Create a date object for this day
-            const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+            if (!daysContainer || !monthDisplay) {
+                console.error('Date picker elements not found!');
+                return;
+            }
+
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+            monthDisplay.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+
+            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            const firstDayOfWeek = firstDay.getDay();
+            const totalDays = lastDay.getDate();
+
+            daysContainer.innerHTML = '';
+
+            const minShippingDate = new Date(today);
+            minShippingDate.setDate(today.getDate() + 11);
+            minShippingDate.setHours(0, 0, 0, 0);
+
+            const tier1StartDate = new Date(today);
+            tier1StartDate.setDate(today.getDate() + 15);
+            tier1StartDate.setHours(0, 0, 0, 0);
             
-            // FIXED: Normalize date to midnight for consistent comparison
-            const normalizedDayDate = new Date(dayDate);
-            normalizedDayDate.setHours(0, 0, 0, 0);
+            const tier1EndDate = new Date(today);
+            tier1EndDate.setDate(today.getDate() + 16);
+            tier1EndDate.setHours(0, 0, 0, 0);
 
-            if (normalizedDayDate < today || normalizedDayDate < minShippingDate) {
-                dayDiv.className += ' disabled';
-                dayDiv.title = 'Delivery not available for this date';
-            } else {
-                // Check which shipping tier this date falls into
-                let costIndicator = '';
-                let shippingTitle = '';
+            const tier2StartDate = new Date(today);
+            tier2StartDate.setDate(today.getDate() + 13);
+            tier2StartDate.setHours(0, 0, 0, 0);
+            
+            const tier2EndDate = new Date(today);
+            tier2EndDate.setDate(today.getDate() + 14);
+            tier2EndDate.setHours(0, 0, 0, 0);
 
-                // Check if this is the free shipping date (17+ days)
-                if (normalizedDayDate >= freeShippingDate) {
-                    dayDiv.style.border = '2px solid #4CAF50'; // Green border for free shipping
-                    dayDiv.style.backgroundColor = 'rgba(76, 175, 80, 0.2)'; // Light green background
-                    shippingTitle = 'Standard shipping (no additional cost)';
-                }
-                // Check for tier 1 (+10%) - 15-16 days (lowest additional cost)
-                else if (isDateBetween(normalizedDayDate, tier1StartDate, tier1EndDate)) {
-                    costIndicator = '+10% Fee';
-                    shippingTitle = 'Express shipping: +10% total order cost';
-                    dayDiv.style.border = '1px solid #FFD700'; // Gold border
-                    dayDiv.style.backgroundColor = 'rgba(255, 215, 0, 0.1)'; // Light gold background
-                }
-                // Check for tier 2 (+20%) - 13-14 days (medium additional cost)
-                else if (isDateBetween(normalizedDayDate, tier2StartDate, tier2EndDate)) {
-                    costIndicator = '+20% Fee';
-                    shippingTitle = 'Express shipping: +20% total order cost';
-                    dayDiv.style.border = '1px solid #FFA500'; // Orange border
-                    dayDiv.style.backgroundColor = 'rgba(255, 165, 0, 0.1)'; // Light orange background
-                }
-                // Check for tier 3 (+30%) - 11-12 days (highest additional cost)
-                else if (isDateBetween(normalizedDayDate, tier3StartDate, tier3EndDate)) {
-                    costIndicator = '+30% Fee';
-                    shippingTitle = 'Express shipping: +30% total order cost';
-                    dayDiv.style.border = '1px solid #FF4500'; // Red-orange border
-                    dayDiv.style.backgroundColor = 'rgba(255, 69, 0, 0.1)'; // Light red-orange background
-                }
+            const tier3StartDate = new Date(today);
+            tier3StartDate.setDate(today.getDate() + 11);
+            tier3StartDate.setHours(0, 0, 0, 0);
+            
+            const tier3EndDate = new Date(today);
+            tier3EndDate.setDate(today.getDate() + 12);
+            tier3EndDate.setHours(0, 0, 0, 0);
 
-                // Add cost indicator
-                if (costIndicator) {
-                    const costSpan = document.createElement('div');
-                    costSpan.style.fontSize = '10px';
-                    costSpan.style.color = 'rgba(255, 255, 255, 0.8)';
-                    costSpan.style.marginTop = '2px';
-                    costSpan.style.fontWeight = 'bold';
-                    costSpan.textContent = costIndicator;
-                    dayDiv.appendChild(costSpan);
-                    dayDiv.title = shippingTitle;
-                }
+            const isDateBetween = (date, startDate, endDate) => {
+                const normalizedDate = new Date(date);
+                normalizedDate.setHours(0, 0, 0, 0);
+                
+                const normalizedStartDate = new Date(startDate);
+                normalizedStartDate.setHours(0, 0, 0, 0);
+                
+                const normalizedEndDate = new Date(endDate);
+                normalizedEndDate.setHours(0, 0, 0, 0);
+                
+                return normalizedDate >= normalizedStartDate && normalizedDate <= normalizedEndDate;
+            };
 
-                // Check if this is the selected date
-                if (selectedDate &&
-                    selectedDate.getDate() === i &&
-                    selectedDate.getMonth() === currentDate.getMonth() &&
-                    selectedDate.getFullYear() === currentDate.getFullYear()) {
-                    dayDiv.className += ' active';
-                }
+            const prevMonthLastDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0).getDate();
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'date-picker-day other-month';
+                dayDiv.textContent = prevMonthLastDay - firstDayOfWeek + i + 1;
+                daysContainer.appendChild(dayDiv);
+            }
 
-                // Add click event to selectable days
-                dayDiv.addEventListener('click', () => {
-                    // Update selected date
-                    selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
-                    selectedDate.setHours(0, 0, 0, 0); // FIXED: Normalize to midnight
+            for (let i = 1; i <= totalDays; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'date-picker-day';
+                dayDiv.textContent = i;
 
-                    // Update input value
-                    dateInput.value = formatDate(selectedDate);
+                const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+                const normalizedDayDate = new Date(dayDate);
+                normalizedDayDate.setHours(0, 0, 0, 0);
 
-                    // Hide date picker
-                    datePickerContainer.style.display = 'none';
+                if (normalizedDayDate < today || normalizedDayDate < minShippingDate) {
+                    dayDiv.className += ' disabled';
+                    dayDiv.title = 'Delivery not available for this date';
+                } else {
+                    let costIndicator = '';
+                    let shippingTitle = '';
 
-                    // Show express shipping alert if applicable
-                    if (costIndicator) {
-                        showExpressShippingAlert(costIndicator, shippingTitle);
-                    } else {
-                        // Remove any existing alert
-                        const existingAlert = form.querySelector('.express-shipping-alert');
-                        if (existingAlert) {
-                            existingAlert.remove();
-                        }
+                    if (normalizedDayDate >= freeShippingDate) {
+                        dayDiv.style.border = '2px solid #4CAF50';
+                        dayDiv.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
+                        shippingTitle = 'Standard shipping (no additional cost)';
+                    }
+                    else if (isDateBetween(normalizedDayDate, tier1StartDate, tier1EndDate)) {
+                        costIndicator = '+10% Fee';
+                        shippingTitle = 'Express shipping: +10% total order cost';
+                        dayDiv.style.border = '1px solid #FFD700';
+                        dayDiv.style.backgroundColor = 'rgba(255, 215, 0, 0.1)';
+                    }
+                    else if (isDateBetween(normalizedDayDate, tier2StartDate, tier2EndDate)) {
+                        costIndicator = '+20% Fee';
+                        shippingTitle = 'Express shipping: +20% total order cost';
+                        dayDiv.style.border = '1px solid #FFA500';
+                        dayDiv.style.backgroundColor = 'rgba(255, 165, 0, 0.1)';
+                    }
+                    else if (isDateBetween(normalizedDayDate, tier3StartDate, tier3EndDate)) {
+                        costIndicator = '+30% Fee';
+                        shippingTitle = 'Express shipping: +30% total order cost';
+                        dayDiv.style.border = '1px solid #FF4500';
+                        dayDiv.style.backgroundColor = 'rgba(255, 69, 0, 0.1)';
                     }
 
-                    // Re-render to update active state
-                    renderCalendar();
-                });
+                    if (costIndicator) {
+                        const costSpan = document.createElement('div');
+                        costSpan.style.fontSize = '10px';
+                        costSpan.style.color = 'rgba(255, 255, 255, 0.8)';
+                        costSpan.style.marginTop = '2px';
+                        costSpan.style.fontWeight = 'bold';
+                        costSpan.textContent = costIndicator;
+                        dayDiv.appendChild(costSpan);
+                        dayDiv.title = shippingTitle;
+                    }
+
+                    if (selectedDate &&
+                        selectedDate.getDate() === i &&
+                        selectedDate.getMonth() === currentDate.getMonth() &&
+                        selectedDate.getFullYear() === currentDate.getFullYear()) {
+                        dayDiv.className += ' active';
+                    }
+
+                    dayDiv.addEventListener('click', () => {
+                        selectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+                        selectedDate.setHours(0, 0, 0, 0);
+                        dateInput.value = formatDate(selectedDate);
+                        datePickerContainer.style.display = 'none';
+
+                        if (costIndicator) {
+                            showExpressShippingAlert(costIndicator, shippingTitle);
+                        } else {
+                            const existingAlert = form.querySelector('.express-shipping-alert');
+                            if (existingAlert) {
+                                existingAlert.remove();
+                            }
+                        }
+
+                        renderCalendar();
+                    });
+                }
+
+                daysContainer.appendChild(dayDiv);
             }
 
-            daysContainer.appendChild(dayDiv);
-        }
+            const totalCellsUsed = firstDayOfWeek + totalDays;
+            const cellsToFill = Math.ceil(totalCellsUsed / 7) * 7 - totalCellsUsed;
 
-        // Fill remaining cells with next month's days
-        const totalCellsUsed = firstDayOfWeek + totalDays;
-        const cellsToFill = Math.ceil(totalCellsUsed / 7) * 7 - totalCellsUsed;
-
-        for (let i = 1; i <= cellsToFill; i++) {
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'date-picker-day other-month';
-            dayDiv.textContent = i;
-            daysContainer.appendChild(dayDiv);
-        }
-
-        // Add debugging information
-        console.log(`Date picker debug info: 
-            Today's reference date: ${today.toISOString()} (normalized to midnight)
-            Free shipping date: ${freeShippingDate.toISOString()} (today + 17 days)
-            Tier 1 range (+10%): ${tier1StartDate.toISOString()} to ${tier1EndDate.toISOString()}
-            Tier 2 range (+20%): ${tier2StartDate.toISOString()} to ${tier2EndDate.toISOString()}
-            Tier 3 range (+30%): ${tier3StartDate.toISOString()} to ${tier3EndDate.toISOString()}
-            Selected date: ${selectedDate ? selectedDate.toISOString() : 'none'}`);
-    };
-
-    // Helper function to show express shipping alert when date is selected
-    const showExpressShippingAlert = (costIndicator, shippingTitle) => {
-        // Remove any existing alert
-        const existingAlert = form.querySelector('.express-shipping-alert');
-        if (existingAlert) {
-            existingAlert.remove();
-        }
-
-        // Create the alert element
-        const alertElement = document.createElement('div');
-        alertElement.className = 'express-shipping-alert';
-        alertElement.style.cssText = `
-            margin-top: 10px;
-            padding: 10px;
-            background-color: rgba(255, 152, 0, 0.2);
-            border: 1px solid #FF9800;
-            border-radius: 4px;
-            font-size: 14px;
-            color: white;
-            text-align: center;
-        `;
-
-        // Extract percentage from the cost indicator
-        const percentage = costIndicator.match(/\d+/)[0]; // Extract the number
-
-        // Calculate the actual cost if we have order details
-        let costMessage = '';
-        if (orderDetails && orderDetails.total) {
-            const orderTotal = parseFloat(orderDetails.total);
-            const expressCharge = orderTotal * (parseInt(percentage) / 100);
-            const newTotal = orderTotal + expressCharge;
-            costMessage = ` (approximately $${expressCharge.toFixed(2)}, making the new total $${newTotal.toFixed(2)})`;
-        }
-
-        alertElement.innerHTML = `
-            <strong>Express Shipping Selected</strong><br>
-            This delivery date adds ${costIndicator} to your order total${costMessage}.<br>
-            <span style="font-size: 12px;">The additional charge covers expedited manufacturing and shipping.</span>
-        `;
-
-        // Insert after the date picker field
-        const dateGroup = form.querySelector('.shipping-form-group:nth-child(4)');
-        if (dateGroup) {
-            dateGroup.appendChild(alertElement);
-        }
-    };
-
-    // Navigate to previous month
-    const prevMonthBtn = datePickerContainer.querySelector('.date-picker-nav.prev');
-    if (prevMonthBtn) {
-        prevMonthBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent event from reaching document
-            e.preventDefault(); // Prevent form submission
-            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-            renderCalendar();
-        });
-    }
-
-    // Navigate to next month
-    const nextMonthBtn = datePickerContainer.querySelector('.date-picker-nav.next');
-    if (nextMonthBtn) {
-        nextMonthBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent event from reaching document
-            e.preventDefault(); // Prevent form submission
-            currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-            renderCalendar();
-        });
-    }
-
-    // Show/hide date picker when clicking on the input
-    dateInput.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent click from propagating to document
-
-        const currentDisplay = window.getComputedStyle(datePickerContainer).display;
-
-        if (currentDisplay === 'block') {
-            datePickerContainer.style.display = 'none';
-        } else {
-            // Position the date picker
-            datePickerContainer.style.position = 'absolute';
-            datePickerContainer.style.top = '100%';
-            datePickerContainer.style.left = '0';
-            datePickerContainer.style.zIndex = '9999';
-            datePickerContainer.style.display = 'block';
-
-            // If no date is selected, set to current date
-            if (!selectedDate) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0); // Normalize to midnight
-                currentDate = new Date(today.getFullYear(), today.getMonth(), 1);
-            } else {
-                // Ensure we're showing the month of the selected date
-                currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+            for (let i = 1; i <= cellsToFill; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'date-picker-day other-month';
+                dayDiv.textContent = i;
+                daysContainer.appendChild(dayDiv);
             }
 
-            renderCalendar();
+            console.log(`Date picker debug info: 
+                Today's reference date: ${today.toISOString()} (normalized to midnight)
+                Free shipping date: ${freeShippingDate.toISOString()} (today + 17 days)
+                Tier 1 range (+10%): ${tier1StartDate.toISOString()} to ${tier1EndDate.toISOString()}
+                Tier 2 range (+20%): ${tier2StartDate.toISOString()} to ${tier2EndDate.toISOString()}
+                Tier 3 range (+30%): ${tier3StartDate.toISOString()} to ${tier3EndDate.toISOString()}
+                Selected date: ${selectedDate ? selectedDate.toISOString() : 'none'}`);
+        };
+
+        const showExpressShippingAlert = (costIndicator, shippingTitle) => {
+            const existingAlert = form.querySelector('.express-shipping-alert');
+            if (existingAlert) {
+                existingAlert.remove();
+            }
+
+            const alertElement = document.createElement('div');
+            alertElement.className = 'express-shipping-alert';
+            alertElement.style.cssText = `
+                margin-top: 10px;
+                padding: 10px;
+                background-color: rgba(255, 152, 0, 0.2);
+                border: 1px solid #FF9800;
+                border-radius: 4px;
+                font-size: 14px;
+                color: white;
+                text-align: center;
+            `;
+
+            const percentage = costIndicator.match(/\d+/)[0];
+
+            let costMessage = '';
+            if (orderDetails && orderDetails.total) {
+                const orderTotal = parseFloat(orderDetails.total);
+                const expressCharge = orderTotal * (parseInt(percentage) / 100);
+                const newTotal = orderTotal + expressCharge;
+                costMessage = ` (approximately $${expressCharge.toFixed(2)}, making the new total $${newTotal.toFixed(2)})`;
+            }
+
+            alertElement.innerHTML = `
+                <strong>Express Shipping Selected</strong><br>
+                This delivery date adds ${costIndicator} to your order total${costMessage}.<br>
+                <span style="font-size: 12px;">The additional charge covers expedited manufacturing and shipping.</span>
+            `;
+
+            const dateGroup = form.querySelector('.shipping-form-group:nth-child(4)');
+            if (dateGroup) {
+                dateGroup.appendChild(alertElement);
+            }
+        };
+
+        const prevMonthBtn = datePickerContainer.querySelector('.date-picker-nav.prev');
+        if (prevMonthBtn) {
+            prevMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+                renderCalendar();
+            });
         }
-    });
 
-    // Add click handler for calendar icon
-    if (calendarIcon) {
-        calendarIcon.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent click from propagating to document
+        const nextMonthBtn = datePickerContainer.querySelector('.date-picker-nav.next');
+        if (nextMonthBtn) {
+            nextMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+                renderCalendar();
+            });
+        }
 
+        dateInput.addEventListener('click', (e) => {
+            e.stopPropagation();
             const currentDisplay = window.getComputedStyle(datePickerContainer).display;
 
             if (currentDisplay === 'block') {
                 datePickerContainer.style.display = 'none';
             } else {
-                // Position the date picker
                 datePickerContainer.style.position = 'absolute';
                 datePickerContainer.style.top = '100%';
                 datePickerContainer.style.left = '0';
                 datePickerContainer.style.zIndex = '9999';
                 datePickerContainer.style.display = 'block';
 
-                // If no date is selected, set to current date
                 if (!selectedDate) {
                     const today = new Date();
-                    today.setHours(0, 0, 0, 0); // Normalize to midnight
+                    today.setHours(0, 0, 0, 0);
                     currentDate = new Date(today.getFullYear(), today.getMonth(), 1);
                 } else {
-                    // Ensure we're showing the month of the selected date
                     currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
                 }
 
                 renderCalendar();
             }
         });
-    }
 
-    // Close date picker when clicking outside
-    document.addEventListener('click', (e) => {
-        if (datePickerContainer.style.display === 'block') {
-            if (!e.target.closest('#received-by-date') &&
-                !e.target.closest('#date-picker-container') &&
-                !e.target.closest('.calendar-icon')) {
-                datePickerContainer.style.display = 'none';
-            }
+        if (calendarIcon) {
+            calendarIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const currentDisplay = window.getComputedStyle(datePickerContainer).display;
+
+                if (currentDisplay === 'block') {
+                    datePickerContainer.style.display = 'none';
+                } else {
+                    datePickerContainer.style.position = 'absolute';
+                    datePickerContainer.style.top = '100%';
+                    datePickerContainer.style.left = '0';
+                    datePickerContainer.style.zIndex = '9999';
+                    datePickerContainer.style.display = 'block';
+
+                    if (!selectedDate) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        currentDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                    } else {
+                        currentDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                    }
+
+                    renderCalendar();
+                }
+            });
         }
-    });
 
-    // Initial render
-    renderCalendar();
-};
+        document.addEventListener('click', (e) => {
+            if (datePickerContainer.style.display === 'block') {
+                if (!e.target.closest('#received-by-date') &&
+                    !e.target.closest('#date-picker-container') &&
+                    !e.target.closest('.calendar-icon')) {
+                    datePickerContainer.style.display = 'none';
+                }
+            }
+        });
 
-    // Setup address autocomplete
+        renderCalendar();
+    };
+
+    // 2. Replace the setupAddressAutocomplete Function with the new implementation
     const setupAddressAutocomplete = (form) => {
         console.log('Setting up address autocomplete...');
         const addressInput = form.querySelector('#customer-address');
         const suggestionsContainer = form.querySelector('#address-suggestions');
+        const submitBtn = form.querySelector('.shipping-form-submit');
 
         if (!addressInput || !suggestionsContainer) {
             console.error('Address autocomplete elements not found!');
             return;
         }
 
-        // Function to fetch autocomplete suggestions
-        let debounceTimer;
+        // Add a validation status indicator next to the address field
+        const validationIndicator = document.createElement('div');
+        validationIndicator.style.cssText = `
+            position: absolute;
+            right: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        addressInput.parentNode.style.position = 'relative';
+        addressInput.parentNode.appendChild(validationIndicator);
+
+        const updateAddressValidation = (isValid) => {
+            hasValidAddress = isValid;
+            
+            if (isValid) {
+                validationIndicator.innerHTML = '✓';
+                validationIndicator.style.color = '#4CAF50';
+                addressInput.style.borderColor = '#4CAF50';
+            } else {
+                validationIndicator.innerHTML = '✗';
+                validationIndicator.style.color = '#f44336';
+                addressInput.style.borderColor = '#f44336';
+            }
+            
+            // Update submit button state
+            updateFormValidity();
+        };
+
         addressInput.addEventListener('input', function() {
             clearTimeout(debounceTimer);
+            
+            updateAddressValidation(false);
 
             if (this.value.length < 3) {
                 suggestionsContainer.style.display = 'none';
@@ -911,88 +887,84 @@ const setupDatePicker = (form) => {
                 .then(response => response.json())
                 .then(data => {
                     suggestionsContainer.innerHTML = '';
+                    validAddresses = [];
 
                     if (data.suggestions && data.suggestions.length > 0) {
                         console.log(`Received ${data.suggestions.length} address suggestions`);
                         suggestionsContainer.style.display = 'block';
 
                         data.suggestions.forEach(suggestion => {
+                            const addressText = suggestion.placePrediction.text.text;
+                            validAddresses.push(addressText);
+                            
                             const div = document.createElement('div');
                             div.className = 'suggestion-item';
-                            div.textContent = suggestion.placePrediction.text.text;
+                            div.textContent = addressText;
 
                             div.addEventListener('click', function() {
-                                addressInput.value = suggestion.placePrediction.text.text;
+                                addressInput.value = addressText;
                                 suggestionsContainer.style.display = 'none';
+                                updateAddressValidation(true);
                             });
 
                             suggestionsContainer.appendChild(div);
                         });
+                        
+                        const exactMatch = validAddresses.includes(addressInput.value);
+                        updateAddressValidation(exactMatch);
+                        
                     } else {
                         console.log('No address suggestions received');
                         suggestionsContainer.style.display = 'none';
+                        updateAddressValidation(false);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching autocomplete suggestions:', error);
                     suggestionsContainer.style.display = 'none';
+                    updateAddressValidation(false);
                 });
-            }, 300); // Debounce time in milliseconds
+            }, 300);
         });
 
-        // Close suggestions when clicking outside
+        addressInput.addEventListener('blur', function() {
+            setTimeout(() => {
+                const exactMatch = validAddresses.includes(this.value);
+                updateAddressValidation(exactMatch);
+            }, 200);
+        });
+
+        // Add the updateFormValidity function here (after the blur event)
+        const updateFormValidity = () => {
+            // Get all the other required inputs
+            const nameInput = form.querySelector('#customer-name');
+            const emailInput = form.querySelector('#customer-email');
+            const dateInput = form.querySelector('#received-by-date');
+            
+            // Check if all fields have values and address is valid
+            const isValid = nameInput.value.trim() !== '' && 
+                            emailInput.value.trim() !== '' && 
+                            dateInput.value.trim() !== '' &&
+                            hasValidAddress;
+            
+            // Update submit button state
+            if (submitBtn) {
+                submitBtn.disabled = !isValid;
+                submitBtn.style.opacity = isValid ? '1' : '0.7';
+                submitBtn.style.cursor = isValid ? 'pointer' : 'not-allowed';
+            }
+            
+            // If form is valid, disable chat to force completion
+            if (isValid && window.chatPermissions) {
+                window.chatPermissions.disableChat('Please complete your order information');
+            }
+        };
+
         document.addEventListener('click', function(e) {
             if (suggestionsContainer.style.display === 'block') {
                 if (!e.target.closest('#customer-address') && !e.target.closest('#address-suggestions')) {
                     suggestionsContainer.style.display = 'none';
                 }
-            }
-        });
-
-        // Allow keyboard navigation through suggestions
-        addressInput.addEventListener('keydown', function(e) {
-            if (suggestionsContainer.style.display !== 'block') {
-                return;
-            }
-
-            const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
-            if (suggestions.length === 0) {
-                return;
-            }
-
-            // Find currently focused suggestion
-            const focused = suggestionsContainer.querySelector('.suggestion-item.focused');
-            const focusedIndex = focused ? Array.from(suggestions).indexOf(focused) : -1;
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (focused) {
-                    focused.classList.remove('focused');
-                    const nextIndex = (focusedIndex + 1) % suggestions.length;
-                    suggestions[nextIndex].classList.add('focused');
-                    suggestions[nextIndex].scrollIntoView({ block: 'nearest' });
-                } else {
-                    suggestions[0].classList.add('focused');
-                    suggestions[0].scrollIntoView({ block: 'nearest' });
-                }
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (focused) {
-                    focused.classList.remove('focused');
-                    const prevIndex = (focusedIndex - 1 + suggestions.length) % suggestions.length;
-                    suggestions[prevIndex].classList.add('focused');
-                    suggestions[prevIndex].scrollIntoView({ block: 'nearest' });
-                } else {
-                    const lastIndex = suggestions.length - 1;
-                    suggestions[lastIndex].classList.add('focused');
-                    suggestions[lastIndex].scrollIntoView({ block: 'nearest' });
-                }
-            } else if (e.key === 'Enter' && focused) {
-                e.preventDefault();
-                addressInput.value = focused.textContent;
-                suggestionsContainer.style.display = 'none';
-            } else if (e.key === 'Escape') {
-                suggestionsContainer.style.display = 'none';
             }
         });
     };
@@ -1001,22 +973,18 @@ const setupDatePicker = (form) => {
     const injectShippingForm = (messageElement, orderDetails) => {
         console.log('Injecting shipping form into message:', messageElement);
         
-        // Don't inject if already done
         if (messageElement.querySelector('.shipping-form-container')) {
             console.log('Shipping form already injected, skipping');
             return;
         }
         
-        // Disable chat when shipping form is injected
         if (window.chatPermissions) {
             window.chatPermissions.disableChat('Please complete your order information');
         }
         
-        // Create and append the form
-        const { container, form } = createShippingForm(orderDetails);
+        const { container, form } = createShippingFormElements(orderDetails);
         messageElement.appendChild(container);
         
-        // Setup form components with slight delay to ensure DOM is ready
         setTimeout(() => {
             setupDatePicker(form);
             setupAddressAutocomplete(form);
@@ -1031,7 +999,6 @@ const setupDatePicker = (form) => {
             return;
         }
 
-        // Create a MutationObserver to watch for new messages
         const observer = new MutationObserver(mutations => {
             mutations.forEach(mutation => {
                 if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
@@ -1040,7 +1007,6 @@ const setupDatePicker = (form) => {
                             node.classList.contains('message') &&
                             node.classList.contains('bot')) {
 
-                            // Try to extract data from the node's dataset
                             if (node.dataset && node.dataset.action) {
                                 try {
                                     const action = JSON.parse(node.dataset.action);
@@ -1058,17 +1024,14 @@ const setupDatePicker = (form) => {
             });
         });
 
-        // Start observing
         observer.observe(chatMessages, { childList: true });
 
         return observer;
     };
 
-    // Initialize by adding styles and setting up the observer
     addStyles();
     const observer = observeMessages();
 
-    // Return public API
     return {
         injectIntoMessage: injectShippingForm,
         destroy: () => {
@@ -1079,7 +1042,6 @@ const setupDatePicker = (form) => {
     };
 };
 
-// Initialize and export the shipping form component
 console.log('Creating in-chat shipping form...');
 window.shippingForm = createShippingForm();
 console.log('In-chat shipping form created and assigned to window.shippingForm');
