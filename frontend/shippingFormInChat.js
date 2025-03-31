@@ -653,7 +653,23 @@ const createShippingForm = () => {
                         selectedDate.setHours(0, 0, 0, 0);
                         dateInput.value = formatDate(selectedDate);
                         datePickerContainer.style.display = 'none';
-
+                        
+                        // Calculate days before free shipping exactly like the backend does
+                        const daysBefore = Math.floor((freeShippingDate - selectedDate) / (1000 * 60 * 60 * 24));
+                        
+                        // Log shipping calculation for debugging
+                        console.log(`Selected shipping date: ${formatDate(selectedDate)}`);
+                        console.log(`Free shipping date: ${formatDate(freeShippingDate)}`);
+                        console.log(`Days before free shipping: ${daysBefore}`);
+                        
+                        let shippingFee = '0%';
+                        if (daysBefore > 0) {
+                            if (daysBefore <= 2) shippingFee = '10%';
+                            else if (daysBefore <= 4) shippingFee = '20%';
+                            else if (daysBefore <= 6) shippingFee = '30%';
+                        }
+                        console.log(`Express shipping fee: ${shippingFee}`);
+                    
                         if (costIndicator) {
                             showExpressShippingAlert(costIndicator, shippingTitle);
                         } else {
@@ -662,7 +678,7 @@ const createShippingForm = () => {
                                 existingAlert.remove();
                             }
                         }
-
+                    
                         renderCalendar();
                     });
                 }
