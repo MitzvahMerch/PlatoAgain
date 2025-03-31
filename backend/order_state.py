@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 import logging
-import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -269,55 +268,48 @@ class OrderState:
     def _calculate_express_shipping_percentage(self, received_by_date: str) -> float:
         """Calculate the express shipping percentage based on received_by_date"""
         try:
-            # Parse the received_by_date (MM/DD/YYYY format)
+        # Parse the received_by_date (MM/DD/YYYY format)
             if not received_by_date:
                 return 0
-                
+            
             received_date = datetime.strptime(received_by_date, "%m/%d/%Y")
-            
-            # Use Eastern Time as standard reference, regardless of server location
-            eastern_tz = pytz.timezone('America/New_York')
-            now = datetime.now(eastern_tz)
-            today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            # Strip tzinfo to make it a naive datetime for consistent comparisons
-            today = today.replace(tzinfo=None)
-            
-            # Calculate free standard shipping date (today + 17 days)
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Calculate free standard shipping date (today + 17 days)
             free_shipping_date = today + timedelta(days=17)
-            
-            # Log the dates for debugging
-            logger.info(f"Calculating express shipping with Eastern Time: today={today.strftime('%m/%d/%Y')}, " +
+        
+        # Log the dates for debugging
+            logger.info(f"Calculating express shipping: today={today.strftime('%m/%d/%Y')}, " +
                         f"free_shipping_date={free_shipping_date.strftime('%m/%d/%Y')}, " +
                         f"received_by_date={received_by_date}")
-            
-            # If the received date is ON or AFTER the free shipping date, no express charge
+        
+        # If the received date is ON or AFTER the free shipping date, no express charge
             if received_date >= free_shipping_date:
                 logger.info("Standard shipping selected (no additional charge)")
                 return 0
-                
-            # Calculate days before free shipping date
-            days_before_free = (free_shipping_date - received_date).days
             
-            # Apply appropriate shipping charge based on days before free shipping date
+        # Calculate days before free shipping date
+            days_before_free = (free_shipping_date - received_date).days
+        
+        # Apply appropriate shipping charge based on days before free shipping date
             if days_before_free <= 0:
-                # Standard or later shipping - no additional charge
+            # Standard or later shipping - no additional charge
                 logger.info("Standard shipping selected (no additional charge)")
                 return 0
             elif days_before_free <= 2:
-                # 1-2 days before suggested - 10% charge
+            # 1-2 days before suggested - 10% charge
                 logger.info(f"Express shipping tier 1 selected (+10% charge, {days_before_free} days before free shipping)")
                 return 10
             elif days_before_free <= 4:
-                # 3-4 days before suggested - 20% charge
+            # 3-4 days before suggested - 20% charge
                 logger.info(f"Express shipping tier 2 selected (+20% charge, {days_before_free} days before free shipping)")
                 return 20
             elif days_before_free <= 6:
-                # 5-6 days before suggested - 30% charge
+            # 5-6 days before suggested - 30% charge
                 logger.info(f"Express shipping tier 3 selected (+30% charge, {days_before_free} days before free shipping)")
                 return 30
             else:
-                # More than 6 days before free shipping - not allowed
+            # More than 6 days before free shipping - not allowed
                 logger.warning(f"Requested delivery date {received_by_date} is too early (more than 6 days before free shipping)")
                 return 0
         except Exception as e:
@@ -644,6 +636,8 @@ class OrderState:
         
         # Handle original intent data from both structures
         if 'original_intent' in data:
+            order.original_intent = data['original_intent']
+        elif 'originalIntent' in data:
             # Map from camelCase to snake_case
             intent_data = data['originalIntent']
             order.original_intent = {
