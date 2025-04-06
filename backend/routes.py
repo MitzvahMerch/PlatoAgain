@@ -14,16 +14,7 @@ logger = logging.getLogger(__name__)
 
 def init_routes(app, plato_bot):
     # Enable CORS for all routes
-    CORS(app, resources={r"/*": {
-    "origins": [
-        "https://www.platosprints.ai", 
-        "https://platosprints.ai",
-        "http://localhost:5000"  # For local development
-    ],
-    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization"],
-    "supports_credentials": True
-}})
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
@@ -346,6 +337,60 @@ def init_routes(app, plato_bot):
                 "message": "An unexpected error occurred. Please try again."
             }), 500
     
+    @app.route('/payment-complete', methods=['POST', 'OPTIONS'])
+    def payment_complete():
+    # Handle OPTIONS request for CORS preflight
+        if request.method == 'OPTIONS':
+            response = app.make_default_options_response()
+            response.headers['Access-Control-Allow-Origin'] = 'https://www.platosprints.ai'
+            response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            return response
+        
+        try:
+            data = request.json
+            user_id = data.get('user_id')
+            invoice_id = data.get('invoice_id')
+            payment_id = data.get('payment_id')
+            payment_details = data.get('payment_details')
+            payment_method = data.get('payment_method')
+        
+            if not user_id or not payment_id:
+                return jsonify({'error': 'Missing required parameters'}), 400
+        
+            logger.info(f"Processing payment completion for user {user_id}, payment ID: {payment_id}")
+        
+        # Get reference to the document for direct read/write access
+            db = plato_bot.firebase_service.db
+            doc_ref = db.collection('active_conversations').document(user_id)
+        
+        # Update the payment status in the order state
+            doc_ref.update({
+                'order_state.payment_completed': True,
+                'order_state.payment_id': payment_id,
+                'order_state.payment_method': payment_method,
+                'order_state.invoice_id': invoice_id,
+                'payment_details': payment_details,
+                'last_active': firestore.SERVER_TIMESTAMP
+            })
+        
+        # Update the in-memory conversation if it exists
+            if hasattr(plato_bot.conversation_manager, 'conversations') and user_id in plato_bot.conversation_manager.conversations:
+                order_state = plato_bot.conversation_manager.conversations[user_id].get('order_state')
+                if order_state:
+                    order_state.payment_completed = True
+                    order_state.payment_id = payment_id
+                    order_state.payment_method = payment_method
+                    order_state.invoice_id = invoice_id
+                    plato_bot.conversation_manager.conversations[user_id]['last_active'] = firestore.SERVER_TIMESTAMP
+                    logger.info(f"Updated in-memory conversation payment status for user {user_id}")
+        
+            return jsonify({'success': True})
+        
+        except Exception as e:
+            logger.error(f"Error processing payment completion: {str(e)}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
     @app.route('/debug/conversation/<user_id>', methods=['GET'])
     def debug_conversation(user_id):
         """Debug endpoint to check conversation state in both memory and Firestore."""
@@ -389,3 +434,4 @@ def init_routes(app, plato_bot):
             "in_firestore": firestore_state is not None,
             "firestore_state": firestore_state
         })
+    
