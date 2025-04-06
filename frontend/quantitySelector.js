@@ -349,7 +349,7 @@ const createSizeRow = (size, type) => {
         }
         
         // Check if total quantity is less than 24
-        if (totalQuantity < 24) {
+        if (totalQuantity < 1) {
             // Show error message
             showMinimumQuantityError();
             return;
