@@ -14,7 +14,16 @@ logger = logging.getLogger(__name__)
 
 def init_routes(app, plato_bot):
     # Enable CORS for all routes
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {
+    "origins": [
+        "https://www.platosprints.ai", 
+        "https://platosprints.ai",
+        "http://localhost:5000"  # For local development
+    ],
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "supports_credentials": True
+}})
 
     @app.route('/productimages/<path:filename>')
     def serve_product_image(filename):
