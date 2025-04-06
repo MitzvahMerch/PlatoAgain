@@ -206,6 +206,21 @@ async function sendMessage() {
 
     if (message) {
         addMessage(message, 'user');
+        
+        // Track first message sent with Google Ads
+        if (!window.googleAdsTracking?.firstMessageSent) {
+            console.log('Tracking first message conversion event');
+            gtag('event', 'conversion', {
+                'send_to': 'AW-16970928099/mkXNCP_68LIaEOOfr5w_',
+                'value': 0.5, // Assigning a $0.50 value to starting a conversation
+                'currency': 'USD',
+                'transaction_id': `msg_${Date.now()}_${userId}`
+            });
+            
+            // Mark as tracked to prevent duplicate events
+            if (!window.googleAdsTracking) window.googleAdsTracking = {};
+            window.googleAdsTracking.firstMessageSent = true;
+        }
     }
 
     chatInput.value = '';
@@ -528,6 +543,21 @@ async function svgBasedCompositeRenderer(placement) {
         // Close modal and show result
         window.placementModal.hide();
         addProductImage(compositeUrl, 'Design placement preview');
+        
+        // Track logo upload event for Google Ads
+        if (!window.googleAdsTracking?.logoUploaded) {
+            console.log('Tracking logo upload conversion event');
+            gtag('event', 'conversion', {
+                'send_to': 'AW-16970928099/mkXNCP_68LIaEOOfr5w_',
+                'value': 1.0, // Assigning a $1 value to uploading a logo
+                'currency': 'USD',
+                'transaction_id': `logo_${Date.now()}_${userId}`
+            });
+            
+            // Mark as tracked to prevent duplicate events
+            if (!window.googleAdsTracking) window.googleAdsTracking = {};
+            window.googleAdsTracking.logoUploaded = true;
+        }
         
         // NEW CODE: Explicitly tell the backend about the logo upload
         try {

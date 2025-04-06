@@ -289,6 +289,34 @@ const createPayPalIntegration = () => {
                         
                         successMessage.classList.add('visible');
                         
+                        // Track payment completion for Google Ads
+                        if (!window.googleAdsTracking?.paymentCompleted) {
+                            // Extract payment amount if available
+                            let value = orderDetails.totalPrice || 1.0; // Default to order total or $1
+                            
+                            if (orderData && 
+                                orderData.purchase_units && 
+                                orderData.purchase_units.length > 0 &&
+                                orderData.purchase_units[0].amount &&
+                                orderData.purchase_units[0].amount.value) {
+                                value = parseFloat(orderData.purchase_units[0].amount.value);
+                            }
+                            
+                            console.log(`Tracking payment completion conversion event with value: $${value}`);
+                            
+                            // Google Ads event snippet for payment
+                            gtag('event', 'conversion', {
+                                'send_to': 'AW-16970928099/mkXNCP_68LIaEOOfr5w_',
+                                'value': value,
+                                'currency': 'USD',
+                                'transaction_id': `payment_${Date.now()}_${userId}`
+                            });
+                            
+                            // Mark as tracked to prevent duplicate events
+                            if (!window.googleAdsTracking) window.googleAdsTracking = {};
+                            window.googleAdsTracking.paymentCompleted = true;
+                        }
+                        
                         // Notify the backend about the successful payment
                         const response = await fetch(`${API_BASE_URL}/api/payment-complete`, {
                             method: 'POST',
