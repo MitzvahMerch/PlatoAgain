@@ -211,8 +211,8 @@ async function sendMessage() {
         if (!window.googleAdsTracking?.firstMessageSent) {
             console.log('Tracking first message conversion event');
             gtag('event', 'conversion', {
-                'send_to': 'AW-16970928099/mkXNCP_68LIaEOOfr5w_',
-                'value': 0.5, // Assigning a $0.50 value to starting a conversation
+                'send_to': 'AW-16970928099/w1iyCKmP_LQaEOOfr5w_',
+                'value': 1.0, // Assigning a $0.50 value to starting a conversation
                 'currency': 'USD',
                 'transaction_id': `msg_${Date.now()}_${userId}`
             });
@@ -548,7 +548,7 @@ async function svgBasedCompositeRenderer(placement) {
         if (!window.googleAdsTracking?.logoUploaded) {
             console.log('Tracking logo upload conversion event');
             gtag('event', 'conversion', {
-                'send_to': 'AW-16970928099/mkXNCP_68LIaEOOfr5w_',
+                'send_to': 'AW-16970928099/aT3KCKGI77QaEOOfr5w_',
                 'value': 1.0, // Assigning a $1 value to uploading a logo
                 'currency': 'USD',
                 'transaction_id': `logo_${Date.now()}_${userId}`
