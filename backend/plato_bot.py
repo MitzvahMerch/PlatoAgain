@@ -1409,7 +1409,7 @@ class PlatoBot:
         
         context = {
             "order_state_summary": "New order" if not order_state.product_selected else "Order in progress",
-            "min_quantity": 1,
+            "min_quantity": 24,
             "price_per_item": f"${order_state.price_per_item:.2f}" if order_state.price_per_item and order_state.price_per_item > 0 else "TBD",
             "product_context": order_state.product_details,
             "design_context": {'url': order_state.design_path} if order_state.design_path else None,
