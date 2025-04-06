@@ -339,15 +339,18 @@ def init_routes(app, plato_bot):
     
     @app.route('/payment-complete', methods=['POST', 'OPTIONS'])
     def payment_complete():
-    # Handle OPTIONS request for CORS preflight
+        """Handle payment completion notification from the frontend."""
+        # Handle OPTIONS request for CORS preflight
         if request.method == 'OPTIONS':
             response = app.make_default_options_response()
-            response.headers['Access-Control-Allow-Origin'] = 'https://www.platosprints.ai'
+            response.headers['Access-Control-Allow-Origin'] = '*'
             response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
             return response
         
         try:
+            logger.info("Received payment completion notification")
+        
             data = request.json
             user_id = data.get('user_id')
             invoice_id = data.get('invoice_id')
@@ -356,37 +359,62 @@ def init_routes(app, plato_bot):
             payment_method = data.get('payment_method')
         
             if not user_id or not payment_id:
+                logger.error("Missing required payment parameters")
                 return jsonify({'error': 'Missing required parameters'}), 400
         
-            logger.info(f"Processing payment completion for user {user_id}, payment ID: {payment_id}")
+            logger.info(f"Processing payment for user {user_id}, payment ID: {payment_id}")
         
-        # Get reference to the document for direct read/write access
-            db = plato_bot.firebase_service.db
-            doc_ref = db.collection('active_conversations').document(user_id)
+        # Get the order state from the conversation manager
+            order_state = plato_bot.conversation_manager.get_order_state(user_id)
         
-        # Update the payment status in the order state
-            doc_ref.update({
-                'order_state.payment_completed': True,
-                'order_state.payment_id': payment_id,
-                'order_state.payment_method': payment_method,
-                'order_state.invoice_id': invoice_id,
-                'payment_details': payment_details,
-                'last_active': firestore.SERVER_TIMESTAMP
-            })
-        
-        # Update the in-memory conversation if it exists
-            if hasattr(plato_bot.conversation_manager, 'conversations') and user_id in plato_bot.conversation_manager.conversations:
-                order_state = plato_bot.conversation_manager.conversations[user_id].get('order_state')
-                if order_state:
-                    order_state.payment_completed = True
-                    order_state.payment_id = payment_id
-                    order_state.payment_method = payment_method
-                    order_state.invoice_id = invoice_id
-                    plato_bot.conversation_manager.conversations[user_id]['last_active'] = firestore.SERVER_TIMESTAMP
-                    logger.info(f"Updated in-memory conversation payment status for user {user_id}")
-        
-            return jsonify({'success': True})
-        
+            if order_state:
+            # Update payment status in the order state
+                order_state.payment_completed = True
+                order_state.payment_id = payment_id
+                order_state.payment_method = payment_method
+                order_state.invoice_id = invoice_id
+            
+            # Update the order state in the conversation manager
+                plato_bot.conversation_manager.update_order_state(user_id, order_state)
+            
+            # Update the Firestore document directly if needed
+                db = plato_bot.firebase_service.db
+                doc_ref = db.collection('active_conversations').document(user_id)
+            
+            # Update with payment info
+                doc_ref.update({
+                    'order_state.payment_completed': True,
+                    'order_state.payment_id': payment_id,
+                    'order_state.payment_method': payment_method,
+                    'order_state.invoice_id': invoice_id,
+                    'payment_details': payment_details,
+                    'last_active': firestore.SERVER_TIMESTAMP
+                })
+            
+            # Also update the completed orders collection
+                try:
+                # Save a copy to the completed orders collection
+                    completed_ref = db.collection('completed_orders').document(user_id)
+                    completed_data = order_state.to_dict()
+                    completed_data.update({
+                        'payment_completed': True,
+                        'payment_id': payment_id,
+                        'payment_method': payment_method,
+                        'payment_details': payment_details,
+                        'completed_at': firestore.SERVER_TIMESTAMP
+                    })
+                    completed_ref.set(completed_data)
+                    logger.info(f"Saved payment completion to completed_orders collection for user {user_id}")
+                except Exception as e:
+                    logger.error(f"Error saving to completed_orders: {str(e)}")
+                # Continue even if this fails
+            
+                logger.info(f"Payment successfully processed for user {user_id}")
+                return jsonify({'success': True})
+            else:
+                logger.error(f"Order state not found for user {user_id}")
+                return jsonify({'error': 'Order state not found'}), 404
+            
         except Exception as e:
             logger.error(f"Error processing payment completion: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
