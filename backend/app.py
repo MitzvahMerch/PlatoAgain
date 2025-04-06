@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 
 # Setup logging
-logging.basicConfig(level=logging.WARNING)  # Changed from INFO to WARNING
+logging.basicConfig(level=logging.INFO)  # Changed from INFO to WARNING
 logger = logging.getLogger(__name__)
 
 def create_app():
