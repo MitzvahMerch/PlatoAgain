@@ -13,137 +13,206 @@ function loadImage(src) {
 function injectCountersIntoFirstMessage() {
     // Find the first bot message
     const firstBotMessage = document.querySelector('#chat-messages .message.bot:first-child');
-    
+  
     if (!firstBotMessage) {
       console.error('First bot message not found');
       return;
     }
-    
-    // Create a wrapper that holds "Plato's Stats" and the counters side-by-side
-    const statsWrapper = document.createElement('div');
-    statsWrapper.style.cssText = `
+  
+    // Create main container with card-like appearance
+    const statsCard = document.createElement('div');
+    statsCard.className = 'plato-stats-card';
+    statsCard.style.cssText = `
+      margin: 15px 0;
+      padding: 16px;
+      background-color: rgba(224, 132, 66, 0.1);
+      border-radius: 10px;
+      border-left: 4px solid #E08442;
+      width: 100%;
+    `;
+  
+    // Create header with trust indicators
+    const cardHeader = document.createElement('div');
+    cardHeader.style.cssText = `
       display: flex;
       align-items: center;
-      margin: 15px 0;
-      width: 100%;
-      gap: 20px;
+      margin-bottom: 15px;
+      justify-content: space-between;
     `;
-    
-    // Create the "Plato's Stats" label
+  
+    // Create the badge icon and text
+    const badgeContainer = document.createElement('div');
+    badgeContainer.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    `;
+  
+    // SVG for verified badge
+    const verifiedIcon = document.createElement('div');
+    verifiedIcon.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#E08442" />
+      </svg>
+    `;
+  
+    // Label for verified status
+    const verifiedLabel = document.createElement('div');
+    verifiedLabel.textContent = "Verified Bulk Printer";
+    verifiedLabel.style.cssText = `
+      font-weight: bold;
+      color: #E08442;
+      font-size: 14px;
+    `;
+  
+    badgeContainer.appendChild(verifiedIcon);
+    badgeContainer.appendChild(verifiedLabel);
+  
+    // Create "Plato's Stats" label
     const statsLabel = document.createElement('div');
     statsLabel.textContent = "Plato's Stats";
     statsLabel.style.cssText = `
-      color: var(--primary-color);
-      font-size: 18px;
+      color: #333;
+      font-size: 16px;
       font-weight: bold;
     `;
-    
-    statsWrapper.appendChild(statsLabel);
-    
+  
+    // Add elements to header
+    cardHeader.appendChild(badgeContainer);
+    cardHeader.appendChild(statsLabel);
+    statsCard.appendChild(cardHeader);
+  
     // Create the counters container
     const countersContainer = document.createElement('div');
     countersContainer.className = 'plato-counters-container';
     countersContainer.style.cssText = `
       display: flex;
       justify-content: space-between;
-      flex: 1;
       gap: 20px;
     `;
-    
+  
     // Calculate the counter value for Orders Completed
-    // This will increment by 1 each day from a base value of 68
-    const startDate = new Date('2025-01-01'); // Start date for the counter
+    const startDate = new Date('2025-01-01');
     const today = new Date();
     const daysSinceStart = Math.floor((today - startDate) / (24 * 60 * 60 * 1000));
-    const ordersCompleted = 68 + daysSinceStart; // Base value + days since start
-    
-    // Create Orders Completed counter (now with orange background)
-    const ordersCounter = document.createElement('div');
-    ordersCounter.className = 'plato-counter orders-counter';
-    ordersCounter.style.cssText = `
-      flex: 1;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    `;
-    
-    const ordersValue = document.createElement('div');
-    ordersValue.className = 'counter-value';
-    ordersValue.textContent = ordersCompleted;
-    ordersValue.style.cssText = `
-      /* Shrunk ~30% from your original values */
-      background-color: #E08442; /* Changed from white to orange */
-      color: var(--background-color);
-      font-size: 20px;        /* was 28px */
-      font-weight: bold;
-      padding: 7px 10px;      /* was 10px 15px */
-      border-radius: 6px;     /* was 8px */
-      min-width: 60px;        /* was 80px */
-      margin-bottom: 6px;     /* was 8px */
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    `;
-    
-    const ordersLabel = document.createElement('div');
-    ordersLabel.className = 'counter-label';
-    ordersLabel.textContent = 'Orders Completed';
-    ordersLabel.style.cssText = `
-      color: var(--primary-color);
-      font-size: 14px;
-      font-weight: bold;
-    `;
-    
-    ordersCounter.appendChild(ordersValue);
-    ordersCounter.appendChild(ordersLabel);
-    
-    // Create the "Order Minimum" counter (formerly "Minimum Bulk Requirement")
-    const bulkCounter = document.createElement('div');
-    bulkCounter.className = 'plato-counter bulk-counter';
-    bulkCounter.style.cssText = `
-      flex: 1;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    `;
-    
-    const bulkValue = document.createElement('div');
-    bulkValue.className = 'counter-value';
-    bulkValue.textContent = '24 Units';  // Removed the "#" sign
-    bulkValue.style.cssText = `
-      /* Shrunk ~30% from your original values */
-      background-color: #E08442;
-      color: black;           /* Changed text color from white to black */
-      font-size: 20px;        /* was 28px */
-      font-weight: bold;
-      padding: 7px 10px;      /* was 10px 15px */
-      border-radius: 6px;     /* was 8px */
-      min-width: 60px;        /* was 80px */
-      margin-bottom: 6px;     /* was 8px */
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    `;
-    
-    const bulkLabel = document.createElement('div');
-    bulkLabel.className = 'counter-label';
-    bulkLabel.textContent = 'Order Minimum'; // Changed from "Minimum Bulk Requirement"
-    bulkLabel.style.cssText = `
-      color: var(--primary-color);
-      font-size: 14px;
-      font-weight: bold;
-    `;
-    
-    bulkCounter.appendChild(bulkValue);
-    bulkCounter.appendChild(bulkLabel);
-    
-    // Assemble both counters
+    const ordersCompleted = 68 + daysSinceStart;
+  
+    // Create Orders Completed counter
+    const ordersCounter = createCounter(
+      ordersCompleted, 
+      'Orders Completed', 
+      'Trusted by businesses nationwide'
+    );
+  
+    // Create the "Order Minimum" counter
+    const bulkCounter = createCounter(
+      '24 Units', 
+      'Order Minimum', 
+      'Bulk pricing for quality prints'
+    );
+  
+    // Add the counters to the container
     countersContainer.appendChild(ordersCounter);
     countersContainer.appendChild(bulkCounter);
-    
-    // Add the counters container to our stats wrapper
-    statsWrapper.appendChild(countersContainer);
-    
-    // Insert the entire stats wrapper right after the text content of the first message
-    firstBotMessage.appendChild(statsWrapper);
+  
+    // Add the counters container to the stats card
+    statsCard.appendChild(countersContainer);
+  
+    // Create a small trust banner at the bottom
+    const trustBanner = document.createElement('div');
+    trustBanner.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(224, 132, 66, 0.3);
+      font-size: 12px;
+      color: #666;
+    `;
+  
+    // Small lock icon for security
+    const lockIcon = document.createElement('div');
+    lockIcon.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 11H5V21H19V11Z" fill="#666" />
+        <path d="M17 11V8C17 5.24 14.76 3 12 3C9.24 3 7 5.24 7 8V11" stroke="#666" fill="none" />
+      </svg>
+    `;
+  
+    // Trust text
+    const trustText = document.createElement('span');
+    trustText.textContent = "Secure Payments • Fast Production • 100% Satisfaction Guarantee";
+  
+    trustBanner.appendChild(lockIcon);
+    trustBanner.appendChild(trustText);
+    statsCard.appendChild(trustBanner);
+  
+    // Insert the entire stats card right after the text content of the first message
+    firstBotMessage.appendChild(statsCard);
+  
+    // Helper function to create counter elements
+    function createCounter(value, label, subtext) {
+      const counter = document.createElement('div');
+      counter.className = 'plato-counter';
+      counter.style.cssText = `
+        flex: 1;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      `;
+  
+      const counterValue = document.createElement('div');
+      counterValue.className = 'counter-value';
+      counterValue.textContent = value;
+      counterValue.style.cssText = `
+        background-color: #E08442;
+        color: white;
+        font-size: 22px;
+        font-weight: bold;
+        padding: 8px 12px;
+        border-radius: 8px;
+        min-width: 70px;
+        margin-bottom: 8px;
+        box-shadow: 0 2px 6px rgba(224, 132, 66, 0.3);
+        transition: transform 0.2s ease;
+      `;
+  
+      // Add hover effect
+      counterValue.onmouseover = function() {
+        this.style.transform = 'scale(1.05)';
+      };
+      counterValue.onmouseout = function() {
+        this.style.transform = 'scale(1)';
+      };
+  
+      const counterLabel = document.createElement('div');
+      counterLabel.className = 'counter-label';
+      counterLabel.textContent = label;
+      counterLabel.style.cssText = `
+        color: #333;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 4px;
+      `;
+  
+      const counterSubtext = document.createElement('div');
+      counterSubtext.className = 'counter-subtext';
+      counterSubtext.textContent = subtext;
+      counterSubtext.style.cssText = `
+        color: #666;
+        font-size: 12px;
+        max-width: 150px;
+      `;
+  
+      counter.appendChild(counterValue);
+      counter.appendChild(counterLabel);
+      counter.appendChild(counterSubtext);
+  
+      return counter;
+    }
   }
 
 // Generate a random user ID for this session
