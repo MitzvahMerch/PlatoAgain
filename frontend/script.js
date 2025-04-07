@@ -25,10 +25,12 @@ function injectCountersIntoFirstMessage() {
     statsCard.style.cssText = `
       margin: 15px 0;
       padding: 16px;
-      background-color: rgba(224, 132, 66, 0.1);
+      background-color: #121212;
       border-radius: 10px;
       border-left: 4px solid #E08442;
       width: 100%;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     `;
   
     // Create header with trust indicators
@@ -63,14 +65,16 @@ function injectCountersIntoFirstMessage() {
       font-weight: bold;
       color: #E08442;
       font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     `;
   
     badgeContainer.appendChild(verifiedIcon);
     badgeContainer.appendChild(verifiedLabel);
   
-    // Create "Plato's Stats" label
+    // Create "Platos Pillars" label
     const statsLabel = document.createElement('div');
-    statsLabel.textContent = "Plato's Stats";
+    statsLabel.textContent = "Platos Pillars";
     statsLabel.style.cssText = `
       color: #333;
       font-size: 16px;
@@ -87,8 +91,9 @@ function injectCountersIntoFirstMessage() {
     countersContainer.className = 'plato-counters-container';
     countersContainer.style.cssText = `
       display: flex;
-      justify-content: space-between;
-      gap: 20px;
+      justify-content: center;
+      gap: 80px;
+      align-items: flex-start;
     `;
   
     // Calculate the counter value for Orders Completed
@@ -125,11 +130,13 @@ function injectCountersIntoFirstMessage() {
       align-items: center;
       justify-content: center;
       gap: 8px;
-      margin-top: 15px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(224, 132, 66, 0.3);
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid #333333;
       font-size: 12px;
-      color: #666;
+      color: #888888;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     `;
   
     // Small lock icon for security
@@ -143,7 +150,7 @@ function injectCountersIntoFirstMessage() {
   
     // Trust text
     const trustText = document.createElement('span');
-    trustText.textContent = "Secure Payments • Fast Production • 100% Satisfaction Guarantee";
+    trustText.textContent = "Secure Payments • Chat Interface • 100% Satisfaction Guarantee";
   
     trustBanner.appendChild(lockIcon);
     trustBanner.appendChild(trustText);
@@ -174,10 +181,13 @@ function injectCountersIntoFirstMessage() {
         font-weight: bold;
         padding: 8px 12px;
         border-radius: 8px;
-        min-width: 70px;
+        width: 120px;
+        text-align: center;
         margin-bottom: 8px;
         box-shadow: 0 2px 6px rgba(224, 132, 66, 0.3);
         transition: transform 0.2s ease;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       `;
   
       // Add hover effect
@@ -192,19 +202,24 @@ function injectCountersIntoFirstMessage() {
       counterLabel.className = 'counter-label';
       counterLabel.textContent = label;
       counterLabel.style.cssText = `
-        color: #333;
+        color: #888888;
         font-size: 14px;
         font-weight: bold;
         margin-bottom: 4px;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       `;
   
       const counterSubtext = document.createElement('div');
       counterSubtext.className = 'counter-subtext';
       counterSubtext.textContent = subtext;
       counterSubtext.style.cssText = `
-        color: #666;
+        color: #666666;
         font-size: 12px;
         max-width: 150px;
+        text-align: center;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       `;
   
       counter.appendChild(counterValue);
