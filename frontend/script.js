@@ -11,165 +11,139 @@ function loadImage(src) {
 
 // Function to inject counters into the first message
 function injectCountersIntoFirstMessage() {
-    // Find the first bot message
-    const firstBotMessage = document.querySelector('#chat-messages .message.bot:first-child');
-    if (!firstBotMessage) {
-      console.error('First bot message not found');
-      return;
-    }
+  // Find the first bot message
+  const firstBotMessage = document.querySelector('#chat-messages .message.bot:first-child');
   
-    // Create the main stats card container
-    const statsCard = document.createElement('div');
-    statsCard.className = 'plato-stats-card';
-    statsCard.style.cssText = `
-      background-color: #ffffff;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      padding: 20px;
-      margin: 20px 0;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      animation: fadeIn 0.4s ease-in-out;
-    `;
-  
-    // Left section: Plato logo and enhanced "Plato's Stats" label
-    const labelContainer = document.createElement('div');
-    labelContainer.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    `;
-  
-    // Plato logo image from frontend/images/plato
-    const platoLogo = document.createElement('img');
-    platoLogo.src = 'frontend/images/plato';
-    platoLogo.alt = "Plato Logo";
-    platoLogo.style.cssText = `
-      width: 40px;
-      height: 40px;
-      object-fit: contain;
-    `;
-  
-    // Enhanced "Plato's Stats" label
-    const statsLabel = document.createElement('div');
-    statsLabel.textContent = "Plato's Stats";
-    statsLabel.style.cssText = `
-      font-size: 22px;
-      font-weight: 600;
-      color: var(--primary-color, #E08442);
-    `;
-  
-    labelContainer.appendChild(platoLogo);
-    labelContainer.appendChild(statsLabel);
-    statsCard.appendChild(labelContainer);
-  
-    // Right section: Mini cards container for the counters
-    const countersContainer = document.createElement('div');
-    countersContainer.style.cssText = `
-      display: flex;
-      gap: 20px;
-      margin-left: auto;
-    `;
-  
-    // Calculate Orders Completed value (base 68 + days since start)
-    const startDate = new Date('2025-01-01');
-    const today = new Date();
-    const daysSinceStart = Math.floor((today - startDate) / (24 * 60 * 60 * 1000));
-    const ordersCompleted = 68 + daysSinceStart;
-  
-    // Orders Completed mini card (white)
-    const ordersCard = document.createElement('div');
-    ordersCard.style.cssText = `
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 8px 10px; /* ~35% smaller than before */
-      text-align: center;
-      min-width: 70px;
-    `;
-  
-    const ordersValue = document.createElement('div');
-    ordersValue.style.cssText = `
-      font-size: 16px;  /* scaled down from 24px */
-      font-weight: bold;
-      color: #333;
-      margin-bottom: 2px;
-    `;
-    ordersValue.textContent = ordersCompleted;
-  
-    const ordersLabel = document.createElement('div');
-    ordersLabel.style.cssText = `
-      font-size: 9px; /* scaled down from 13px */
-      font-weight: 500;
-      color: #555;
-    `;
-    ordersLabel.textContent = 'Orders Completed';
-  
-    ordersCard.appendChild(ordersValue);
-    ordersCard.appendChild(ordersLabel);
-  
-    // Bulk Requirement mini card (orange style)
-    const bulkCard = document.createElement('div');
-    bulkCard.style.cssText = `
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 8px 10px;
-      text-align: center;
-      min-width: 70px;
-    `;
-  
-    // Create inner container for the orange box that holds the value and t-shirt image
-    const bulkValueContainer = document.createElement('div');
-    bulkValueContainer.style.cssText = `
-      background-color: #E08442;
-      color: #fff;
-      font-size: 16px;
-      font-weight: bold;
-      padding: 4px 8px;
-      border-radius: 4px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      margin-bottom: 2px;
-    `;
-  
-    // Text for bulk requirement: "Min #24"
-    const bulkValueText = document.createElement('span');
-    bulkValueText.textContent = "Min #24";
-  
-    // Plato t-shirt image from frontend/images/platosshirt
-    const shirtImg = document.createElement('img');
-    shirtImg.src = 'frontend/images/platosshirt';
-    shirtImg.alt = "Plato T-Shirt";
-    shirtImg.style.cssText = `
-      width: 16px;
-      height: 16px;
-      object-fit: contain;
-    `;
-  
-    bulkValueContainer.appendChild(shirtImg);
-    bulkValueContainer.appendChild(bulkValueText);
-  
-    const bulkLabel = document.createElement('div');
-    bulkLabel.style.cssText = `
-      font-size: 9px;
-      font-weight: 500;
-      color: #555;
-    `;
-    bulkLabel.textContent = 'Bulk Requirement';
-  
-    bulkCard.appendChild(bulkValueContainer);
-    bulkCard.appendChild(bulkLabel);
-  
-    // Append mini cards to counters container
-    countersContainer.appendChild(ordersCard);
-    countersContainer.appendChild(bulkCard);
-  
-    statsCard.appendChild(countersContainer);
-  
-    // Append the complete stats card into the first bot message
-    firstBotMessage.appendChild(statsCard);
+  if (!firstBotMessage) {
+    console.error('First bot message not found');
+    return;
   }
+  
+  // Create a wrapper that holds "Plato's Stats" and the counters side-by-side
+  const statsWrapper = document.createElement('div');
+  statsWrapper.style.cssText = `
+    display: flex;
+    align-items: center;
+    margin: 15px 0;
+    width: 100%;
+    gap: 20px;
+  `;
+  
+  // Create the "Plato's Stats" label
+  const statsLabel = document.createElement('div');
+  statsLabel.textContent = "Plato's Stats";
+  statsLabel.style.cssText = `
+    color: var(--primary-color);
+    font-size: 18px;
+    font-weight: bold;
+  `;
+  
+  statsWrapper.appendChild(statsLabel);
+  
+  // Create the counters container
+  const countersContainer = document.createElement('div');
+  countersContainer.className = 'plato-counters-container';
+  countersContainer.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    flex: 1;
+    gap: 20px;
+  `;
+  
+  // Calculate the counter value for Orders Completed
+  // This will increment by 1 each day from a base value of 68
+  const startDate = new Date('2025-01-01'); // Start date for the counter
+  const today = new Date();
+  const daysSinceStart = Math.floor((today - startDate) / (24 * 60 * 60 * 1000));
+  const ordersCompleted = 68 + daysSinceStart; // Base value + days since start
+  
+  // Create Orders Completed counter
+  const ordersCounter = document.createElement('div');
+  ordersCounter.className = 'plato-counter orders-counter';
+  ordersCounter.style.cssText = `
+    flex: 1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  `;
+  
+  const ordersValue = document.createElement('div');
+  ordersValue.className = 'counter-value';
+  ordersValue.textContent = ordersCompleted;
+  ordersValue.style.cssText = `
+    background-color: white;
+    color: var(--background-color);
+    font-size: 28px;
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 8px;
+    min-width: 80px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  `;
+  
+  const ordersLabel = document.createElement('div');
+  ordersLabel.className = 'counter-label';
+  ordersLabel.textContent = 'Orders Completed';
+  ordersLabel.style.cssText = `
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: bold;
+  `;
+  
+  ordersCounter.appendChild(ordersValue);
+  ordersCounter.appendChild(ordersLabel);
+  
+  // Create Minimum Bulk Requirement counter
+  const bulkCounter = document.createElement('div');
+  bulkCounter.className = 'plato-counter bulk-counter';
+  bulkCounter.style.cssText = `
+    flex: 1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  `;
+  
+  const bulkValue = document.createElement('div');
+  bulkValue.className = 'counter-value';
+  // Change text to "#24 Units" and color to #E08442
+  bulkValue.textContent = '#24 Units';
+  bulkValue.style.cssText = `
+    background-color: #E08442; /* new color */
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 8px;
+    min-width: 80px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  `;
+  
+  const bulkLabel = document.createElement('div');
+  bulkLabel.className = 'counter-label';
+  bulkLabel.textContent = 'Minimum Bulk Requirement';
+  bulkLabel.style.cssText = `
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: bold;
+  `;
+  
+  bulkCounter.appendChild(bulkValue);
+  bulkCounter.appendChild(bulkLabel);
+  
+  // Assemble both counters
+  countersContainer.appendChild(ordersCounter);
+  countersContainer.appendChild(bulkCounter);
+  
+  // Add the counters container to our stats wrapper
+  statsWrapper.appendChild(countersContainer);
+  
+  // Insert the entire stats wrapper right after the text content of the first message
+  firstBotMessage.appendChild(statsWrapper);
+}
 
 // Generate a random user ID for this session
 let userId;
