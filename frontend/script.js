@@ -19,23 +19,43 @@ function injectCountersIntoFirstMessage() {
     return;
   }
   
+  // Create a wrapper that holds "Plato's Stats" and the counters side-by-side
+  const statsWrapper = document.createElement('div');
+  statsWrapper.style.cssText = `
+    display: flex;
+    align-items: center;
+    margin: 15px 0;
+    width: 100%;
+    gap: 20px;
+  `;
+  
+  // Create the "Plato's Stats" label
+  const statsLabel = document.createElement('div');
+  statsLabel.textContent = "Plato's Stats";
+  statsLabel.style.cssText = `
+    color: var(--primary-color);
+    font-size: 18px;
+    font-weight: bold;
+  `;
+  
+  statsWrapper.appendChild(statsLabel);
+  
   // Create the counters container
   const countersContainer = document.createElement('div');
   countersContainer.className = 'plato-counters-container';
   countersContainer.style.cssText = `
     display: flex;
     justify-content: space-between;
-    margin: 15px 0;
-    width: 100%;
+    flex: 1;
     gap: 20px;
   `;
   
   // Calculate the counter value for Orders Completed
-  // This will increment by 1 each day from a base value
+  // This will increment by 1 each day from a base value of 68
   const startDate = new Date('2025-01-01'); // Start date for the counter
   const today = new Date();
   const daysSinceStart = Math.floor((today - startDate) / (24 * 60 * 60 * 1000));
-  const ordersCompleted = 527 + daysSinceStart; // Base value + days since start
+  const ordersCompleted = 68 + daysSinceStart; // Base value + days since start
   
   // Create Orders Completed counter
   const ordersCounter = document.createElement('div');
@@ -72,6 +92,9 @@ function injectCountersIntoFirstMessage() {
     font-weight: bold;
   `;
   
+  ordersCounter.appendChild(ordersValue);
+  ordersCounter.appendChild(ordersLabel);
+  
   // Create Minimum Bulk Requirement counter
   const bulkCounter = document.createElement('div');
   bulkCounter.className = 'plato-counter bulk-counter';
@@ -85,9 +108,10 @@ function injectCountersIntoFirstMessage() {
   
   const bulkValue = document.createElement('div');
   bulkValue.className = 'counter-value';
-  bulkValue.textContent = '24';
+  // Change text to "#24 Units" and color to #E08442
+  bulkValue.textContent = '#24 Units';
   bulkValue.style.cssText = `
-    background-color: #dc3545;
+    background-color: #E08442; /* new color */
     color: white;
     font-size: 28px;
     font-weight: bold;
@@ -107,18 +131,18 @@ function injectCountersIntoFirstMessage() {
     font-weight: bold;
   `;
   
-  // Assemble the counters
-  ordersCounter.appendChild(ordersValue);
-  ordersCounter.appendChild(ordersLabel);
-  
   bulkCounter.appendChild(bulkValue);
   bulkCounter.appendChild(bulkLabel);
   
+  // Assemble both counters
   countersContainer.appendChild(ordersCounter);
   countersContainer.appendChild(bulkCounter);
   
-  // Insert the counters right after the text content
-  firstBotMessage.appendChild(countersContainer);
+  // Add the counters container to our stats wrapper
+  statsWrapper.appendChild(countersContainer);
+  
+  // Insert the entire stats wrapper right after the text content of the first message
+  firstBotMessage.appendChild(statsWrapper);
 }
 
 // Generate a random user ID for this session
@@ -164,7 +188,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         
         if (health.status === 'healthy') {
             addMessage("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!", 'bot');
-            // After the welcome message is added, inject counters
+            // Inject counters AFTER the first welcome message is appended
             setTimeout(() => {
                 injectCountersIntoFirstMessage();
             }, 100);
@@ -199,8 +223,6 @@ window.resetConversation = function() {
     
     console.log('Conversation reset with new user ID:', userId);
 };
-
-
 
 // Event Listeners
 sendButton.addEventListener('click', sendMessage);
@@ -476,15 +498,7 @@ function addMessage(content, sender) {
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Check if this is the first bot welcome message to inject counters
-    if (sender === 'bot' && 
-        content.includes("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!") &&
-        document.querySelectorAll('#chat-messages .message.bot').length === 1) {
-        // This is the first message, inject counters
-        setTimeout(() => {
-            injectCountersIntoFirstMessage();
-        }, 100);
-    }
+    // Removed the code that injected counters here (to prevent duplication)
     
     // Check if this is a bot message about quantity selection
     if (sender === 'bot') {
@@ -552,7 +566,7 @@ function initiateNextDesignUpload(previousDesignUrl, wasBackImage) {
         currentProductImageUrl = previousDesignUrl;
     }
     
-    // Increment designs added counter
+    // Increment designsAdded counter
     designsAdded++;
     
     // Trigger the image upload input
