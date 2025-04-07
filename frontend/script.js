@@ -13,20 +13,28 @@ function loadImage(src) {
 function injectCountersIntoFirstMessage() {
     // Find the first bot message
     const firstBotMessage = document.querySelector('#chat-messages .message.bot:first-child');
-    
     if (!firstBotMessage) {
       console.error('First bot message not found');
       return;
     }
     
-    // Create a wrapper that holds "Plato's Stats" and the counters side-by-side
+    // Create a wrapper that holds "Plato's Stats" label + a card container
     const statsWrapper = document.createElement('div');
     statsWrapper.style.cssText = `
-      display: flex;
-      align-items: center;
       margin: 15px 0;
       width: 100%;
-      gap: 20px;
+    `;
+    
+    // Create a card-like container
+    const cardContainer = document.createElement('div');
+    cardContainer.style.cssText = `
+      background-color: #f9f9f9;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     `;
     
     // Create the "Plato's Stats" label
@@ -38,30 +46,28 @@ function injectCountersIntoFirstMessage() {
       font-weight: bold;
     `;
     
-    statsWrapper.appendChild(statsLabel);
+    cardContainer.appendChild(statsLabel);
     
-    // Create the counters container
+    // Create the counters container with a grid layout
     const countersContainer = document.createElement('div');
     countersContainer.className = 'plato-counters-container';
     countersContainer.style.cssText = `
-      display: flex;
-      justify-content: space-between;
-      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr; 
+      /* 3 columns: first counter, image, second counter */
+      align-items: center;
       gap: 20px;
     `;
     
     // Calculate the counter value for Orders Completed
-    // This will increment by 1 each day from a base value of 68
-    const startDate = new Date('2025-01-01'); // Start date for the counter
+    const startDate = new Date('2025-01-01');
     const today = new Date();
     const daysSinceStart = Math.floor((today - startDate) / (24 * 60 * 60 * 1000));
-    const ordersCompleted = 68 + daysSinceStart; // Base value + days since start
+    const ordersCompleted = 68 + daysSinceStart;
     
-    // Create Orders Completed counter (now with orange background)
+    // 1) Create Orders Completed counter
     const ordersCounter = document.createElement('div');
-    ordersCounter.className = 'plato-counter orders-counter';
     ordersCounter.style.cssText = `
-      flex: 1;
       text-align: center;
       display: flex;
       flex-direction: column;
@@ -69,23 +75,20 @@ function injectCountersIntoFirstMessage() {
     `;
     
     const ordersValue = document.createElement('div');
-    ordersValue.className = 'counter-value';
     ordersValue.textContent = ordersCompleted;
     ordersValue.style.cssText = `
-      /* Shrunk ~30% from your original values */
-      background-color: #E08442; /* Changed from white to orange */
+      background-color: #E08442; /* your orange */
       color: var(--background-color);
-      font-size: 20px;        /* was 28px */
+      font-size: 20px;
       font-weight: bold;
-      padding: 7px 10px;      /* was 10px 15px */
-      border-radius: 6px;     /* was 8px */
-      min-width: 60px;        /* was 80px */
-      margin-bottom: 6px;     /* was 8px */
+      padding: 7px 10px;
+      border-radius: 6px;
+      min-width: 60px;
+      margin-bottom: 6px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     `;
     
     const ordersLabel = document.createElement('div');
-    ordersLabel.className = 'counter-label';
     ordersLabel.textContent = 'Orders Completed';
     ordersLabel.style.cssText = `
       color: var(--primary-color);
@@ -96,11 +99,19 @@ function injectCountersIntoFirstMessage() {
     ordersCounter.appendChild(ordersValue);
     ordersCounter.appendChild(ordersLabel);
     
-    // Create the "Order Minimum" counter (formerly "Minimum Bulk Requirement")
+    // 2) Create an <img> for your Plato shirt
+    const platoShirtImg = document.createElement('img');
+    platoShirtImg.src = 'frontend/images/platoshirt';  // Adjust the path/extension as necessary
+    platoShirtImg.alt = 'Plato Shirt Preview';
+    platoShirtImg.style.cssText = `
+      width: 100px;
+      height: auto;
+      border-radius: 4px;
+    `;
+    
+    // 3) Create the "Order Minimum" counter
     const bulkCounter = document.createElement('div');
-    bulkCounter.className = 'plato-counter bulk-counter';
     bulkCounter.style.cssText = `
-      flex: 1;
       text-align: center;
       display: flex;
       flex-direction: column;
@@ -108,24 +119,21 @@ function injectCountersIntoFirstMessage() {
     `;
     
     const bulkValue = document.createElement('div');
-    bulkValue.className = 'counter-value';
-    bulkValue.textContent = '24 Units';  // Removed the "#" sign
+    bulkValue.textContent = '24 Units';
     bulkValue.style.cssText = `
-      /* Shrunk ~30% from your original values */
       background-color: #E08442;
-      color: black;           /* Changed text color from white to black */
-      font-size: 20px;        /* was 28px */
+      color: black;
+      font-size: 20px;
       font-weight: bold;
-      padding: 7px 10px;      /* was 10px 15px */
-      border-radius: 6px;     /* was 8px */
-      min-width: 60px;        /* was 80px */
-      margin-bottom: 6px;     /* was 8px */
+      padding: 7px 10px;
+      border-radius: 6px;
+      min-width: 60px;
+      margin-bottom: 6px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     `;
     
     const bulkLabel = document.createElement('div');
-    bulkLabel.className = 'counter-label';
-    bulkLabel.textContent = 'Order Minimum'; // Changed from "Minimum Bulk Requirement"
+    bulkLabel.textContent = 'Order Minimum';
     bulkLabel.style.cssText = `
       color: var(--primary-color);
       font-size: 14px;
@@ -135,14 +143,17 @@ function injectCountersIntoFirstMessage() {
     bulkCounter.appendChild(bulkValue);
     bulkCounter.appendChild(bulkLabel);
     
-    // Assemble both counters
+    // Place the counters & image into the grid: [first counter | image | second counter]
     countersContainer.appendChild(ordersCounter);
+    countersContainer.appendChild(platoShirtImg);
     countersContainer.appendChild(bulkCounter);
     
-    // Add the counters container to our stats wrapper
-    statsWrapper.appendChild(countersContainer);
+    // Add countersContainer to the card container
+    cardContainer.appendChild(countersContainer);
+    // Add the card container to statsWrapper
+    statsWrapper.appendChild(cardContainer);
     
-    // Insert the entire stats wrapper right after the text content of the first message
+    // Finally, insert the entire stats wrapper right after the text content of the first message
     firstBotMessage.appendChild(statsWrapper);
   }
 
