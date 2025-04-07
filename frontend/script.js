@@ -274,6 +274,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (health.status === 'healthy') {
             addMessage("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!", 'bot');
             // Inject counters AFTER the first welcome message is appended
+            setTimeout(() => {
+                injectCountersIntoFirstMessage();
+            }, 100);
             
             addMessage("What type of clothing, and in what color, are you looking to customize today?", 'bot');
         } else {
