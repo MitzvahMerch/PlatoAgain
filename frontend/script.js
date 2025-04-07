@@ -18,6 +18,12 @@ function injectCountersIntoFirstMessage() {
       console.error('First bot message not found');
       return;
     }
+    
+    // Check if counter is already added to avoid duplicates
+    if (firstBotMessage.querySelector('.plato-stats-card')) {
+      console.log('Counter already exists, not adding again');
+      return;
+    }
   
     // Create main container with card-like appearance
     const statsCard = document.createElement('div');
@@ -76,9 +82,11 @@ function injectCountersIntoFirstMessage() {
     const statsLabel = document.createElement('div');
     statsLabel.textContent = "Platos Pillars";
     statsLabel.style.cssText = `
-      color: #333;
+      color: #888888;
       font-size: 16px;
       font-weight: bold;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     `;
   
     // Add elements to header
