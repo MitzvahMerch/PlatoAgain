@@ -9,6 +9,118 @@ function loadImage(src) {
     });
 }
 
+// Function to inject counters into the first message
+function injectCountersIntoFirstMessage() {
+  // Find the first bot message
+  const firstBotMessage = document.querySelector('#chat-messages .message.bot:first-child');
+  
+  if (!firstBotMessage) {
+    console.error('First bot message not found');
+    return;
+  }
+  
+  // Create the counters container
+  const countersContainer = document.createElement('div');
+  countersContainer.className = 'plato-counters-container';
+  countersContainer.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    margin: 15px 0;
+    width: 100%;
+    gap: 20px;
+  `;
+  
+  // Calculate the counter value for Orders Completed
+  // This will increment by 1 each day from a base value
+  const startDate = new Date('2025-01-01'); // Start date for the counter
+  const today = new Date();
+  const daysSinceStart = Math.floor((today - startDate) / (24 * 60 * 60 * 1000));
+  const ordersCompleted = 527 + daysSinceStart; // Base value + days since start
+  
+  // Create Orders Completed counter
+  const ordersCounter = document.createElement('div');
+  ordersCounter.className = 'plato-counter orders-counter';
+  ordersCounter.style.cssText = `
+    flex: 1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  `;
+  
+  const ordersValue = document.createElement('div');
+  ordersValue.className = 'counter-value';
+  ordersValue.textContent = ordersCompleted;
+  ordersValue.style.cssText = `
+    background-color: white;
+    color: var(--background-color);
+    font-size: 28px;
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 8px;
+    min-width: 80px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  `;
+  
+  const ordersLabel = document.createElement('div');
+  ordersLabel.className = 'counter-label';
+  ordersLabel.textContent = 'Orders Completed';
+  ordersLabel.style.cssText = `
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: bold;
+  `;
+  
+  // Create Minimum Bulk Requirement counter
+  const bulkCounter = document.createElement('div');
+  bulkCounter.className = 'plato-counter bulk-counter';
+  bulkCounter.style.cssText = `
+    flex: 1;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  `;
+  
+  const bulkValue = document.createElement('div');
+  bulkValue.className = 'counter-value';
+  bulkValue.textContent = '24';
+  bulkValue.style.cssText = `
+    background-color: #dc3545;
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    padding: 10px 15px;
+    border-radius: 8px;
+    min-width: 80px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  `;
+  
+  const bulkLabel = document.createElement('div');
+  bulkLabel.className = 'counter-label';
+  bulkLabel.textContent = 'Minimum Bulk Requirement';
+  bulkLabel.style.cssText = `
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: bold;
+  `;
+  
+  // Assemble the counters
+  ordersCounter.appendChild(ordersValue);
+  ordersCounter.appendChild(ordersLabel);
+  
+  bulkCounter.appendChild(bulkValue);
+  bulkCounter.appendChild(bulkLabel);
+  
+  countersContainer.appendChild(ordersCounter);
+  countersContainer.appendChild(bulkCounter);
+  
+  // Insert the counters right after the text content
+  firstBotMessage.appendChild(countersContainer);
+}
+
 // Generate a random user ID for this session
 let userId;
 
@@ -33,22 +145,6 @@ window.addEventListener('DOMContentLoaded', () => {
     handleKeyboardVisibility();
 });
 
-// Add a function to reset the conversation with a new user ID
-window.resetConversation = function() {
-    // Generate a new user ID
-    userId = generateNewUserId();
-    
-    // Clear chat messages
-    const chatMessages = document.getElementById('chat-messages');
-    chatMessages.innerHTML = '';
-    
-    // Add initial welcome message
-   // Add initial welcome messages
-    addMessage("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!", 'bot');
-    addMessage("What type of clothing, and in what color, are you looking to customize today?", 'bot');
-    
-    console.log('Conversation reset with new user ID:', userId);
-};
 const API_BASE_URL = 'https://platosprints-5w8mn.ondigitalocean.app';
 let currentProductImageUrl = null;  // Add this variable to store front product image
 let currentProductBackImageUrl = null;
@@ -68,6 +164,11 @@ window.addEventListener('DOMContentLoaded', async () => {
         
         if (health.status === 'healthy') {
             addMessage("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!", 'bot');
+            // After the welcome message is added, inject counters
+            setTimeout(() => {
+                injectCountersIntoFirstMessage();
+            }, 100);
+            
             addMessage("What type of clothing, and in what color, are you looking to customize today?", 'bot');
         } else {
             addMessage("Warning: System is currently unavailable. Please try again later.", 'system');
@@ -77,6 +178,29 @@ window.addEventListener('DOMContentLoaded', async () => {
         addMessage("Warning: Unable to connect to the server. Please make sure the backend is running.", 'system');
     }
 });
+
+// Add a function to reset the conversation with a new user ID
+window.resetConversation = function() {
+    // Generate a new user ID
+    userId = generateNewUserId();
+    
+    // Clear chat messages
+    const chatMessages = document.getElementById('chat-messages');
+    chatMessages.innerHTML = '';
+    
+    // Add initial welcome message
+    addMessage("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!", 'bot');
+    // Inject counters after reset
+    setTimeout(() => {
+        injectCountersIntoFirstMessage();
+    }, 100);
+    
+    addMessage("What type of clothing, and in what color, are you looking to customize today?", 'bot');
+    
+    console.log('Conversation reset with new user ID:', userId);
+};
+
+
 
 // Event Listeners
 sendButton.addEventListener('click', sendMessage);
@@ -352,6 +476,16 @@ function addMessage(content, sender) {
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
+    // Check if this is the first bot welcome message to inject counters
+    if (sender === 'bot' && 
+        content.includes("Hey! I'm Plato. Let's finalize your bulk custom clothing order right now!") &&
+        document.querySelectorAll('#chat-messages .message.bot').length === 1) {
+        // This is the first message, inject counters
+        setTimeout(() => {
+            injectCountersIntoFirstMessage();
+        }, 100);
+    }
+    
     // Check if this is a bot message about quantity selection
     if (sender === 'bot') {
         const messageText = content.toLowerCase();
@@ -425,7 +559,6 @@ function initiateNextDesignUpload(previousDesignUrl, wasBackImage) {
     imageUploadButton.click();
 }
 
-// SVG-based composite renderer function
 // SVG-based composite renderer function (modified for bug fix)
 async function svgBasedCompositeRenderer(placement) {
     try {
@@ -714,4 +847,4 @@ document.addEventListener('DOMContentLoaded', function() {
     chatInput.addEventListener('blur', function() {
       document.body.classList.remove('keyboard-visible');
     });
-  });
+});
