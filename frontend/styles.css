@@ -15,6 +15,8 @@ body {
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     background-color: var(--background-color);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 /* Chat Container */
@@ -169,49 +171,6 @@ body {
     flex-shrink: 0;
 }
 
-/* Styles for the injected stats counters */
-.plato-stats-container {
-    display: flex;
-    justify-content: space-around; /* Distribute space evenly */
-    align-items: flex-start; /* Align items at the top */
-    margin: 15px 0 10px 0; /* Top margin, no horizontal, small bottom */
-    width: 100%;
-    gap: 15px; /* Space between counters */
-    padding: 10px 0; /* Add some vertical padding */
-    /* Optional: Add subtle separators if desired within the message bubble */
-    /* border-top: 1px solid rgba(255, 255, 255, 0.1); */
-    /* border-bottom: 1px solid rgba(255, 255, 255, 0.1); */
-  }
-  
-  .plato-counter {
-    flex: 1; /* Each counter takes equal space */
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px; /* Space between value and label */
-  }
-  
-  .plato-counter .counter-value {
-    background-color: #E08442; /* Your chosen orange color */
-    color: white; /* Use white text for better contrast on orange */
-    font-size: 18px; /* Adjusted size */
-    font-weight: bold;
-    padding: 5px 12px; /* Adjusted padding */
-    border-radius: 12px; /* More rounded corners */
-    min-width: 50px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); /* Softer shadow */
-    line-height: 1.3;
-  }
-  
-  .plato-counter .counter-label {
-    color: var(--primary-color, #ccc); /* Use CSS variable or fallback grey */
-    font-size: 12px; /* Smaller label */
-    font-weight: normal; /* Less emphasis on label */
-    line-height: 1.4;
-  }
-
-  
 .chat-upload-button:hover {
     background-color: var(--border-color);
 }
