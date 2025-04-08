@@ -29,16 +29,16 @@ function injectCountersIntoFirstMessage() {
     const statsCard = document.createElement('div');
     statsCard.className = 'plato-stats-card';
     statsCard.style.cssText = `
-      margin: 15px auto;
-      padding: 16px;
-      background-color: #121212;
-      border-radius: 10px;
-      border-left: 4px solid #E08442;
-      width: 100%;
-      max-width: 600px;
-      box-sizing: border-box;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+    margin: 15px auto;
+    padding: 16px; // <--- CHANGE THIS
+    background-color: #121212;
+    border-radius: 10px;
+    border-left: 4px solid #E08442;
+    width: 100%;
+    max-width: 600px;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     `;
   
     // Create header with trust indicators
@@ -100,10 +100,12 @@ function injectCountersIntoFirstMessage() {
     const countersContainer = document.createElement('div');
     countersContainer.className = 'plato-counters-container';
     countersContainer.style.cssText = `
-      display: flex;
-      justify-content: flex-start;
-      gap: 20px;
-      margin-top: 10px;
+    display: flex;
+    justify-content: flex-start;
+    gap: 20px;
+    margin-top: 10px;
+    // ADD THE LINE BELOW
+    padding-left: 16px;
     `;
   
     // Calculate the counter value for Orders Completed
