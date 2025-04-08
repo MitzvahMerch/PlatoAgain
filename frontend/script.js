@@ -30,7 +30,7 @@ function injectCountersIntoFirstMessage() {
     statsCard.className = 'plato-stats-card';
     statsCard.style.cssText = `
     margin: 15px auto;
-    padding: 16px; // <--- CHANGE THIS
+    padding: 16px 16px 16px 0;
     background-color: #121212;
     border-radius: 10px;
     border-left: 4px solid #E08442;
