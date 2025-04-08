@@ -1012,9 +1012,7 @@ class ProductDecisionTree:
         
                 if product_family == target_family:
                     logger.info(f"    Color family match - adding to filtered list")
-                    family_filtered.append(product)
-                else:
-                    logger.info(f"    Not in target family '{target_family}' - skipping")
+                    family_filtered.append(product) 
     
             if family_filtered:
                 logger.info(f"Filtered to {len(family_filtered)} products in the '{target_family}' color family")
