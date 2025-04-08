@@ -100,8 +100,6 @@ function injectCountersIntoFirstMessage() {
     const countersContainer = document.createElement('div');
     countersContainer.className = 'plato-counters-container';
     countersContainer.style.cssText = `
-      width: 100%;
-      box-sizing: border-box;
       display: flex;
       justify-content: flex-start;
       gap: 20px;
