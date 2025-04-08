@@ -19,9 +19,6 @@ function injectCountersIntoFirstMessage() {
       return;
     }
     
-    // Remove any extra left padding on the parent container to ensure alignment
-    firstBotMessage.style.paddingLeft = "0";
-    
     // Check if counter is already added to avoid duplicates
     if (firstBotMessage.querySelector('.plato-stats-card')) {
       console.log('Counter already exists, not adding again');
@@ -32,7 +29,7 @@ function injectCountersIntoFirstMessage() {
     const statsCard = document.createElement('div');
     statsCard.className = 'plato-stats-card';
     statsCard.style.cssText = `
-      margin: 15px 0;
+      margin: 15px auto;
       padding: 16px;
       background-color: #121212;
       border-radius: 10px;
