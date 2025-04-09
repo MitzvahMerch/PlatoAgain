@@ -368,6 +368,13 @@ const createQuantitySelector = () => {
                     'currency': 'USD',
                     'transaction_id': `qty_${Date.now()}_${userId}`
                 });
+
+                if (window.googleAnalytics) {
+                    window.googleAnalytics.trackFunnelStep('quantity_selection', {
+                        'QuantitySubmission': totalQuantity,
+                        'value': totalQuantity * 0.5
+                    });
+                }                
                 
                 // Mark as tracked to prevent duplicate events
                 if (!window.googleAdsTracking) window.googleAdsTracking = {};

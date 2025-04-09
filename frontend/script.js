@@ -212,10 +212,18 @@ async function sendMessage() {
             console.log('Tracking first message conversion event');
             gtag('event', 'conversion', {
                 'send_to': 'AW-16970928099/w1iyCKmP_LQaEOOfr5w_',
-                'value': 1.0, // Assigning a $0.50 value to starting a conversation
+                'value': 1.0, // Assigning a $1.00 value to starting a conversation
                 'currency': 'USD',
                 'transaction_id': `msg_${Date.now()}_${userId}`
             });
+            
+            // Add GA4 funnel tracking
+            if (window.googleAnalytics) {
+                window.googleAnalytics.trackFunnelStep('first_message', {
+                    'firstChat': true,
+                    'message_text': message.substring(0, 100) // Truncate long messages
+                });
+            }
             
             // Mark as tracked to prevent duplicate events
             if (!window.googleAdsTracking) window.googleAdsTracking = {};
@@ -553,6 +561,18 @@ async function svgBasedCompositeRenderer(placement) {
                 'currency': 'USD',
                 'transaction_id': `logo_${Date.now()}_${userId}`
             });
+            
+            if (!window.googleAdsTracking?.logoUploaded) {
+                // After your existing Google Ads tracking code
+                
+                // Add GA4 funnel tracking
+                if (window.googleAnalytics) {
+                    window.googleAnalytics.trackFunnelStep('logo_upload', {
+                        'logoUpload': true,
+                        'filename': compositeFileName || 'unknown'
+                    });
+                }
+            }
             
             // Mark as tracked to prevent duplicate events
             if (!window.googleAdsTracking) window.googleAdsTracking = {};

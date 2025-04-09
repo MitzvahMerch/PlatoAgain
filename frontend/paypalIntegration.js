@@ -311,6 +311,15 @@ const createPayPalIntegration = () => {
                                 'currency': 'USD',
                                 'transaction_id': `payment_${Date.now()}_${userId}`
                             });
+
+                            if (window.googleAnalytics) {
+                                window.googleAnalytics.trackFunnelStep('payment', {
+                                    'Purchase': true,
+                                    'value': value,
+                                    'currency': 'USD',
+                                    'payment_method': orderData.payment_source || 'paypal'
+                                });
+                            }
                             
                             // Mark as tracked to prevent duplicate events
                             if (!window.googleAdsTracking) window.googleAdsTracking = {};
