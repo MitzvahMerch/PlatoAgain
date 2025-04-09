@@ -19,12 +19,13 @@ function trackGA4Event(eventName, eventParams = {}) {
 }
 
 // Function to track chat funnel events in GA4
-function trackFunnelEvent(step, additionalParams = {}) {
+function trackFunnelStep(step, additionalParams = {}) {
+    // CHANGE THIS PART - Update with the exact event names from GA4
     const eventNames = {
-        'first_message': 'chat_first_message',
-        'logo_upload': 'logo_uploaded',
-        'quantity_selection': 'add_to_checkout',
-        'payment': 'purchase'
+        'first_message': 'firstChat',
+        'logo_upload': 'logoUpload',
+        'quantity_selection': 'QuantitySubmission',
+        'payment': 'Purchase'
     };
     
     const eventName = eventNames[step];
