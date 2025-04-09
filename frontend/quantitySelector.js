@@ -76,88 +76,87 @@ const createQuantitySelector = () => {
     };
 
     // Helper to create a size selector row
-    // Helper to create a size selector row
-const createSizeRow = (size, type) => {
-    const sizeKey = `${type.toLowerCase()}_${size.toLowerCase().replace(/xl/i, 'XL')}`;
-    
-    const row = document.createElement('div');
-    row.className = 'quantity-size-row';
-    
-    const label = document.createElement('div');
-    label.className = 'quantity-size-label';
-    label.textContent = `${type} ${size}`;
-    
-    const controls = document.createElement('div');
-    controls.className = 'quantity-controls';
-    
-    const minusBtn = document.createElement('button');
-    minusBtn.className = 'quantity-btn quantity-btn-minus';
-    minusBtn.textContent = '-';
-    minusBtn.setAttribute('data-size', sizeKey);
-    minusBtn.addEventListener('click', (e) => {
-        e.preventDefault(); // Prevent form submission
-        e.stopPropagation(); // Prevent event from bubbling
-        const input = controls.querySelector('.quantity-input');
-        let value = parseInt(input.value) || 0;
-        if (value > 0) {
-            input.value = value - 1;
-            input.dispatchEvent(new Event('change'));
-        }
-    });
-    
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.className = 'quantity-input';
-    input.min = '0';
-    input.value = '0';
-    input.setAttribute('data-size', sizeKey);
+    const createSizeRow = (size, type) => {
+        const sizeKey = `${type.toLowerCase()}_${size.toLowerCase().replace(/xl/i, 'XL')}`;
+        
+        const row = document.createElement('div');
+        row.className = 'quantity-size-row';
+        
+        const label = document.createElement('div');
+        label.className = 'quantity-size-label';
+        label.textContent = `${type} ${size}`;
+        
+        const controls = document.createElement('div');
+        controls.className = 'quantity-controls';
+        
+        const minusBtn = document.createElement('button');
+        minusBtn.className = 'quantity-btn quantity-btn-minus';
+        minusBtn.textContent = '-';
+        minusBtn.setAttribute('data-size', sizeKey);
+        minusBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent form submission
+            e.stopPropagation(); // Prevent event from bubbling
+            const input = controls.querySelector('.quantity-input');
+            let value = parseInt(input.value) || 0;
+            if (value > 0) {
+                input.value = value - 1;
+                input.dispatchEvent(new Event('change'));
+            }
+        });
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'quantity-input';
+        input.min = '0';
+        input.value = '0';
+        input.setAttribute('data-size', sizeKey);
 
-    // Clear the default '0' when the field is focused
-    input.addEventListener('focus', (e) => {
-        if (e.target.value === '0') {
-            e.target.value = '';
-        }
-    });
-    
-    // If the field is left empty on blur, reset it to '0'
-    input.addEventListener('blur', (e) => {
-        if (e.target.value === '') {
-            e.target.value = '0';
+        // Clear the default '0' when the field is focused
+        input.addEventListener('focus', (e) => {
+            if (e.target.value === '0') {
+                e.target.value = '';
+            }
+        });
+        
+        // If the field is left empty on blur, reset it to '0'
+        input.addEventListener('blur', (e) => {
+            if (e.target.value === '') {
+                e.target.value = '0';
+                updateTotals();
+            }
+        });
+        
+        input.addEventListener('change', updateTotals);
+        input.addEventListener('input', (e) => {
+            // Ensure input is a non-negative integer
+            let value = e.target.value.replace(/[^0-9]/g, '');
+            if (value === '') value = '0';
+            e.target.value = value;
             updateTotals();
-        }
-    });
-    
-    input.addEventListener('change', updateTotals);
-    input.addEventListener('input', (e) => {
-        // Ensure input is a non-negative integer
-        let value = e.target.value.replace(/[^0-9]/g, '');
-        if (value === '') value = '0';
-        e.target.value = value;
-        updateTotals();
-    });
-    
-    const plusBtn = document.createElement('button');
-    plusBtn.className = 'quantity-btn quantity-btn-plus';
-    plusBtn.textContent = '+';
-    plusBtn.setAttribute('data-size', sizeKey);
-    plusBtn.addEventListener('click', (e) => {
-        e.preventDefault(); // Prevent form submission
-        e.stopPropagation(); // Prevent event from bubbling
-        const input = controls.querySelector('.quantity-input');
-        let value = parseInt(input.value) || 0;
-        input.value = value + 1;
-        input.dispatchEvent(new Event('change'));
-    });
-    
-    controls.appendChild(minusBtn);
-    controls.appendChild(input);
-    controls.appendChild(plusBtn);
-    
-    row.appendChild(label);
-    row.appendChild(controls);
-    
-    return row;
-};
+        });
+        
+        const plusBtn = document.createElement('button');
+        plusBtn.className = 'quantity-btn quantity-btn-plus';
+        plusBtn.textContent = '+';
+        plusBtn.setAttribute('data-size', sizeKey);
+        plusBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent form submission
+            e.stopPropagation(); // Prevent event from bubbling
+            const input = controls.querySelector('.quantity-input');
+            let value = parseInt(input.value) || 0;
+            input.value = value + 1;
+            input.dispatchEvent(new Event('change'));
+        });
+        
+        controls.appendChild(minusBtn);
+        controls.appendChild(input);
+        controls.appendChild(plusBtn);
+        
+        row.appendChild(label);
+        row.appendChild(controls);
+        
+        return row;
+    };
 
     // Update total quantities and trigger notification
     function updateTotals() {
@@ -355,6 +354,27 @@ const createSizeRow = (size, type) => {
             return;
         }
         
+        // Track quantity selection as an "add to checkout" event for Google Ads
+        if (window.googleAdsEvents && typeof window.googleAdsEvents.trackQuantitySelection === 'function') {
+            console.log('Tracking quantity selection for Google Ads:', totalQuantity);
+            window.googleAdsEvents.trackQuantitySelection(totalQuantity);
+        } else {
+            // Fallback for direct tracking if the googleAdsEvents module isn't available
+            if (!window.googleAdsTracking?.quantitySelected) {
+                console.log(`Tracking quantity selection conversion event with ${totalQuantity} items`);
+                gtag('event', 'conversion', {
+                    'send_to': 'AW-16970928099/p6XqCJKMiLYaEOOfr5w_', // Replace with your actual conversion ID
+                    'value': totalQuantity * 0.5, // Assigning value based on quantity
+                    'currency': 'USD',
+                    'transaction_id': `qty_${Date.now()}_${userId}`
+                });
+                
+                // Mark as tracked to prevent duplicate events
+                if (!window.googleAdsTracking) window.googleAdsTracking = {};
+                window.googleAdsTracking.quantitySelected = true;
+            }
+        }
+        
         // Format the quantities as a message that matches the expected patterns
         let message = '';
         for (const [sizeKey, quantity] of Object.entries(quantities)) {
@@ -409,42 +429,42 @@ const createSizeRow = (size, type) => {
     }
     
     // Show error for minimum quantity
-function showMinimumQuantityError() {
-    const container = document.querySelector('.quantity-selector-container');
-    
-    // Remove any existing error message
-    const existingError = container.querySelector('.quantity-error-message');
-    if (existingError) {
-        existingError.remove();
+    function showMinimumQuantityError() {
+        const container = document.querySelector('.quantity-selector-container');
+        
+        // Remove any existing error message
+        const existingError = container.querySelector('.quantity-error-message');
+        if (existingError) {
+            existingError.remove();
+        }
+        
+        // Create error message
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'quantity-error-message';
+        errorMessage.textContent = 'Minimum quantity: 24';
+        errorMessage.style.color = '#ff3333';
+        errorMessage.style.fontSize = '14px';
+        errorMessage.style.marginTop = '10px';
+        errorMessage.style.textAlign = 'right';
+        errorMessage.style.fontWeight = 'bold';
+        
+        // Add error to the footer
+        const footer = container.querySelector('.quantity-footer');
+        footer.appendChild(errorMessage);
+        
+        // Add animation effect to highlight the error
+        errorMessage.style.animation = 'shake 0.5s';
+        
+        // Also shake the total display for emphasis
+        const totalDisplay = container.querySelector('.quantity-total');
+        totalDisplay.style.color = '#ff3333';
+        totalDisplay.style.animation = 'shake 0.5s';
+        
+        // Reset color after animation
+        setTimeout(() => {
+            totalDisplay.style.color = 'white';
+        }, 1500);
     }
-    
-    // Create error message
-    const errorMessage = document.createElement('div');
-    errorMessage.className = 'quantity-error-message';
-    errorMessage.textContent = 'Minimum quantity: 24';
-    errorMessage.style.color = '#ff3333';
-    errorMessage.style.fontSize = '14px';
-    errorMessage.style.marginTop = '10px';
-    errorMessage.style.textAlign = 'right';
-    errorMessage.style.fontWeight = 'bold';
-    
-    // Add error to the footer
-    const footer = container.querySelector('.quantity-footer');
-    footer.appendChild(errorMessage);
-    
-    // Add animation effect to highlight the error
-    errorMessage.style.animation = 'shake 0.5s';
-    
-    // Also shake the total display for emphasis
-    const totalDisplay = container.querySelector('.quantity-total');
-    totalDisplay.style.color = '#ff3333';
-    totalDisplay.style.animation = 'shake 0.5s';
-    
-    // Reset color after animation
-    setTimeout(() => {
-        totalDisplay.style.color = 'white';
-    }, 1500);
-}
 
     // Add the CSS styles for the quantity selector
     const addStyles = () => {

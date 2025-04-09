@@ -2,12 +2,14 @@
 // This file implements Google Ads event tracking for key conversion points:
 // 1. First message sent
 // 2. Logo upload
-// 3. Payment completion
+// 3. Add to checkout (quantity selection)
+// 4. Payment completion
 
 // Create a global tracking object to prevent duplicate events
 window.googleAdsTracking = {
     firstMessageSent: false,
     logoUploaded: false,
+    quantitySelected: false,  // NEW tracking flag
     paymentCompleted: false
 };
 
@@ -23,7 +25,7 @@ function trackFirstMessage() {
     // Google Ads event snippet for first message (initiate conversation)
     gtag('event', 'conversion', {
         'send_to': 'AW-16970928099/w1iyCKmP_LQaEOOfr5w_',
-        'value': 1.0, // Assigning a $0.50 value to starting a conversation
+        'value': 1.0, // Assigning a $1.00 value to starting a conversation
         'currency': 'USD',
         'transaction_id': `msg_${Date.now()}_${userId}`
     });
@@ -51,6 +53,27 @@ function trackLogoUpload(logoFilename) {
     
     // Mark as tracked
     window.googleAdsTracking.logoUploaded = true;
+}
+
+// NEW FUNCTION: Track quantity selection (Add to Checkout equivalent)
+function trackQuantitySelection(totalQuantity) {
+    // Only track this once per session
+    if (window.googleAdsTracking.quantitySelected) {
+        return;
+    }
+    
+    console.log(`Tracking quantity selection conversion event with ${totalQuantity} items`);
+    
+    // Google Ads event snippet for quantity selection (add to checkout)
+    gtag('event', 'conversion', {
+        'send_to': 'AW-16970928099/p6XqCJKMiLYaEOOfr5w_', // This would be your actual add_to_checkout event ID
+        'value': totalQuantity * 0.5, // Assigning value based on quantity ($0.50 per item as an example)
+        'currency': 'USD',
+        'transaction_id': `qty_${Date.now()}_${userId}`
+    });
+    
+    // Mark as tracked
+    window.googleAdsTracking.quantitySelected = true;
 }
 
 // Track payment completion
@@ -89,7 +112,8 @@ function trackPaymentCompletion(paymentDetails) {
 window.googleAdsEvents = {
     trackFirstMessage,
     trackLogoUpload,
+    trackQuantitySelection, // NEW: Add this function to the exports
     trackPaymentCompletion
 };
 
-console.log('Google Ads event tracking initialized');
+console.log('Google Ads event tracking initialized with quantity selection support');
