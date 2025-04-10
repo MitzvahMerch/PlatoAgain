@@ -367,19 +367,7 @@ const createQuantitySelector = () => {
                     'value': totalQuantity * 0.5, // Assigning value based on quantity
                     'currency': 'USD',
                     'transaction_id': `qty_${Date.now()}_${userId}`
-                });
-
-                if (window.googleAnalytics) {
-                    // Call trackFunnelStep with 'quantity_selection' key
-                    // It maps to the 'confirm_quantities' event name
-                    window.googleAnalytics.trackFunnelStep('quantity_selection', {
-                        // Send the total quantity as a parameter
-                        total_quantity: totalQuantity
-                        // Remove 'QuantitySubmission': totalQuantity - redundant name
-                        // Remove 'value': totalQuantity * 0.5 - Avoid assigning monetary value here
-                        // user_id is added automatically by trackGA4Event
-                    });
-                }                
+                });         
                 
                 // Mark as tracked to prevent duplicate events
                 if (!window.googleAdsTracking) window.googleAdsTracking = {};
@@ -403,6 +391,14 @@ const createQuantitySelector = () => {
         }
         
         message = message.slice(0, -2); // Remove trailing comma and space
+
+        if (window.googleAnalytics) {
+            window.googleAnalytics.trackFunnelStep('quantity_selection', {
+                total_quantity: totalQuantity,
+                // ADD THIS PARAMETER: Capture the formatted text string
+                submitted_quantities_text: message.substring(0, 100) // Truncate if needed
+            });
+        }
         
         // Send the message through the chat
         const chatInput = document.getElementById('chat-input');
