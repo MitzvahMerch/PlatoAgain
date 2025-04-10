@@ -370,9 +370,14 @@ const createQuantitySelector = () => {
                 });
 
                 if (window.googleAnalytics) {
+                    // Call trackFunnelStep with 'quantity_selection' key
+                    // It maps to the 'confirm_quantities' event name
                     window.googleAnalytics.trackFunnelStep('quantity_selection', {
-                        'QuantitySubmission': totalQuantity,
-                        'value': totalQuantity * 0.5
+                        // Send the total quantity as a parameter
+                        total_quantity: totalQuantity
+                        // Remove 'QuantitySubmission': totalQuantity - redundant name
+                        // Remove 'value': totalQuantity * 0.5 - Avoid assigning monetary value here
+                        // user_id is added automatically by trackGA4Event
                     });
                 }                
                 

@@ -220,10 +220,13 @@ async function sendMessage() {
             // Add GA4 funnel tracking
             if (window.googleAnalytics) {
                 window.googleAnalytics.trackFunnelStep('first_message', {
-                    'firstChat': true,
-                    'message_text': message.substring(0, 100) // Truncate long messages
+                    // Parameters for the 'begin_chat' event
+                    message_text: message.substring(0, 100) // Keep if you accept PII risk
+                    // 'firstChat': true flag is removed - redundant with event name
+                    // user_id is added automatically by trackGA4Event (assuming previous correction)
                 });
             }
+            
             
             // Mark as tracked to prevent duplicate events
             if (!window.googleAdsTracking) window.googleAdsTracking = {};
@@ -553,13 +556,13 @@ async function svgBasedCompositeRenderer(placement) {
         addProductImage(compositeUrl, 'Design placement preview');
         
         // Track logo upload event for Google Ads
-        if (!window.googleAdsTracking?.logoUploaded) {
-            console.log('Tracking logo upload conversion event');
-            gtag('event', 'conversion', {
-                'send_to': 'AW-16970928099/aT3KCKGI77QaEOOfr5w_',
-                'value': 1.0, // Assigning a $1 value to uploading a logo
-                'currency': 'USD',
-                'transaction_id': `logo_${Date.now()}_${userId}`
+        if (window.googleAnalytics) {
+            window.googleAnalytics.trackFunnelStep('logo_upload', {
+                // Parameters for the 'upload_logo' event
+                file_name: compositeFileName || 'unknown',
+                file_url: compositeUrl || 'unknown' // Add the URL
+                 // 'logoUpload': true flag is removed - redundant with event name
+                 // user_id is added automatically by trackGA4Event (assuming previous correction)
             });
             
             if (!window.googleAdsTracking?.logoUploaded) {

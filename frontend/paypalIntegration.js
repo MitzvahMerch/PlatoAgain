@@ -313,12 +313,24 @@ const createPayPalIntegration = () => {
                             });
 
                             if (window.googleAnalytics) {
-                                window.googleAnalytics.trackFunnelStep('payment', {
-                                    'Purchase': true,
-                                    'value': value,
-                                    'currency': 'USD',
-                                    'payment_method': orderData.payment_source || 'paypal'
-                                });
+                                // Prepare parameters for the standard GA4 'purchase' event
+                                const purchaseParams = {
+                                    transaction_id: data.orderID || `payment_${Date.now()}_${userId}`, // CRITICAL: Use PayPal Order ID or generate unique ID
+                                    value: value, // The final numeric amount captured
+                                    currency: 'USD',
+                                    // Optional but recommended: more specific payment method
+                                    payment_method: orderData.payment_source?.venmo ? 'Venmo' : (orderData.payment_source?.paypal ? 'PayPal' : 'Card/Other'),
+                                    // Optional but HIGHLY recommended for e-commerce reporting: Items array
+                                    // items: [{ // You need to populate this based on orderDetails
+                                    //     item_id: 'YOUR_SKU_OR_PRODUCT_ID',
+                                    //     item_name: orderDetails.productInfo || 'Custom Product',
+                                    //     quantity: /* total quantity from orderDetails */,
+                                    //     price: value / /* total quantity */ // Calculate unit price if possible
+                                    // }]
+                                };
+                            
+                                // Call trackFunnelStep with the 'payment' key, which maps to 'purchase' event
+                                window.googleAnalytics.trackFunnelStep('payment', purchaseParams);
                             }
                             
                             // Mark as tracked to prevent duplicate events
